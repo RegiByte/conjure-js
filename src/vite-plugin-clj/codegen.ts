@@ -1,6 +1,6 @@
 import { isMacro } from '../core/assertions'
 import type { Session } from '../core/session'
-import type { CljValue } from '../core/types'
+import type { Arity, CljValue } from '../core/types'
 import { extractNsName, extractNsRequires } from './namespace-utils'
 
 export interface CodegenContext {
@@ -75,9 +75,89 @@ function isAFunction(value: CljValue): boolean {
   return value.kind === 'function' || value.kind === 'native-function'
 }
 
+function cljValueToTsType(value: CljValue): string {
+  switch (value.kind) {
+    case 'number':
+      return 'number'
+    case 'string':
+      return 'string'
+    case 'boolean':
+      return 'boolean'
+    case 'nil':
+      return 'null'
+    case 'keyword':
+      return 'string'
+    case 'symbol':
+      return 'string'
+    case 'list':
+    case 'vector':
+      return 'unknown[]'
+    case 'map':
+      return 'Record<string, unknown>'
+    case 'function':
+    case 'native-function':
+      return '(...args: unknown[]) => unknown'
+    case 'macro':
+      return 'never'
+  }
+}
+
+function arityToSignature(arity: Arity): string {
+  const fixedParams = arity.params
+    .map((p) => `${safeJsIdentifier(p.name)}: unknown`)
+    .join(', ')
+
+  if (arity.restParam) {
+    const restName = safeJsIdentifier(arity.restParam.name)
+    const params = fixedParams
+      ? `${fixedParams}, ...${restName}: unknown[]`
+      : `...${restName}: unknown[]`
+    return `(${params}): unknown`
+  }
+
+  return `(${fixedParams}): unknown`
+}
+
+export function generateDts(
+  ctx: CodegenContext,
+  nsNameFromPath: string,
+  source: string
+): string {
+  const nsName = extractNsName(source) ?? nsNameFromPath
+
+  try {
+    ctx.session.loadFile(source, nsName)
+  } catch {
+    return ''
+  }
+
+  const nsEnv = ctx.session.getNs(nsName)
+  if (!nsEnv) return ''
+
+  const declarations: string[] = []
+  for (const [name, value] of nsEnv.bindings) {
+    if (isMacro(value)) continue
+
+    const safeName = safeJsIdentifier(name)
+
+    if (value.kind === 'function') {
+      for (const arity of value.arities) {
+        declarations.push(`export function ${safeName}${arityToSignature(arity)};`)
+      }
+    } else if (value.kind === 'native-function') {
+      declarations.push(`export function ${safeName}(...args: unknown[]): unknown;`)
+    } else {
+      declarations.push(`export const ${safeName}: ${cljValueToTsType(value)};`)
+    }
+  }
+
+  return declarations.join('\n')
+}
+
 export function safeJsIdentifier(name: string): string {
   return name
     .replace(/-/g, '_')
+    .replace(/\//g, '_DIV_')
     .replace(/\?/g, '_QMARK_')
     .replace(/!/g, '_BANG_')
     .replace(/\*/g, '_STAR_')

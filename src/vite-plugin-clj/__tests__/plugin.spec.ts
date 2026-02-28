@@ -1,6 +1,6 @@
 import { resolve } from 'node:path'
 import { describe, expect, it, beforeEach } from 'vitest'
-import { cljPlugin, safeJsIdentifier, generateModuleCode } from '../index'
+import { cljPlugin, safeJsIdentifier, generateModuleCode, generateDts } from '../index'
 import type { CodegenContext } from '../codegen'
 import type { Plugin, ResolvedConfig } from 'vite'
 import macrosSource from '../../clojure/macros.clj?raw'
@@ -51,6 +51,10 @@ describe('safeJsIdentifier', () => {
 
   it('handles combined transformations', () => {
     expect(safeJsIdentifier('my-fn?')).toBe('my_fn_QMARK_')
+  })
+
+  it('replaces / with _DIV_', () => {
+    expect(safeJsIdentifier('/')).toBe('_DIV_')
   })
 
   it('leaves simple names unchanged', () => {
@@ -232,5 +236,107 @@ describe('generateModuleCode', () => {
     const code = generateModuleCode(ctx, 'test.nodep', source)
 
     expect(code).not.toContain('import "')
+  })
+})
+
+describe('generateDts', () => {
+  it('emits typed function declaration with real param names', () => {
+    const ctx = makeCodegenCtx()
+    const source = '(ns test.dts.fns)\n(defn add [a b] (+ a b))'
+    const dts = generateDts(ctx, 'test.dts.fns', source)
+
+    expect(dts).toContain('export function add(a: unknown, b: unknown): unknown;')
+  })
+
+  it('emits multiple overload signatures for multi-arity functions', () => {
+    const ctx = makeCodegenCtx()
+    const source = [
+      '(ns test.dts.multi)',
+      '(defn greet',
+      '  ([name] name)',
+      '  ([greeting name] (str greeting name)))',
+    ].join('\n')
+    const dts = generateDts(ctx, 'test.dts.multi', source)
+
+    expect(dts).toContain('export function greet(name: unknown): unknown;')
+    expect(dts).toContain(
+      'export function greet(greeting: unknown, name: unknown): unknown;'
+    )
+  })
+
+  it('emits variadic signature when function has a rest param', () => {
+    const ctx = makeCodegenCtx()
+    const source = '(ns test.dts.variadic)\n(defn log [level & args] args)'
+    const dts = generateDts(ctx, 'test.dts.variadic', source)
+
+    expect(dts).toContain(
+      'export function log(level: unknown, ...args: unknown[]): unknown;'
+    )
+  })
+
+  it('emits zero-param variadic signature for rest-only functions', () => {
+    const ctx = makeCodegenCtx()
+    const source = '(ns test.dts.restonly)\n(defn sum [& nums] nums)'
+    const dts = generateDts(ctx, 'test.dts.restonly', source)
+
+    expect(dts).toContain('export function sum(...nums: unknown[]): unknown;')
+  })
+
+  it('emits typed const for primitive values', () => {
+    const ctx = makeCodegenCtx()
+    const source = [
+      '(ns test.dts.prims)',
+      '(def greeting "hello")',
+      '(def answer 42)',
+      '(def active? true)',
+    ].join('\n')
+    const dts = generateDts(ctx, 'test.dts.prims', source)
+
+    expect(dts).toContain('export const greeting: string;')
+    expect(dts).toContain('export const answer: number;')
+    expect(dts).toContain('export const active_QMARK_: boolean;')
+  })
+
+  it('emits unknown[] for vector and list values', () => {
+    const ctx = makeCodegenCtx()
+    const source = '(ns test.dts.colls)\n(def items [1 2 3])'
+    const dts = generateDts(ctx, 'test.dts.colls', source)
+
+    expect(dts).toContain('export const items: unknown[];')
+  })
+
+  it('emits Record<string, unknown> for map values', () => {
+    const ctx = makeCodegenCtx()
+    const source = '(ns test.dts.maps)\n(def config {:host "localhost" :port 3000})'
+    const dts = generateDts(ctx, 'test.dts.maps', source)
+
+    expect(dts).toContain('export const config: Record<string, unknown>;')
+  })
+
+  it('excludes macros from declarations', () => {
+    const ctx = makeCodegenCtx()
+    const source =
+      '(ns test.dts.macros)\n(defmacro my-when [test & body] `(if ~test (do ~@body) nil))\n(def x 1)'
+    const dts = generateDts(ctx, 'test.dts.macros', source)
+
+    expect(dts).not.toContain('my_when')
+    expect(dts).toContain('export const x: number;')
+  })
+
+  it('applies safeJsIdentifier to param names', () => {
+    const ctx = makeCodegenCtx()
+    const source = '(ns test.dts.paramnames)\n(defn transform [input-val output-fn?] input-val)'
+    const dts = generateDts(ctx, 'test.dts.paramnames', source)
+
+    expect(dts).toContain(
+      'export function transform(input_val: unknown, output_fn_QMARK_: unknown): unknown;'
+    )
+  })
+
+  it('returns empty string when namespace fails to load', () => {
+    const ctx = makeCodegenCtx()
+    const dts = generateDts(ctx, 'nonexistent.ns', '(invalid clojure source !!!)')
+
+    expect(dts).toBe('')
   })
 })

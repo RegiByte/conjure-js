@@ -1,10 +1,10 @@
-import { readFileSync } from 'node:fs'
-import { resolve, relative } from 'node:path'
+import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { resolve, relative, join } from 'node:path'
 import type { Plugin, ResolvedConfig } from 'vite'
 import { createSession } from '../core/session'
 import type { Session } from '../core/session'
 import { nsToPath, pathToNs } from './namespace-utils'
-import { generateModuleCode, safeJsIdentifier } from './codegen'
+import { generateModuleCode, generateDts, safeJsIdentifier } from './codegen'
 import type { CodegenContext } from './codegen'
 
 interface CljPluginOptions {
@@ -21,6 +21,47 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
   let coreIndexPath: string
   let macrosPath: string
   let codegenCtx: CodegenContext
+
+  function collectCljFiles(dir: string): string[] {
+    let results: string[] = []
+    let entries: string[]
+    try {
+      entries = readdirSync(dir)
+    } catch {
+      return results
+    }
+    for (const entry of entries) {
+      if (entry.startsWith('.') || entry === 'node_modules') continue
+      const fullPath = join(dir, entry)
+      try {
+        const stat = statSync(fullPath)
+        if (stat.isDirectory()) {
+          results = results.concat(collectCljFiles(fullPath))
+        } else if (entry.endsWith('.clj')) {
+          results.push(fullPath)
+        }
+      } catch {
+        continue
+      }
+    }
+    return results
+  }
+
+  function eagerlyGenerateDts() {
+    for (const root of sourceRoots) {
+      const rootPath = resolve(projectRoot, root)
+      for (const filePath of collectCljFiles(rootPath)) {
+        try {
+          const source = readFileSync(filePath, 'utf-8')
+          const nsNameFromPath = pathToNs(relative(projectRoot, filePath), sourceRoots)
+          const dts = generateDts(codegenCtx, nsNameFromPath, source)
+          writeFileSync(filePath + '.d.ts', dts, 'utf-8')
+        } catch {
+          continue
+        }
+      }
+    }
+  }
 
   function initServerSession() {
     serverSession = createSession({
@@ -57,6 +98,7 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
       coreIndexPath = resolve(projectRoot, 'src/core/index.ts')
       macrosPath = resolve(projectRoot, 'src/clojure/macros.clj')
       initServerSession()
+      eagerlyGenerateDts()
     },
 
     resolveId(source: string) {
@@ -88,7 +130,10 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
       if (id.endsWith('.clj') && !id.includes('?')) {
         const source = readFileSync(id, 'utf-8')
         const nsNameFromPath = pathToNs(relative(projectRoot, id), sourceRoots)
-        return generateModuleCode(codegenCtx, nsNameFromPath, source)
+        const code = generateModuleCode(codegenCtx, nsNameFromPath, source)
+        const dts = generateDts(codegenCtx, nsNameFromPath, source)
+        writeFileSync(id + '.d.ts', dts, 'utf-8')
+        return code
       }
     },
 
@@ -98,8 +143,10 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
       const doUpdate = async () => {
         const source = await read()
         try {
-          const nsName = pathToNs(relative(projectRoot, file), sourceRoots)
-          serverSession.loadFile(source, nsName)
+          const nsNameFromPath = pathToNs(relative(projectRoot, file), sourceRoots)
+          serverSession.loadFile(source, nsNameFromPath)
+          const dts = generateDts(codegenCtx, nsNameFromPath, source)
+          writeFileSync(file + '.d.ts', dts, 'utf-8')
         } catch {
           // file may not be under source roots
         }
@@ -111,5 +158,5 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
   } satisfies Plugin
 }
 
-export { safeJsIdentifier, generateModuleCode }
+export { safeJsIdentifier, generateModuleCode, generateDts }
 export type { CljPluginOptions, CodegenContext }

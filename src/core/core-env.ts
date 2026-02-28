@@ -27,14 +27,17 @@ import {
   cljNil,
   cljNumber,
   cljString,
+  cljSymbol,
   cljVector,
 } from './factories'
+import { makeGensym } from './gensym'
 import { printString } from './printer'
 import { valueToString } from './transformations'
 import {
   valueKeywords,
   type CljList,
   type CljMap,
+  type CljNativeFunction,
   type CljNumber,
   type CljValue,
   type CljVector,
@@ -1091,6 +1094,297 @@ function getCoreFunctions(globalEnv: Env) {
       }
       return cljList(Array(n.value).fill(x))
     }),
+
+    // ── Numeric utilities ────────────────────────────────────────────────────
+
+    mod: cljNativeFunction('mod', (n: CljValue, d: CljValue) => {
+      if (n === undefined || n.kind !== 'number') {
+        throw new EvaluationError(
+          `mod expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`,
+          { n }
+        )
+      }
+      if (d === undefined || d.kind !== 'number') {
+        throw new EvaluationError(
+          `mod expects a number as second argument${d !== undefined ? `, got ${printString(d)}` : ''}`,
+          { d }
+        )
+      }
+      if ((d as CljNumber).value === 0) {
+        throw new EvaluationError('mod: division by zero', { n, d })
+      }
+      // Clojure mod always returns non-negative when divisor is positive
+      const result = (n as CljNumber).value % (d as CljNumber).value
+      return cljNumber(
+        result < 0 ? result + Math.abs((d as CljNumber).value) : result
+      )
+    }),
+
+    'even?': cljNativeFunction('even?', (n: CljValue) => {
+      if (n === undefined || n.kind !== 'number') {
+        throw new EvaluationError(
+          `even? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`,
+          { n }
+        )
+      }
+      return cljBoolean((n as CljNumber).value % 2 === 0)
+    }),
+
+    'odd?': cljNativeFunction('odd?', (n: CljValue) => {
+      if (n === undefined || n.kind !== 'number') {
+        throw new EvaluationError(
+          `odd? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`,
+          { n }
+        )
+      }
+      return cljBoolean(Math.abs((n as CljNumber).value) % 2 !== 0)
+    }),
+
+    // ── Gensym ───────────────────────────────────────────────────────────────
+
+    gensym: cljNativeFunction('gensym', (...args: CljValue[]) => {
+      if (args.length > 1) {
+        throw new EvaluationError('gensym takes 0 or 1 arguments', { args })
+      }
+      const prefix = args[0]
+      if (prefix !== undefined && prefix.kind !== 'string') {
+        throw new EvaluationError(
+          `gensym prefix must be a string${prefix !== undefined ? `, got ${printString(prefix)}` : ''}`,
+          { prefix }
+        )
+      }
+      const p = prefix?.kind === 'string' ? prefix.value : 'G'
+      return cljSymbol(makeGensym(p))
+    }),
+
+    // ── Range ────────────────────────────────────────────────────────────────
+
+    range: cljNativeFunction('range', (...args: CljValue[]) => {
+      if (args.length === 0 || args.length > 3) {
+        throw new EvaluationError(
+          'range expects 1, 2, or 3 arguments: (range n), (range start end), or (range start end step)',
+          { args }
+        )
+      }
+      if (args.some((a) => a.kind !== 'number')) {
+        throw new EvaluationError('range expects number arguments', { args })
+      }
+      let start: number
+      let end: number
+      let step: number
+      if (args.length === 1) {
+        start = 0
+        end = (args[0] as CljNumber).value
+        step = 1
+      } else if (args.length === 2) {
+        start = (args[0] as CljNumber).value
+        end = (args[1] as CljNumber).value
+        step = 1
+      } else {
+        start = (args[0] as CljNumber).value
+        end = (args[1] as CljNumber).value
+        step = (args[2] as CljNumber).value
+      }
+      if (step === 0) {
+        throw new EvaluationError('range step cannot be zero', { args })
+      }
+      const result: CljValue[] = []
+      if (step > 0) {
+        for (let i = start; i < end; i += step) {
+          result.push(cljNumber(i))
+        }
+      } else {
+        for (let i = start; i > end; i += step) {
+          result.push(cljNumber(i))
+        }
+      }
+      return cljList(result)
+    }),
+
+    // ── Identity ─────────────────────────────────────────────────────────────
+
+    identity: cljNativeFunction('identity', (x: CljValue) => {
+      if (x === undefined) {
+        throw new EvaluationError('identity expects one argument', {})
+      }
+      return x
+    }),
+
+    // ── last / reverse ───────────────────────────────────────────────────────
+
+    last: cljNativeFunction('last', (coll: CljValue) => {
+      if (coll === undefined || (!isList(coll) && !isVector(coll))) {
+        throw new EvaluationError(
+          `last expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+          { coll }
+        )
+      }
+      const items = coll.value
+      return items.length === 0 ? cljNil() : items[items.length - 1]
+    }),
+
+    reverse: cljNativeFunction('reverse', (coll: CljValue) => {
+      if (coll === undefined || (!isList(coll) && !isVector(coll))) {
+        throw new EvaluationError(
+          `reverse expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+          { coll }
+        )
+      }
+      return cljList([...coll.value].reverse())
+    }),
+
+    // ── Predicates ───────────────────────────────────────────────────────────
+
+    'not=': cljNativeFunction('not=', (...args: CljValue[]) => {
+      if (args.length < 2) {
+        throw new EvaluationError('not= expects at least two arguments', {
+          args,
+        })
+      }
+      for (let i = 1; i < args.length; i++) {
+        if (!isEqual(args[i], args[i - 1])) {
+          return cljBoolean(true)
+        }
+      }
+      return cljBoolean(false)
+    }),
+
+    'empty?': cljNativeFunction('empty?', (coll: CljValue) => {
+      if (coll === undefined || !isCollection(coll)) {
+        throw new EvaluationError(
+          `empty? expects a collection${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+          { coll }
+        )
+      }
+      return cljBoolean(toSeq(coll).length === 0)
+    }),
+
+    some: cljNativeFunction(
+      'some',
+      (pred: CljValue, coll: CljValue): CljValue => {
+        if (pred === undefined || !isAFunction(pred)) {
+          throw new EvaluationError(
+            `some expects a function as first argument${pred !== undefined ? `, got ${printString(pred)}` : ''}`,
+            { pred }
+          )
+        }
+        if (coll === undefined) {
+          return cljNil()
+        }
+        if (!isCollection(coll)) {
+          throw new EvaluationError(
+            `some expects a collection as second argument, got ${printString(coll)}`,
+            { coll }
+          )
+        }
+        for (const item of toSeq(coll)) {
+          const result = applyFunction(pred, [item])
+          if (isTruthy(result)) {
+            return result
+          }
+        }
+        return cljNil()
+      }
+    ),
+
+    'every?': cljNativeFunction(
+      'every?',
+      (pred: CljValue, coll: CljValue): CljValue => {
+        if (pred === undefined || !isAFunction(pred)) {
+          throw new EvaluationError(
+            `every? expects a function as first argument${pred !== undefined ? `, got ${printString(pred)}` : ''}`,
+            { pred }
+          )
+        }
+        if (coll === undefined || !isCollection(coll)) {
+          throw new EvaluationError(
+            `every? expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+            { coll }
+          )
+        }
+        for (const item of toSeq(coll)) {
+          if (isFalsy(applyFunction(pred, [item]))) {
+            return cljBoolean(false)
+          }
+        }
+        return cljBoolean(true)
+      }
+    ),
+
+    // ── Higher-order functions ────────────────────────────────────────────────
+
+    partial: cljNativeFunction(
+      'partial',
+      (fn: CljValue, ...preArgs: CljValue[]) => {
+        if (fn === undefined || !isAFunction(fn)) {
+          throw new EvaluationError(
+            `partial expects a function as first argument${fn !== undefined ? `, got ${printString(fn)}` : ''}`,
+            { fn }
+          )
+        }
+        const capturedFn = fn as Parameters<typeof applyFunction>[0]
+        return cljNativeFunction('partial', (...moreArgs: CljValue[]) => {
+          return applyFunction(capturedFn, [...preArgs, ...moreArgs])
+        })
+      }
+    ),
+
+    comp: cljNativeFunction('comp', (...fns: CljValue[]) => {
+      if (fns.length === 0) {
+        return cljNativeFunction('identity', (x: CljValue) => x)
+      }
+      if (fns.some((f) => !isAFunction(f))) {
+        throw new EvaluationError('comp expects functions', { fns })
+      }
+      const capturedFns = fns as Array<
+        CljNativeFunction | Parameters<typeof applyFunction>[0]
+      >
+      return cljNativeFunction('composed', (...args: CljValue[]) => {
+        let result = applyFunction(
+          capturedFns[capturedFns.length - 1] as Parameters<
+            typeof applyFunction
+          >[0],
+          args
+        )
+        for (let i = capturedFns.length - 2; i >= 0; i--) {
+          result = applyFunction(
+            capturedFns[i] as Parameters<typeof applyFunction>[0],
+            [result]
+          )
+        }
+        return result
+      })
+    }),
+
+    // ── map-indexed ──────────────────────────────────────────────────────────
+
+    'map-indexed': cljNativeFunction(
+      'map-indexed',
+      (fn: CljValue, coll: CljValue): CljValue => {
+        if (fn === undefined || !isAFunction(fn)) {
+          throw new EvaluationError(
+            `map-indexed expects a function as first argument${fn !== undefined ? `, got ${printString(fn)}` : ''}`,
+            { fn }
+          )
+        }
+        if (coll === undefined || !isCollection(coll)) {
+          throw new EvaluationError(
+            `map-indexed expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+            { coll }
+          )
+        }
+        const items = toSeq(coll)
+        const wrap = isVector(coll) ? cljVector : cljList
+        return wrap(
+          items.map((item, idx) =>
+            applyFunction(fn as Parameters<typeof applyFunction>[0], [
+              cljNumber(idx),
+              item,
+            ])
+          )
+        )
+      }
+    ),
   }
 
   return nativeFunctions

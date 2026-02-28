@@ -17,16 +17,16 @@
     true
     (if (nil? (seq (rest forms)))
       (first forms)
-      `(let [__v ~(first forms)]
-         (if __v (and ~@(rest forms)) __v)))))
+      `(let [v# ~(first forms)]
+         (if v# (and ~@(rest forms)) v#)))))
 
 (defmacro or [& forms]
   (if (nil? forms)
     nil
     (if (nil? (seq (rest forms)))
       (first forms)
-      `(let [__v ~(first forms)]
-         (if __v __v (or ~@(rest forms)))))))
+      `(let [v# ~(first forms)]
+         (if v# v# (or ~@(rest forms)))))))
 
 (defmacro cond [& clauses]
   (if (nil? clauses)
@@ -54,3 +54,15 @@
                      `(~(first form) ~@(rest form) ~x)
                      `(~form ~x))]
       `(->> ~threaded ~@more))))
+
+(defmacro comment
+  ; Ignores body, yields nil
+  [& body])
+
+(defn constantly [x] (fn [& _] x))
+
+(defn complement [f] (fn [& args] (not (apply f args))))
+
+(defn not-any? [pred coll] (not (some pred coll)))
+
+(defn not-every? [pred coll] (not (every? pred coll)))

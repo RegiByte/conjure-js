@@ -1,4 +1,5 @@
 import { define, extend, getNamespaceEnv, getRootEnv, lookup } from './env'
+import { makeGensym } from './gensym'
 import {
   cljList,
   cljMap,
@@ -281,7 +282,11 @@ export function evaluateMap(map: CljMap, env: Env): CljValue {
   return cljMap(entries)
 }
 
-function evaluateQuasiquote(form: CljValue, env: Env): CljValue {
+function evaluateQuasiquote(
+  form: CljValue,
+  env: Env,
+  autoGensyms: Map<string, string> = new Map()
+): CljValue {
   switch (form.kind) {
     case valueKeywords.vector:
     case valueKeywords.list: {
@@ -317,16 +322,15 @@ function evaluateQuasiquote(form: CljValue, env: Env): CljValue {
           continue
         }
         // Otherwise, recursively evaluate the quasiquote
-        elements.push(evaluateQuasiquote(elem, env))
+        elements.push(evaluateQuasiquote(elem, env, autoGensyms))
       }
       return isAList ? cljList(elements) : cljVector(elements)
     }
     case valueKeywords.map: {
-      // just recursve over each key-value pair with evaluateQuasiquote
       const entries: [CljValue, CljValue][] = []
       for (const [key, value] of form.entries) {
-        const evaluatedKey = evaluateQuasiquote(key, env)
-        const evaluatedValue = evaluateQuasiquote(value, env)
+        const evaluatedKey = evaluateQuasiquote(key, env, autoGensyms)
+        const evaluatedValue = evaluateQuasiquote(value, env, autoGensyms)
         entries.push([evaluatedKey, evaluatedValue])
       }
       return cljMap(entries)
@@ -336,8 +340,19 @@ function evaluateQuasiquote(form: CljValue, env: Env): CljValue {
     case valueKeywords.boolean:
     case valueKeywords.keyword:
     case valueKeywords.nil:
-    case valueKeywords.symbol:
       return form
+    case valueKeywords.symbol: {
+      // Auto-gensym: sym# inside a quasiquote expands to a unique symbol.
+      // All occurrences of the same sym# within one quasiquote expand to
+      // the same generated name (consistent within one template expansion).
+      if (form.name.endsWith('#')) {
+        if (!autoGensyms.has(form.name)) {
+          autoGensyms.set(form.name, makeGensym(form.name.slice(0, -1)))
+        }
+        return { kind: 'symbol', name: autoGensyms.get(form.name)! }
+      }
+      return form
+    }
     default:
       throw new EvaluationError(`Unexpected form: ${form.kind}`, { form, env })
   }

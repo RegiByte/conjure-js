@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import macrosSource from '../../clojure/macros.clj?raw'
-import { cljBoolean, cljNil, cljNumber, cljVector } from '../factories'
+import { cljBoolean, cljNil, cljNumber, cljString, cljVector } from '../factories'
 import { printString } from '../printer'
 import { createSession } from '../session'
 
@@ -231,10 +231,10 @@ describe('stdlib macros', () => {
       )
     })
 
-    it('expands and once', () => {
-      expect(printString(session().evaluate("(macroexpand-1 '(and 1 2 3))"))).toEqual(
-        '(let [__v 1] (if __v (and 2 3) __v))'
-      )
+    it('expands and once — binding symbol is a hygienic gensym', () => {
+      // The exact gensym name is non-deterministic; verify structure via pattern
+      const expanded = printString(session().evaluate("(macroexpand-1 '(and 1 2 3))"))
+      expect(expanded).toMatch(/^\(let \[v__\d+ 1\] \(if v__\d+ \(and 2 3\) v__\d+\)\)$/)
     })
 
     it('returns form unchanged when head is not a macro', () => {
@@ -274,5 +274,324 @@ describe('stdlib macros', () => {
         '(+ 1 2)'
       )
     })
+  })
+})
+
+describe('range', () => {
+  it('(range n) returns 0 to n-1', () => {
+    expect(session().evaluate('(range 5)')).toEqual(
+      session().evaluate("'(0 1 2 3 4)")
+    )
+  })
+
+  it('(range 0) returns empty list', () => {
+    expect(session().evaluate('(range 0)')).toEqual(session().evaluate("'()"))
+  })
+
+  it('(range start end) returns start to end-1', () => {
+    expect(session().evaluate('(range 2 6)')).toEqual(
+      session().evaluate("'(2 3 4 5)")
+    )
+  })
+
+  it('(range start end step) uses custom step', () => {
+    expect(session().evaluate('(range 0 10 2)')).toEqual(
+      session().evaluate("'(0 2 4 6 8)")
+    )
+  })
+
+  it('negative step counts down', () => {
+    expect(session().evaluate('(range 5 0 -1)')).toEqual(
+      session().evaluate("'(5 4 3 2 1)")
+    )
+  })
+
+  it('returns empty list when start >= end with positive step', () => {
+    expect(session().evaluate('(range 5 3)')).toEqual(session().evaluate("'()"))
+  })
+
+  it('throws on zero step', () => {
+    expect(() => session().evaluate('(range 0 10 0)')).toThrow()
+  })
+
+  it('works with map', () => {
+    expect(session().evaluate('(map inc (range 3))')).toEqual(
+      session().evaluate("'(1 2 3)")
+    )
+  })
+})
+
+describe('identity', () => {
+  it('returns its argument unchanged', () => {
+    expect(session().evaluate('(identity 42)')).toEqual(cljNumber(42))
+    expect(session().evaluate('(identity "hi")')).toEqual(cljString('hi'))
+    expect(session().evaluate('(identity nil)')).toEqual(cljNil())
+    expect(session().evaluate('(identity [1 2 3])')).toEqual(
+      cljVector([cljNumber(1), cljNumber(2), cljNumber(3)])
+    )
+  })
+
+  it('works as a function value', () => {
+    expect(session().evaluate("(map identity '(1 2 3))")).toEqual(
+      session().evaluate("'(1 2 3)")
+    )
+  })
+})
+
+describe('last', () => {
+  it('returns the last element of a list', () => {
+    expect(session().evaluate('(last (list 1 2 3))')).toEqual(cljNumber(3))
+  })
+
+  it('returns the last element of a vector', () => {
+    expect(session().evaluate('(last [10 20 30])')).toEqual(cljNumber(30))
+  })
+
+  it('returns nil for an empty list', () => {
+    expect(session().evaluate("(last '())")).toEqual(cljNil())
+  })
+
+  it('returns the only element of a single-element list', () => {
+    expect(session().evaluate("(last '(7))")).toEqual(cljNumber(7))
+  })
+
+  it('throws for non-sequential types', () => {
+    expect(() => session().evaluate('(last {:a 1})')).toThrow()
+  })
+})
+
+describe('reverse', () => {
+  it('reverses a list', () => {
+    expect(session().evaluate("(reverse '(1 2 3))")).toEqual(
+      session().evaluate("'(3 2 1)")
+    )
+  })
+
+  it('reverses a vector as a list', () => {
+    expect(session().evaluate('(reverse [1 2 3])')).toEqual(
+      session().evaluate("'(3 2 1)")
+    )
+  })
+
+  it('returns empty list for empty input', () => {
+    expect(session().evaluate("(reverse '())")).toEqual(
+      session().evaluate("'()")
+    )
+  })
+
+  it('single-element list is unchanged', () => {
+    expect(session().evaluate("(reverse '(42))")).toEqual(
+      session().evaluate("'(42)")
+    )
+  })
+})
+
+describe('not=', () => {
+  it('returns true when values differ', () => {
+    expect(session().evaluate('(not= 1 2)')).toEqual(cljBoolean(true))
+  })
+
+  it('returns false when values are equal', () => {
+    expect(session().evaluate('(not= 1 1)')).toEqual(cljBoolean(false))
+  })
+
+  it('returns false when all args are equal', () => {
+    expect(session().evaluate('(not= :a :a :a)')).toEqual(cljBoolean(false))
+  })
+
+  it('returns true when any adjacent pair differs', () => {
+    expect(session().evaluate('(not= 1 1 2)')).toEqual(cljBoolean(true))
+  })
+})
+
+describe('empty?', () => {
+  it('returns true for empty list', () => {
+    expect(session().evaluate("(empty? '())")).toEqual(cljBoolean(true))
+  })
+
+  it('returns true for empty vector', () => {
+    expect(session().evaluate('(empty? [])')).toEqual(cljBoolean(true))
+  })
+
+  it('returns false for non-empty list', () => {
+    expect(session().evaluate("(empty? '(1))")).toEqual(cljBoolean(false))
+  })
+
+  it('returns false for non-empty vector', () => {
+    expect(session().evaluate('(empty? [1 2])')).toEqual(cljBoolean(false))
+  })
+
+  it('returns true for empty map', () => {
+    expect(session().evaluate('(empty? {})')).toEqual(cljBoolean(true))
+  })
+})
+
+describe('some', () => {
+  it('returns first truthy result', () => {
+    expect(session().evaluate('(some even? [1 3 4 6])')).toEqual(cljBoolean(true))
+  })
+
+  it('returns nil when no element satisfies pred', () => {
+    expect(session().evaluate('(some even? [1 3 5])')).toEqual(cljNil())
+  })
+
+  it('returns the truthy result value, not always true', () => {
+    expect(session().evaluate('(some (fn [x] (when (even? x) x)) [1 3 4])')).toEqual(
+      cljNumber(4)
+    )
+  })
+
+  it('returns nil for empty collection', () => {
+    expect(session().evaluate("(some even? '())")).toEqual(cljNil())
+  })
+})
+
+describe('every?', () => {
+  it('returns true when all elements satisfy pred', () => {
+    expect(session().evaluate('(every? number? [1 2 3])')).toEqual(cljBoolean(true))
+  })
+
+  it('returns false when any element fails pred', () => {
+    expect(session().evaluate('(every? number? [1 "a" 3])')).toEqual(cljBoolean(false))
+  })
+
+  it('returns true for empty collection (vacuously true)', () => {
+    expect(session().evaluate("(every? number? '())")).toEqual(cljBoolean(true))
+  })
+})
+
+describe('partial', () => {
+  it('creates a function with pre-filled first argument', () => {
+    expect(session().evaluate('((partial + 10) 5)')).toEqual(cljNumber(15))
+  })
+
+  it('creates a function with multiple pre-filled arguments', () => {
+    expect(session().evaluate('((partial str "hello " ) "world")')).toEqual(
+      cljString('hello world')
+    )
+  })
+
+  it('works with no extra args at call time', () => {
+    expect(session().evaluate('((partial + 1 2 3))')).toEqual(cljNumber(6))
+  })
+
+  it('can be used with map', () => {
+    expect(session().evaluate("(map (partial + 10) '(1 2 3))")).toEqual(
+      session().evaluate("'(11 12 13)")
+    )
+  })
+})
+
+describe('comp', () => {
+  it('(comp) returns identity', () => {
+    expect(session().evaluate('((comp) 42)')).toEqual(cljNumber(42))
+  })
+
+  it('(comp f) is equivalent to f', () => {
+    expect(session().evaluate('((comp inc) 5)')).toEqual(cljNumber(6))
+  })
+
+  it('composes two functions right-to-left', () => {
+    expect(session().evaluate('((comp inc dec) 5)')).toEqual(cljNumber(5))
+    expect(session().evaluate('((comp str inc) 5)')).toEqual(
+      session().evaluate('(str 6)')
+    )
+  })
+
+  it('composes three functions right-to-left', () => {
+    expect(session().evaluate('((comp inc inc inc) 0)')).toEqual(cljNumber(3))
+  })
+
+  it('applies rightmost function with all args', () => {
+    expect(session().evaluate('((comp inc +) 1 2 3)')).toEqual(cljNumber(7))
+  })
+
+  it('can be stored and reused', () => {
+    const s = session()
+    s.evaluate('(def add1-then-str (comp str inc))')
+    expect(s.evaluate('(add1-then-str 9)')).toEqual(s.evaluate('(str 10)'))
+  })
+})
+
+describe('map-indexed', () => {
+  it('passes index and element to function (list input)', () => {
+    expect(session().evaluate("(map-indexed (fn [i x] i) '(:a :b :c))")).toEqual(
+      session().evaluate("'(0 1 2)")
+    )
+  })
+
+  it('passes element correctly (list input)', () => {
+    expect(session().evaluate("(map-indexed (fn [i x] x) '(:a :b :c))")).toEqual(
+      session().evaluate("'(:a :b :c)")
+    )
+  })
+
+  it('returns a vector when given a vector input', () => {
+    expect(session().evaluate('(map-indexed (fn [i x] i) [:a :b :c])')).toEqual(
+      cljVector([cljNumber(0), cljNumber(1), cljNumber(2)])
+    )
+  })
+
+  it('can build indexed pairs', () => {
+    expect(session().evaluate("(map-indexed vector '(:a :b :c))")).toEqual(
+      session().evaluate("'([0 :a] [1 :b] [2 :c])")
+    )
+  })
+
+  it('returns empty for empty collection', () => {
+    expect(session().evaluate("(map-indexed vector '())")).toEqual(
+      session().evaluate("'()")
+    )
+  })
+})
+
+describe('constantly', () => {
+  it('returns a function that always returns the given value', () => {
+    expect(session().evaluate('((constantly 42) 1 2 3)')).toEqual(cljNumber(42))
+  })
+
+  it('ignores all arguments', () => {
+    expect(session().evaluate('((constantly :foo))')).toEqual(
+      session().evaluate(':foo')
+    )
+  })
+
+  it('works with map', () => {
+    expect(session().evaluate("(map (constantly 0) '(1 2 3))")).toEqual(
+      session().evaluate("'(0 0 0)")
+    )
+  })
+})
+
+describe('complement', () => {
+  it('returns the logical negation of a predicate', () => {
+    expect(session().evaluate('((complement nil?) 42)')).toEqual(cljBoolean(true))
+    expect(session().evaluate('((complement nil?) nil)')).toEqual(cljBoolean(false))
+  })
+
+  it('works with even? to filter odd numbers', () => {
+    expect(session().evaluate("(filter (complement even?) '(1 2 3 4 5))")).toEqual(
+      session().evaluate("'(1 3 5)")
+    )
+  })
+})
+
+describe('not-any?', () => {
+  it('returns true when no element satisfies pred', () => {
+    expect(session().evaluate("(not-any? even? '(1 3 5))")).toEqual(cljBoolean(true))
+  })
+
+  it('returns false when any element satisfies pred', () => {
+    expect(session().evaluate("(not-any? even? '(1 2 3))")).toEqual(cljBoolean(false))
+  })
+})
+
+describe('not-every?', () => {
+  it('returns false when all elements satisfy pred', () => {
+    expect(session().evaluate("(not-every? number? '(1 2 3))")).toEqual(cljBoolean(false))
+  })
+
+  it('returns true when some elements fail pred', () => {
+    expect(session().evaluate("(not-every? number? '(1 \"a\" 3))")).toEqual(cljBoolean(true))
   })
 })

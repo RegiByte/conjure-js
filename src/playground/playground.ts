@@ -21,7 +21,7 @@ window.MonacoEnvironment = {
 // ── Starter code ─────────────────────────────────────────────────────────────
 
 const INITIAL_CODE = `\
-;; Regibyte Clojure Playground — press \u2318Enter (or Ctrl+Enter) to evaluate
+;; Clojure Playground — press ⌘+Enter (or Ctrl+Enter) to evaluate
 
 (defn fib [n]
   (loop [a 0 b 1 i n]
@@ -30,6 +30,51 @@ const INITIAL_CODE = `\
 
 ;; First 10 Fibonacci numbers
 (map fib [0 1 2 3 4 5 6 7 8 9])
+
+(repeat 3 1)
+(hash-map :key1 "value1" :key2 "value2")
+(def x 10)
+x
+(vector 1 2 3)
+(list 1 2 3)
+(map inc [1 2 3])
+(filter even? [1 2 3 4 5 6])
+(reduce + [1 2 3 4])
+(take 3 [1 2 3 4 5 6 7 8 9 10])
+(drop 3 [1 2 3 4 5 6 7 8 9 10])
+((constantly 3) 1 2 3)
+((constantly nil) true false (println 1 2 3))
+
+(comment
+  "This is a comment"
+  (println "These forms are not evaluated")
+  (println "You can evaluate individual forms too")
+  (println "place the cursor in front of a form and press ⌘+Enter (or Ctrl+Enter)")
+  ;; Try evaluating these forms
+  1
+  true
+  false
+  nil
+  {:keyword "value"}
+  [1 2 3]
+  [1,2,,,,,,,3]
+  (+ 1 2 3)
+  (range 5)
+  (range 5 16)
+  (range 5 16 2)
+
+
+  ((comp (fn [x] (* x 5)) (fn [x] (+ x 3))) 3)
+
+  ((partial + 10) 5)
+
+  (map-indexed 
+    (fn [index, value] 
+      {:idx index 
+       :val value
+       :squared (* value value)}) 
+    [1 2 3 4])
+)
 `
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
@@ -92,7 +137,7 @@ function createPlayground(appEl: HTMLElement): void {
   const titleEl = el('span', 'pg-header__title')
   titleEl.textContent = 'Regibyte Clojure Playground'
   const hintEl = el('span', 'pg-header__hint')
-  hintEl.innerHTML = '<kbd>⌘Enter</kbd> eval form &nbsp;·&nbsp; <kbd>Shift+⌘Enter</kbd> run all'
+  hintEl.innerHTML = '<kbd>⌘Enter</kbd> eval form'
   leftEl.appendChild(titleEl)
   leftEl.appendChild(hintEl)
 
