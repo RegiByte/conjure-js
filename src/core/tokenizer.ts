@@ -7,6 +7,51 @@ const createCursor = (line: number, col: number, offset: number) => ({
 })
 type Cursor = ReturnType<typeof createCursor>
 
+export function makeCharScanner(input: string) {
+  const cursor = createCursor(0, 0, 0)
+
+  const api = {
+    peek: (ahead: number = 0) => {
+      const idx = cursor.offset + ahead
+      if (idx >= input.length) return null
+      return input[idx]
+    },
+    advance: () => {
+      if (cursor.offset >= input.length) return null
+      const ch = input[cursor.offset]
+      cursor.offset++
+      if (ch === '\n') {
+        cursor.line++
+        cursor.col = 0
+      } else {
+        cursor.col++
+      }
+      return ch
+    },
+    isAtEnd: () => {
+      return cursor.offset >= input.length
+    },
+    position: (): Cursor => {
+      return {
+        line: cursor.line,
+        col: cursor.col,
+        offset: cursor.offset,
+      }
+    },
+    consumeWhile(predicate: (char: string) => boolean) {
+      const buffer: string[] = []
+      while (!api.isAtEnd() && predicate(api.peek()!)) {
+        buffer.push(api.advance()!)
+      }
+      return buffer.join('')
+    },
+  }
+
+  return api
+}
+
+export type CharScanner = ReturnType<typeof makeCharScanner>
+
 export class TokenizerError extends Error {
   context: any
   constructor(message: string, context: any) {
@@ -58,7 +103,8 @@ const isDelimiter = (char: string) =>
   isBacktick(char) ||
   isSingleQuote(char)
 
-const parseWhitespace = (scanner: CharScanner): Token => {
+const parseWhitespace = (ctx: TokenizationContext): Token => {
+  const scanner = ctx.scanner
   const start = scanner.position()
   scanner.consumeWhile(isWhitespace)
   return {
@@ -68,7 +114,8 @@ const parseWhitespace = (scanner: CharScanner): Token => {
   }
 }
 
-const parseComment = (scanner: CharScanner): Token => {
+const parseComment = (ctx: TokenizationContext): Token => {
+  const scanner = ctx.scanner
   const start = scanner.position()
   scanner.advance() // skip the `;`
   const value = scanner.consumeWhile((char) => !isNewline(char))
@@ -83,7 +130,8 @@ const parseComment = (scanner: CharScanner): Token => {
   }
 }
 
-const parseString = (scanner: CharScanner): Token => {
+const parseString = (ctx: TokenizationContext): Token => {
+  const scanner = ctx.scanner
   const start = scanner.position()
   scanner.advance() // consume opening "
   const buffer: string[] = []
@@ -139,7 +187,8 @@ const parseString = (scanner: CharScanner): Token => {
   }
 }
 
-const parseKeyword = (scanner: CharScanner): Token => {
+const parseKeyword = (ctx: TokenizationContext): Token => {
+  const scanner = ctx.scanner
   const start = scanner.position()
   const value = scanner.consumeWhile(
     (char) =>
@@ -154,7 +203,13 @@ const parseKeyword = (scanner: CharScanner): Token => {
   }
 }
 
-const parseNumber = (scanner: CharScanner): Token => {
+function isNumberToken(char: string, ctx: TokenizationContext) {
+  const scanner = ctx.scanner
+  const next = scanner.peek(1)
+  return isNumber(char) || (char === '-' && next !== null && isNumber(next))
+}
+const parseNumber = (ctx: TokenizationContext): Token => {
+  const scanner = ctx.scanner
   const start = scanner.position()
   let value = ''
   if (scanner.peek() === '-') {
@@ -184,7 +239,8 @@ const parseNumber = (scanner: CharScanner): Token => {
   }
 }
 
-const parseSymbol = (scanner: CharScanner): Token => {
+const parseSymbol = (ctx: TokenizationContext): Token => {
+  const scanner = ctx.scanner
   const start = scanner.position()
   const value = scanner.consumeWhile(
     (char) => !isWhitespace(char) && !isDelimiter(char) && !isComment(char)
@@ -200,7 +256,8 @@ const parseSymbol = (scanner: CharScanner): Token => {
 
 // Single routing point for all # dispatch characters.
 // Add new dispatch forms here as they are supported.
-function parseDispatch(scanner: CharScanner): Token {
+function parseDispatch(ctx: TokenizationContext): Token {
+  const scanner = ctx.scanner
   const start = scanner.position()
   scanner.advance() // consume '#'
   const next = scanner.peek()
@@ -222,160 +279,97 @@ function parseDispatch(scanner: CharScanner): Token {
   )
 }
 
-function parseNextToken(scanner: CharScanner): Token {
-  const char = scanner.peek()!
-  if (isWhitespace(scanner.peek()!)) {
-    return parseWhitespace(scanner)
-  }
-  if (isComment(scanner.peek()!)) {
-    return parseComment(scanner)
-  }
-  if (isLParen(char)) {
+function parseCharToken<K extends Token['kind']>(kind: K, value: string) {
+  return (ctx: TokenizationContext) => {
+    const scanner = ctx.scanner
     const start = scanner.position()
     scanner.advance()
 
     return {
-      kind: tokenKeywords.LParen,
-      value: tokenSymbols.LParen,
+      kind,
+      value,
       start,
       end: scanner.position(),
-    }
+    } as Token & { kind: K }
   }
-  if (isRParen(char)) {
-    const start = scanner.position()
-    scanner.advance()
-
-    return {
-      kind: tokenKeywords.RParen,
-      value: tokenSymbols.RParen,
-      start,
-      end: scanner.position(),
-    }
-  }
-  if (isLBracket(char)) {
-    const start = scanner.position()
-    scanner.advance()
-
-    return {
-      kind: tokenKeywords.LBracket,
-      value: tokenSymbols.LBracket,
-      start,
-      end: scanner.position(),
-    }
-  }
-  if (isRBracket(char)) {
-    const start = scanner.position()
-    scanner.advance()
-
-    return {
-      kind: tokenKeywords.RBracket,
-      value: tokenSymbols.RBracket,
-      start,
-      end: scanner.position(),
-    }
-  }
-  if (isLBrace(char)) {
-    const start = scanner.position()
-    scanner.advance()
-
-    return {
-      kind: tokenKeywords.LBrace,
-      value: tokenSymbols.LBrace,
-      start,
-      end: scanner.position(),
-    }
-  }
-  if (isRBrace(char)) {
-    const start = scanner.position()
-    scanner.advance()
-
-    return {
-      kind: tokenKeywords.RBrace,
-      value: tokenSymbols.RBrace,
-      start,
-      end: scanner.position(),
-    }
-  }
-  if (isDoubleQuote(char)) {
-    return parseString(scanner)
-  }
-  if (isKeywordStart(char)) {
-    return parseKeyword(scanner)
-  }
-  if (
-    isNumber(char) ||
-    (char === '-' && scanner.peek(1) !== null && isNumber(scanner.peek(1)!))
-  ) {
-    return parseNumber(scanner)
-  }
-  if (isSingleQuote(char)) {
-    const start = scanner.position()
-    scanner.advance()
-
-    return {
-      kind: tokenKeywords.Quote,
-      value: tokenSymbols.Quote,
-      start,
-      end: scanner.position(),
-    }
-  }
-  if (isBacktick(char)) {
-    const start = scanner.position()
-    scanner.advance()
-
-    return {
-      kind: tokenKeywords.Quasiquote,
-      value: tokenSymbols.Quasiquote,
-      start,
-      end: scanner.position(),
-    }
-  }
-  if (isTilde(char)) {
-    const start = scanner.position()
-    // consume the tilde
-    scanner.advance()
-    // check if the next character is an @
-    const nextChar = scanner.peek()
-    if (!nextChar) {
-      throw new TokenizerError(
-        `Unexpected end of input while parsing unquote at ${start.offset}`,
-        start
-      )
-    }
-    if (isAt(nextChar)) {
-      // consume the @
-      scanner.advance()
-      return {
-        kind: tokenKeywords.UnquoteSplicing,
-        value: tokenSymbols.UnquoteSplicing,
-        start,
-        end: scanner.position(),
-      }
-    }
-
-    return {
-      kind: tokenKeywords.Unquote,
-      value: tokenSymbols.Unquote,
-      start,
-      end: scanner.position(),
-    }
-  }
-
-  if (isHash(char)) {
-    return parseDispatch(scanner)
-  }
-
-  // catch-all symbol parsing
-  return parseSymbol(scanner)
 }
 
-export function parseAllTokens(scanner: CharScanner): TokensResult {
+function parseTilde(ctx: TokenizationContext): Token {
+  const scanner = ctx.scanner
+  const start = scanner.position()
+  // consume the tilde
+  scanner.advance()
+  // check if the next character is an @
+  const nextChar = scanner.peek()
+  if (!nextChar) {
+    throw new TokenizerError(
+      `Unexpected end of input while parsing unquote at ${start.offset}`,
+      start
+    )
+  }
+  if (isAt(nextChar)) {
+    // consume the @
+    scanner.advance()
+    return {
+      kind: tokenKeywords.UnquoteSplicing,
+      value: tokenSymbols.UnquoteSplicing,
+      start,
+      end: scanner.position(),
+    }
+  }
+
+  return {
+    kind: tokenKeywords.Unquote,
+    value: tokenSymbols.Unquote,
+    start,
+    end: scanner.position(),
+  }
+}
+
+type TokenParseCheck = (char: string, ctx: TokenizationContext) => boolean
+type TokenParseFn = (ctx: TokenizationContext) => Token
+type TokenParseEntry = [TokenParseCheck, TokenParseFn]
+
+const tokenParseEntries: TokenParseEntry[] = [
+  [isWhitespace, parseWhitespace],
+  [isComment, parseComment],
+  [isLParen, parseCharToken(tokenKeywords.LParen, tokenSymbols.LParen)],
+  [isRParen, parseCharToken(tokenKeywords.RParen, tokenSymbols.RParen)],
+  [isLBracket, parseCharToken(tokenKeywords.LBracket, tokenSymbols.LBracket)],
+  [isRBracket, parseCharToken(tokenKeywords.RBracket, tokenSymbols.RBracket)],
+  [isLBrace, parseCharToken(tokenKeywords.LBrace, tokenSymbols.LBrace)],
+  [isRBrace, parseCharToken(tokenKeywords.RBrace, tokenSymbols.RBrace)],
+  [isDoubleQuote, parseString],
+  [isKeywordStart, parseKeyword],
+  [isNumberToken, parseNumber],
+  [isSingleQuote, parseCharToken(tokenKeywords.Quote, tokenSymbols.Quote)],
+  [
+    isBacktick,
+    parseCharToken(tokenKeywords.Quasiquote, tokenSymbols.Quasiquote),
+  ],
+  [isTilde, parseTilde],
+  [isHash, parseDispatch],
+]
+
+function parseNextToken(ctx: TokenizationContext): Token {
+  const scanner = ctx.scanner
+  const char = scanner.peek()!
+  const entry = tokenParseEntries.find(([check]) => check(char, ctx))
+  if (entry) {
+    const [, parse] = entry
+    return parse(ctx)
+  }
+  // catch-all symbol parsing
+  return parseSymbol(ctx)
+}
+
+export function parseAllTokens(ctx: TokenizationContext): TokensResult {
   const tokens: Token[] = []
   let error: TokenizerError | undefined = undefined
 
   try {
-    while (!scanner.isAtEnd()) {
-      const result = parseNextToken(scanner)
+    while (!ctx.scanner.isAtEnd()) {
+      const result = parseNextToken(ctx)
 
       if (!result) {
         break
@@ -394,61 +388,30 @@ export function parseAllTokens(scanner: CharScanner): TokensResult {
 
   const parsed: TokensResult = {
     tokens,
-    scanner,
+    scanner: ctx.scanner,
     error,
   }
   return parsed
 }
 
-export function makeCharScanner(input: string) {
-  const cursor = createCursor(0, 0, 0)
-
-  const api = {
-    peek: (ahead: number = 0) => {
-      const idx = cursor.offset + ahead
-      if (idx >= input.length) return null
-      return input[idx]
-    },
-    advance: () => {
-      if (cursor.offset >= input.length) return null
-      const ch = input[cursor.offset]
-      cursor.offset++
-      if (ch === '\n') {
-        cursor.line++
-        cursor.col = 0
-      } else {
-        cursor.col++
-      }
-      return ch
-    },
-    isAtEnd: () => {
-      return cursor.offset >= input.length
-    },
-    position: (): Cursor => {
-      return {
-        line: cursor.line,
-        col: cursor.col,
-        offset: cursor.offset,
-      }
-    },
-    consumeWhile(predicate: (char: string) => boolean) {
-      const buffer: string[] = []
-      while (!api.isAtEnd() && predicate(api.peek()!)) {
-        buffer.push(api.advance()!)
-      }
-      return buffer.join('')
-    },
+export function getTokenValue(token: Token): string | number {
+  if ('value' in token) {
+    return token.value
   }
-
-  return api
+  return ''
 }
 
-export type CharScanner = ReturnType<typeof makeCharScanner>
+type TokenizationContext = {
+  scanner: CharScanner
+}
 
 export function tokenize(input: string): Token[] {
   const inputLength = input.length
   const scanner = makeCharScanner(input)
-  const tokensResult = parseAllTokens(scanner)
+  const tokenizationContext = {
+    scanner,
+  }
+  const tokensResult = parseAllTokens(tokenizationContext)
   if (tokensResult.error) {
     throw tokensResult.error
   }
@@ -459,11 +422,4 @@ export function tokenize(input: string): Token[] {
     )
   }
   return tokensResult.tokens
-}
-
-export function getTokenValue(token: Token): string | number {
-  if ('value' in token) {
-    return token.value
-  }
-  return ''
 }
