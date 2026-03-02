@@ -843,26 +843,31 @@ describe('evaluator spec', () => {
     })
 
     describe('map', () => {
+      it('returns a transducer (function) when given 1 arg', () => {
+        const session = createSession()
+        const result = session.evaluate('(map (fn [n] (+ n 1)))')
+        expect(result.kind).toBe('function')
+      })
+
       it.each([
-        ['(map (fn [n] (+ n 1)))', null],
         ['(map (fn [n] (+ n 1)) [1 2 3])', [2, 3, 4]],
-        [
-          "(map (fn [n] (+ n 1)) '(1 2 3))",
-          cljList([cljNumber(2), cljNumber(3), cljNumber(4)]),
-        ],
+        // list input now returns a vector (sequence always materialises into [])
+        ["(map (fn [n] (+ n 1)) '(1 2 3))", [2, 3, 4]],
         [
           `(map 
    (fn [entry]
      [(str (get entry 0) (get entry 0)),
       (* 2 (get entry 1))])
    {:a 1 :b 2})`,
-          cljList([
+          [
             cljVector([cljString(':a:a'), cljNumber(2)]),
             cljVector([cljString(':b:b'), cljNumber(4)]),
-          ]),
+          ],
         ],
+        // nil collection returns empty vector
+        ['(map (fn [n] (+ n 1)) nil)', []],
       ])(
-        `should evalute map core function: %s should be %s`,
+        `should evaluate map: %s should be %s`,
         (code, expected) => {
           const session = createSession()
           const result = session.evaluate(code)
@@ -871,22 +876,14 @@ describe('evaluator spec', () => {
       )
 
       it.each([
-        ['(map)', 'map expects a function as first argument, got nil'],
-        [
-          '(map "a" [1 2 3])',
-          'map expects a function as first argument, got "a"',
-        ],
-        [
-          '(map [1 2 3])',
-          'map expects a function as first argument, got [1 2 3]',
-        ],
-        ['(map (fn [n] (+ n 1)) "abc")', 'map expects a collection, got "abc"'],
-        ['(map (fn [n] (+ n 1)) true)', 'map expects a collection, got true'],
-        ['(map (fn [n] (+ n 1)) false)', 'map expects a collection, got false'],
-        ['(map (fn [n] (+ n 1)) 0)', 'map expects a collection, got 0'],
-        ['(map (fn [n] (+ n 1)) nil)', 'map expects a collection, got nil'],
+        ['(map)', 'No matching arity for 0'],
+        ['(map "a" [1 2 3])', 'not a function'],
+        ['(map (fn [n] (+ n 1)) "abc")', 'transduce expects a collection'],
+        ['(map (fn [n] (+ n 1)) true)', 'transduce expects a collection'],
+        ['(map (fn [n] (+ n 1)) false)', 'transduce expects a collection'],
+        ['(map (fn [n] (+ n 1)) 0)', 'transduce expects a collection'],
       ])(
-        'should throw on invalid map function arguments: %s should throw "%s"',
+        'should throw on invalid map arguments: %s should throw "%s"',
         (code, expected) => {
           expectEvalError(code, expected)
         }
@@ -894,25 +891,31 @@ describe('evaluator spec', () => {
     })
 
     describe('filter', () => {
+      it('returns a transducer (function) when given 1 arg', () => {
+        const session = createSession()
+        const result = session.evaluate('(filter (fn [n] (> n 2)))')
+        expect(result.kind).toBe('function')
+      })
+
       it.each([
         ['(filter (fn [n] (> n 2)) [1 2 3 4 5])', [3, 4, 5]],
-        [
-          "(filter (fn [n] (> n 2)) '(1 2 3 4 5))",
-          cljList([cljNumber(3), cljNumber(4), cljNumber(5)]),
-        ],
+        // list input now returns a vector
+        ["(filter (fn [n] (> n 2)) '(1 2 3 4 5))", [3, 4, 5]],
         [
           `(filter (fn [n] (not (= "a" n))) ["a" "b" "c" "a" "d" "e"])`,
           ['b', 'c', 'd', 'e'],
         ],
         [
           `(filter (fn [entry] (> (get entry 1) 2)) {:a 1 :b 2 :c 3 :d 4})`,
-          cljList([
+          [
             cljVector([cljKeyword(':c'), cljNumber(3)]),
             cljVector([cljKeyword(':d'), cljNumber(4)]),
-          ]),
+          ],
         ],
+        // nil collection returns empty vector
+        ['(filter (fn [n] (> n 2)) nil)', []],
       ])(
-        'should evalute filter core function: %s should be %s',
+        'should evaluate filter: %s should be %s',
         (code, expected) => {
           const session = createSession()
           const result = session.evaluate(code)
@@ -921,34 +924,14 @@ describe('evaluator spec', () => {
       )
 
       it.each([
-        ['(filter)', 'filter expects a function as first argument, got nil'],
-        [
-          '(filter "a" [1 2 3])',
-          'filter expects a function as first argument, got "a"',
-        ],
-        [
-          '(filter [1 2 3])',
-          'filter expects a function as first argument, got [1 2 3]',
-        ],
-        [
-          '(filter (fn [n] (+ n 1)) "abc")',
-          'filter expects a collection, got "abc"',
-        ],
-        [
-          '(filter (fn [n] (+ n 1)) true)',
-          'filter expects a collection, got true',
-        ],
-        [
-          '(filter (fn [n] (+ n 1)) false)',
-          'filter expects a collection, got false',
-        ],
-        ['(filter (fn [n] (+ n 1)) 0)', 'filter expects a collection, got 0'],
-        [
-          '(filter (fn [n] (+ n 1)) nil)',
-          'filter expects a collection, got nil',
-        ],
+        ['(filter)', 'No matching arity for 0'],
+        ['(filter "a" [1 2 3])', 'not a function'],
+        ['(filter (fn [n] (+ n 1)) "abc")', 'transduce expects a collection'],
+        ['(filter (fn [n] (+ n 1)) true)', 'transduce expects a collection'],
+        ['(filter (fn [n] (+ n 1)) false)', 'transduce expects a collection'],
+        ['(filter (fn [n] (+ n 1)) 0)', 'transduce expects a collection'],
       ])(
-        'should throw on invalid filter function arguments: %s should throw "%s"',
+        'should throw on invalid filter arguments: %s should throw "%s"',
         (code, expected) => {
           expectEvalError(code, expected)
         }
@@ -1205,17 +1188,24 @@ describe('evaluator spec', () => {
     })
 
     describe('take and drop', () => {
+      it('returns a transducer when given 1 arg', () => {
+        const session = createSession()
+        expect(session.evaluate('(take 3)').kind).toBe('function')
+        expect(session.evaluate('(drop 3)').kind).toBe('function')
+      })
+
       it.each([
         ['(take 2 [1 2 3 4])', [1, 2]],
         ['(take 0 [1 2 3])', []],
         ['(take -1 [1 2 3])', []],
         ['(take 10 [1 2 3])', [1, 2, 3]],
+        // list input now returns a vector
         ["(take 2 '(1 2 3 4))", [1, 2]],
         [
           '(take 2 {:a 1 :b 2 :c 3})',
           [
-            [cljKeyword(':a'), 1],
-            [cljKeyword(':b'), 2],
+            cljVector([cljKeyword(':a'), cljNumber(1)]),
+            cljVector([cljKeyword(':b'), cljNumber(2)]),
           ],
         ],
         ['(drop 2 [1 2 3 4])', [3, 4]],
@@ -1227,15 +1217,16 @@ describe('evaluator spec', () => {
         const session = createSession()
         const result = session.evaluate(code)
         expect(result).toMatchObject(
-          cljList((expected as any[]).map(toCljValue))
+          cljVector((expected as any[]).map(toCljValue))
         )
       })
 
       it.each([
-        ['(take "a" [1 2 3])', 'take expects a number'],
-        ['(take 2 "abc")', 'take expects a collection'],
-        ['(drop "a" [1 2 3])', 'drop expects a number'],
-        ['(drop 2 "abc")', 'drop expects a collection'],
+        // take/drop are now Clojure fns; non-number n causes dec error on first step
+        ['(take "a" [1 2 3])', 'dec expects a number'],
+        ['(take 2 "abc")', 'transduce expects a collection'],
+        ['(drop "a" [1 2 3])', 'dec expects a number'],
+        ['(drop 2 "abc")', 'transduce expects a collection'],
       ])(
         'should throw on invalid take / drop arguments: %s → "%s"',
         (code, expected) => {
@@ -1324,11 +1315,12 @@ describe('evaluator spec', () => {
       })
 
       it.each([
-        ['(into 1 [1 2])', 'into expects a collection as first argument'],
-        ['(into [] "abc")', 'into expects a collection as second argument'],
+        // into is now (reduce conj to from); errors surface from conj/reduce
+        ['(into 1 [1 2])', 'conj expects a collection'],
+        ['(into [] "abc")', 'reduce expects a collection'],
         [
           '(into {} [1 2])',
-          'into on a map expects each source element to be a [k v] vector',
+          'conj on maps expects each argument to be a vector key-pair',
         ],
       ])(
         'should throw on invalid into arguments: %s → "%s"',
@@ -2205,6 +2197,480 @@ describe('evaluator spec', () => {
       expect(s.evaluate('(let [a (atom 42)] (reset! a nil) @a)')).toEqual(
         cljNil()
       )
+    })
+  })
+
+  // ── Transducer protocol ─────────────────────────────────────────────────
+
+  describe('reduced / unreduced / ensure-reduced', () => {
+    it('(reduced 42) creates a reduced wrapper', () => {
+      const s = createSession()
+      expect(s.evaluate('(reduced 42)').kind).toBe('reduced')
+    })
+
+    it('(reduced? (reduced 42)) is true', () => {
+      const s = createSession()
+      expect(s.evaluate('(reduced? (reduced 42))')).toEqual(cljBoolean(true))
+    })
+
+    it('(reduced? 42) is false', () => {
+      const s = createSession()
+      expect(s.evaluate('(reduced? 42)')).toEqual(cljBoolean(false))
+    })
+
+    it('(unreduced (reduced 42)) unwraps to 42', () => {
+      const s = createSession()
+      expect(s.evaluate('(unreduced (reduced 42))')).toEqual(cljNumber(42))
+    })
+
+    it('(unreduced 42) returns 42 unchanged', () => {
+      const s = createSession()
+      expect(s.evaluate('(unreduced 42)')).toEqual(cljNumber(42))
+    })
+
+    it('@(reduced 42) unwraps via deref', () => {
+      const s = createSession()
+      expect(s.evaluate('(deref (reduced 42))')).toEqual(cljNumber(42))
+    })
+
+    it('(ensure-reduced 42) wraps in reduced', () => {
+      const s = createSession()
+      expect(s.evaluate('(ensure-reduced 42)').kind).toBe('reduced')
+    })
+
+    it('(ensure-reduced (reduced 42)) returns the same reduced', () => {
+      const s = createSession()
+      expect(s.evaluate('(ensure-reduced (reduced 42))').kind).toBe('reduced')
+    })
+
+    it('reduce short-circuits on reduced', () => {
+      const s = createSession()
+      expect(
+        s.evaluate(
+          '(reduce (fn [acc x] (if (= x 3) (reduced acc) (conj acc x))) [] [1 2 3 4 5])'
+        )
+      ).toMatchObject(cljVector([cljNumber(1), cljNumber(2)]))
+    })
+  })
+
+  describe('volatile!', () => {
+    it('(volatile! 0) creates a volatile holding 0', () => {
+      const s = createSession()
+      expect(s.evaluate('(volatile! 0)').kind).toBe('volatile')
+    })
+
+    it('(volatile? (volatile! 0)) is true', () => {
+      const s = createSession()
+      expect(s.evaluate('(volatile? (volatile! 0))')).toEqual(cljBoolean(true))
+    })
+
+    it('(volatile? 42) is false', () => {
+      const s = createSession()
+      expect(s.evaluate('(volatile? 42)')).toEqual(cljBoolean(false))
+    })
+
+    it('@v returns current value', () => {
+      const s = createSession()
+      expect(s.evaluate('(let [v (volatile! 42)] @v)')).toEqual(cljNumber(42))
+    })
+
+    it('vreset! sets new value and returns it', () => {
+      const s = createSession()
+      expect(
+        s.evaluate('(let [v (volatile! 0)] (vreset! v 99) @v)')
+      ).toEqual(cljNumber(99))
+    })
+
+    it('vswap! applies a function and stores result', () => {
+      const s = createSession()
+      expect(
+        s.evaluate('(let [v (volatile! 10)] (vswap! v + 5) @v)')
+      ).toEqual(cljNumber(15))
+    })
+
+    it('vswap! returns the new value', () => {
+      const s = createSession()
+      expect(
+        s.evaluate('(let [v (volatile! 0)] (vswap! v inc))')
+      ).toEqual(cljNumber(1))
+    })
+
+    it('vreset! on non-volatile throws', () => {
+      expectEvalError('(vreset! 42 1)', 'vreset! expects a volatile')
+    })
+
+    it('vswap! on non-volatile throws', () => {
+      expectEvalError('(vswap! 42 inc)', 'vswap! expects a volatile')
+    })
+  })
+
+  describe('transduce', () => {
+    it('(transduce (map inc) conj [] [1 2 3]) produces [2 3 4]', () => {
+      const s = createSession()
+      expect(s.evaluate('(transduce (map inc) conj [] [1 2 3])')).toMatchObject(
+        cljVector([cljNumber(2), cljNumber(3), cljNumber(4)])
+      )
+    })
+
+    it('(transduce (filter even?) conj [] [1 2 3 4 5]) produces [2 4]', () => {
+      const s = createSession()
+      expect(
+        s.evaluate('(transduce (filter even?) conj [] [1 2 3 4 5])')
+      ).toMatchObject(cljVector([cljNumber(2), cljNumber(4)]))
+    })
+
+    it('transduce over nil collection returns empty result', () => {
+      const s = createSession()
+      expect(s.evaluate('(transduce (map inc) conj [] nil)')).toMatchObject(
+        cljVector([])
+      )
+    })
+
+    it('comp composes transducers left-to-right', () => {
+      const s = createSession()
+      expect(
+        s.evaluate(
+          '(transduce (comp (map inc) (filter even?)) conj [] [1 2 3 4 5])'
+        )
+      ).toMatchObject(
+        cljVector([cljNumber(2), cljNumber(4), cljNumber(6)])
+      )
+    })
+  })
+
+  describe('sequence', () => {
+    it('(sequence coll) materialises coll into a vector', () => {
+      const s = createSession()
+      expect(s.evaluate("(sequence '(1 2 3))")).toMatchObject(
+        cljVector([cljNumber(1), cljNumber(2), cljNumber(3)])
+      )
+    })
+
+    it('(sequence xf coll) applies transducer and returns vector', () => {
+      const s = createSession()
+      expect(s.evaluate('(sequence (map inc) [1 2 3])')).toMatchObject(
+        cljVector([cljNumber(2), cljNumber(3), cljNumber(4)])
+      )
+    })
+  })
+
+  describe('into with transducer', () => {
+    it('(into [] (map inc) [1 2 3]) applies transducer into vector', () => {
+      const s = createSession()
+      expect(s.evaluate('(into [] (map inc) [1 2 3])')).toMatchObject(
+        cljVector([cljNumber(2), cljNumber(3), cljNumber(4)])
+      )
+    })
+
+    it('(into [] (filter odd?) [1 2 3 4 5]) keeps odds', () => {
+      const s = createSession()
+      expect(s.evaluate('(into [] (filter odd?) [1 2 3 4 5])')).toMatchObject(
+        cljVector([cljNumber(1), cljNumber(3), cljNumber(5)])
+      )
+    })
+
+    it('(into [] (comp (map inc) (filter even?)) [1 2 3 4]) keeps evens after inc', () => {
+      const s = createSession()
+      expect(
+        s.evaluate('(into [] (comp (map inc) (filter even?)) [1 2 3 4])')
+      ).toMatchObject(cljVector([cljNumber(2), cljNumber(4)]))
+    })
+  })
+
+  describe('take-while transducer', () => {
+    it('(take-while pos? [1 2 0 3]) stops at 0', () => {
+      const s = createSession()
+      expect(s.evaluate('(take-while pos? [1 2 0 3])')).toMatchObject(
+        cljVector([cljNumber(1), cljNumber(2)])
+      )
+    })
+
+    it('(take-while pos?) returns a transducer', () => {
+      const s = createSession()
+      expect(s.evaluate('(take-while pos?)').kind).toBe('function')
+    })
+
+    it('empty result when first element fails pred', () => {
+      const s = createSession()
+      expect(s.evaluate('(take-while pos? [-1 2 3])')).toMatchObject(
+        cljVector([])
+      )
+    })
+  })
+
+  describe('drop-while transducer', () => {
+    it('(drop-while neg? [-1 -2 3 4]) skips negatives', () => {
+      const s = createSession()
+      expect(s.evaluate('(drop-while neg? [-1 -2 3 4])')).toMatchObject(
+        cljVector([cljNumber(3), cljNumber(4)])
+      )
+    })
+
+    it('passes through everything once pred fails', () => {
+      const s = createSession()
+      expect(s.evaluate('(drop-while even? [2 4 5 6])')).toMatchObject(
+        cljVector([cljNumber(5), cljNumber(6)])
+      )
+    })
+  })
+
+  describe('map-indexed transducer', () => {
+    it('(map-indexed vector [10 20 30]) adds index', () => {
+      const s = createSession()
+      expect(s.evaluate('(map-indexed vector [10 20 30])')).toMatchObject(
+        cljVector([
+          cljVector([cljNumber(0), cljNumber(10)]),
+          cljVector([cljNumber(1), cljNumber(20)]),
+          cljVector([cljNumber(2), cljNumber(30)]),
+        ])
+      )
+    })
+
+    it('(map-indexed vector) returns a transducer', () => {
+      const s = createSession()
+      expect(s.evaluate('(map-indexed vector)').kind).toBe('function')
+    })
+  })
+
+  describe('dedupe transducer', () => {
+    it('(dedupe [1 1 2 3 3 3 4]) removes consecutive duplicates', () => {
+      const s = createSession()
+      expect(s.evaluate('(dedupe [1 1 2 3 3 3 4])')).toMatchObject(
+        cljVector([cljNumber(1), cljNumber(2), cljNumber(3), cljNumber(4)])
+      )
+    })
+
+    it('(dedupe) returns a transducer', () => {
+      const s = createSession()
+      expect(s.evaluate('(dedupe)').kind).toBe('function')
+    })
+
+    it('non-consecutive duplicates are kept', () => {
+      const s = createSession()
+      expect(s.evaluate('(dedupe [1 2 1 2])')).toMatchObject(
+        cljVector([cljNumber(1), cljNumber(2), cljNumber(1), cljNumber(2)])
+      )
+    })
+
+    it('nil values handled correctly', () => {
+      const s = createSession()
+      expect(s.evaluate('(dedupe [nil nil 1 nil])')).toMatchObject(
+        cljVector([cljNil(), cljNumber(1), cljNil()])
+      )
+    })
+  })
+
+  describe('partition-all transducer', () => {
+    it('(partition-all 2 [1 2 3 4]) groups into pairs', () => {
+      const s = createSession()
+      expect(s.evaluate('(partition-all 2 [1 2 3 4])')).toMatchObject(
+        cljVector([
+          cljVector([cljNumber(1), cljNumber(2)]),
+          cljVector([cljNumber(3), cljNumber(4)]),
+        ])
+      )
+    })
+
+    it('flushes partial partition at completion', () => {
+      const s = createSession()
+      expect(s.evaluate('(partition-all 2 [1 2 3])')).toMatchObject(
+        cljVector([
+          cljVector([cljNumber(1), cljNumber(2)]),
+          cljVector([cljNumber(3)]),
+        ])
+      )
+    })
+
+    it('(partition-all 2) returns a transducer', () => {
+      const s = createSession()
+      expect(s.evaluate('(partition-all 2)').kind).toBe('function')
+    })
+
+    it('empty collection produces empty result', () => {
+      const s = createSession()
+      expect(s.evaluate('(partition-all 3 [])')).toMatchObject(cljVector([]))
+    })
+
+    it('can compose with other transducers', () => {
+      const s = createSession()
+      expect(
+        s.evaluate(
+          '(into [] (comp (filter odd?) (partition-all 2)) [1 2 3 4 5 6 7])'
+        )
+      ).toMatchObject(
+        cljVector([
+          cljVector([cljNumber(1), cljNumber(3)]),
+          cljVector([cljNumber(5), cljNumber(7)]),
+        ])
+      )
+    })
+  })
+
+  describe('docstrings and metadata', () => {
+    describe('with-meta / meta', () => {
+      it('with-meta attaches a map to a function', () => {
+        const s = createSession()
+        expect(
+          s.evaluate('(with-meta (fn [x] x) {:doc "identity"})')
+        ).toMatchObject({ kind: 'function', meta: { kind: 'map' } })
+      })
+
+      it('meta returns the attached map', () => {
+        const s = createSession()
+        s.evaluate('(def f (with-meta (fn [x] x) {:doc "my doc"}))')
+        expect(s.evaluate('(meta f)')).toMatchObject(
+          cljMap([[cljKeyword(':doc'), cljString('my doc')]])
+        )
+      })
+
+      it('meta returns nil for a function with no metadata', () => {
+        const s = createSession()
+        s.evaluate('(def f (fn [x] x))')
+        expect(s.evaluate('(meta f)')).toMatchObject(cljNil())
+      })
+
+      it(':doc key is accessible from the metadata map', () => {
+        const s = createSession()
+        s.evaluate('(def f (with-meta (fn [x] x) {:doc "the doc"}))')
+        expect(s.evaluate('(:doc (meta f))')).toMatchObject(
+          cljString('the doc')
+        )
+      })
+    })
+
+    describe('defn with docstring', () => {
+      it('attaches :doc metadata when docstring is provided', () => {
+        const s = createSession()
+        s.evaluate('(defn add "Adds two numbers." [a b] (+ a b))')
+        expect(s.evaluate('(:doc (meta add))')).toMatchObject(
+          cljString('Adds two numbers.')
+        )
+      })
+
+      it('meta is nil when defn has no docstring', () => {
+        const s = createSession()
+        s.evaluate('(defn add [a b] (+ a b))')
+        expect(s.evaluate('(meta add)')).toMatchObject(cljNil())
+      })
+
+      it('defn with docstring still works as a normal function', () => {
+        const s = createSession()
+        s.evaluate('(defn square "Squares a number." [x] (* x x))')
+        expect(s.evaluate('(square 5)')).toMatchObject(cljNumber(25))
+      })
+
+      it('defn with docstring works with multi-arity', () => {
+        const s = createSession()
+        s.evaluate(
+          '(defn greet "Returns a greeting." ([name] (str "Hello " name)) ([greeting name] (str greeting " " name)))'
+        )
+        expect(s.evaluate('(greet "Alice")')).toMatchObject(
+          cljString('Hello Alice')
+        )
+        expect(s.evaluate('(greet "Hi" "Bob")')).toMatchObject(
+          cljString('Hi Bob')
+        )
+        expect(s.evaluate('(:doc (meta greet))')).toMatchObject(
+          cljString('Returns a greeting.')
+        )
+      })
+    })
+
+    describe('native function metadata', () => {
+      it('reduce has a :doc entry in its metadata', () => {
+        const s = createSession()
+        expect(s.evaluate('(string? (:doc (meta reduce)))')).toMatchObject(
+          cljBoolean(true)
+        )
+      })
+
+      it('apply has a :doc entry in its metadata', () => {
+        const s = createSession()
+        expect(s.evaluate('(string? (:doc (meta apply)))')).toMatchObject(
+          cljBoolean(true)
+        )
+      })
+
+      it('comp has a :doc entry in its metadata', () => {
+        const s = createSession()
+        expect(s.evaluate('(string? (:doc (meta comp)))')).toMatchObject(
+          cljBoolean(true)
+        )
+      })
+
+      it('partial has a :doc entry in its metadata', () => {
+        const s = createSession()
+        expect(s.evaluate('(string? (:doc (meta partial)))')).toMatchObject(
+          cljBoolean(true)
+        )
+      })
+
+      it('identity has a :doc entry in its metadata', () => {
+        const s = createSession()
+        expect(s.evaluate('(string? (:doc (meta identity)))')).toMatchObject(
+          cljBoolean(true)
+        )
+      })
+    })
+
+    describe('doc macro', () => {
+      it('prints the docstring for a user-defined function', () => {
+        const outputs: string[] = []
+        const s = createSession({ output: (t) => outputs.push(t) })
+        s.evaluate('(defn inc-all "Increments every element." [coll] (map inc coll))')
+        s.evaluate('(doc inc-all)')
+        expect(outputs).toEqual(['Increments every element.'])
+      })
+
+      it('prints the docstring for a native function', () => {
+        const outputs: string[] = []
+        const s = createSession({ output: (t) => outputs.push(t) })
+        s.evaluate('(doc reduce)')
+        expect(outputs).toHaveLength(1)
+        expect(outputs[0]).toContain('Reduces a collection')
+      })
+
+      it('prints fallback message for an undocumented function', () => {
+        const outputs: string[] = []
+        const s = createSession({ output: (t) => outputs.push(t) })
+        s.evaluate('(def f (fn [x] x))')
+        s.evaluate('(doc f)')
+        expect(outputs).toEqual(['No documentation available.'])
+      })
+
+      it('doc returns nil', () => {
+        const outputs: string[] = []
+        const s = createSession({ output: (t) => outputs.push(t) })
+        s.evaluate('(defn f "A fn." [x] x)')
+        expect(s.evaluate('(doc f)')).toMatchObject(cljNil())
+      })
+    })
+  })
+
+  describe('pos? / neg? / zero?', () => {
+    it.each([
+      ['(pos? 1)', true],
+      ['(pos? 0)', false],
+      ['(pos? -1)', false],
+      ['(neg? -1)', true],
+      ['(neg? 0)', false],
+      ['(neg? 1)', false],
+      ['(zero? 0)', true],
+      ['(zero? 1)', false],
+      ['(zero? -1)', false],
+    ])('%s → %s', (code, expected) => {
+      const s = createSession()
+      expect(s.evaluate(code)).toEqual(cljBoolean(expected as boolean))
+    })
+
+    it('pos? throws on non-number', () => {
+      expectEvalError('(pos? "a")', 'pos? expects a number')
+    })
+    it('neg? throws on non-number', () => {
+      expectEvalError('(neg? "a")', 'neg? expects a number')
+    })
+    it('zero? throws on non-number', () => {
+      expectEvalError('(zero? "a")', 'zero? expects a number')
     })
   })
 })

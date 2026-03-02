@@ -12,10 +12,12 @@ import type {
   CljNativeFunction,
   CljNil,
   CljNumber,
+  CljReduced,
   CljString,
   CljSymbol,
   CljValue,
   CljVector,
+  CljVolatile,
   Env,
   EvaluationContext,
 } from './types'
@@ -100,6 +102,13 @@ export const cljMultiArityMacro = (arities: Arity[], env: Env): CljMacro => ({
 })
 
 export const cljAtom = (value: CljValue): CljAtom => ({ kind: 'atom', value })
+export const cljReduced = (value: CljValue): CljReduced => ({ kind: 'reduced', value })
+export const cljVolatile = (value: CljValue): CljVolatile => ({ kind: 'volatile', value })
+
+export const withDoc = <T extends CljNativeFunction | CljFunction>(fn: T, doc: string): T => ({
+  ...fn,
+  meta: cljMap([[cljKeyword(':doc'), cljString(doc)]]),
+})
 
 export const cljMultiMethod = (
   name: string,

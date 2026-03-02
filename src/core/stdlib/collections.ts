@@ -404,41 +404,41 @@ export const collectionFunctions: Record<string, CljValue> = {
     }
   ),
 
-  take: cljNativeFunction('take', (n: CljValue, coll: CljValue) => {
-    if (n === undefined || n.kind !== 'number') {
-      throw new EvaluationError(
-        `take expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`,
-        { n }
-      )
-    }
-    if (coll === undefined || !isCollection(coll)) {
-      throw new EvaluationError(
-        `take expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
-        { coll }
-      )
-    }
-    const count = (n as CljNumber).value
-    if (count <= 0) return cljList([])
-    return cljList(toSeq(coll).slice(0, count))
-  }),
+  // take: cljNativeFunction('take', (n: CljValue, coll: CljValue) => {
+  //   if (n === undefined || n.kind !== 'number') {
+  //     throw new EvaluationError(
+  //       `take expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`,
+  //       { n }
+  //     )
+  //   }
+  //   if (coll === undefined || !isCollection(coll)) {
+  //     throw new EvaluationError(
+  //       `take expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+  //       { coll }
+  //     )
+  //   }
+  //   const count = (n as CljNumber).value
+  //   if (count <= 0) return cljList([])
+  //   return cljList(toSeq(coll).slice(0, count))
+  // }),
 
-  drop: cljNativeFunction('drop', (n: CljValue, coll: CljValue) => {
-    if (n === undefined || n.kind !== 'number') {
-      throw new EvaluationError(
-        `drop expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`,
-        { n }
-      )
-    }
-    if (coll === undefined || !isCollection(coll)) {
-      throw new EvaluationError(
-        `drop expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
-        { coll }
-      )
-    }
-    const count = (n as CljNumber).value
-    if (count <= 0) return cljList(toSeq(coll))
-    return cljList(toSeq(coll).slice(count))
-  }),
+  // drop: cljNativeFunction('drop', (n: CljValue, coll: CljValue) => {
+  //   if (n === undefined || n.kind !== 'number') {
+  //     throw new EvaluationError(
+  //       `drop expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`,
+  //       { n }
+  //     )
+  //   }
+  //   if (coll === undefined || !isCollection(coll)) {
+  //     throw new EvaluationError(
+  //       `drop expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+  //       { coll }
+  //     )
+  //   }
+  //   const count = (n as CljNumber).value
+  //   if (count <= 0) return cljList(toSeq(coll))
+  //   return cljList(toSeq(coll).slice(count))
+  // }),
 
   // ── Collection building ──────────────────────────────────────────────────
 
@@ -456,47 +456,47 @@ export const collectionFunctions: Record<string, CljValue> = {
     return cljList(result)
   }),
 
-  into: cljNativeFunction('into', (to: CljValue, from: CljValue) => {
-    if (to === undefined || !isCollection(to)) {
-      throw new EvaluationError(
-        `into expects a collection as first argument${to !== undefined ? `, got ${printString(to)}` : ''}`,
-        { to }
-      )
-    }
-    if (from === undefined || !isCollection(from)) {
-      throw new EvaluationError(
-        `into expects a collection as second argument${from !== undefined ? `, got ${printString(from)}` : ''}`,
-        { from }
-      )
-    }
-    // reduce conj semantics: destination type drives insertion order
-    let acc = to
-    for (const item of toSeq(from)) {
-      if (isList(acc)) {
-        acc = cljList([item, ...acc.value])
-      } else if (isVector(acc)) {
-        acc = cljVector([...acc.value, item])
-      } else if (isMap(acc)) {
-        const pair = item
-        if (pair.kind !== 'vector' || pair.value.length !== 2) {
-          throw new EvaluationError(
-            `into on a map expects each source element to be a [k v] vector, got ${printString(pair)}`,
-            { pair }
-          )
-        }
-        const [k, v] = pair.value
-        const newEntries: [CljValue, CljValue][] = [...acc.entries]
-        const idx = newEntries.findIndex((entry) => isEqual(entry[0], k))
-        if (idx === -1) {
-          newEntries.push([k, v])
-        } else {
-          newEntries[idx] = [k, v]
-        }
-        acc = cljMap(newEntries)
-      }
-    }
-    return acc
-  }),
+  // into: cljNativeFunction('into', (to: CljValue, from: CljValue) => {
+  //   if (to === undefined || !isCollection(to)) {
+  //     throw new EvaluationError(
+  //       `into expects a collection as first argument${to !== undefined ? `, got ${printString(to)}` : ''}`,
+  //       { to }
+  //     )
+  //   }
+  //   if (from === undefined || !isCollection(from)) {
+  //     throw new EvaluationError(
+  //       `into expects a collection as second argument${from !== undefined ? `, got ${printString(from)}` : ''}`,
+  //       { from }
+  //     )
+  //   }
+  //   // reduce conj semantics: destination type drives insertion order
+  //   let acc = to
+  //   for (const item of toSeq(from)) {
+  //     if (isList(acc)) {
+  //       acc = cljList([item, ...acc.value])
+  //     } else if (isVector(acc)) {
+  //       acc = cljVector([...acc.value, item])
+  //     } else if (isMap(acc)) {
+  //       const pair = item
+  //       if (pair.kind !== 'vector' || pair.value.length !== 2) {
+  //         throw new EvaluationError(
+  //           `into on a map expects each source element to be a [k v] vector, got ${printString(pair)}`,
+  //           { pair }
+  //         )
+  //       }
+  //       const [k, v] = pair.value
+  //       const newEntries: [CljValue, CljValue][] = [...acc.entries]
+  //       const idx = newEntries.findIndex((entry) => isEqual(entry[0], k))
+  //       if (idx === -1) {
+  //         newEntries.push([k, v])
+  //       } else {
+  //         newEntries[idx] = [k, v]
+  //       }
+  //       acc = cljMap(newEntries)
+  //     }
+  //   }
+  //   return acc
+  // }),
 
   zipmap: cljNativeFunction('zipmap', (ks: CljValue, vs: CljValue) => {
     if (ks === undefined || !isCollection(ks)) {

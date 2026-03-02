@@ -10,10 +10,12 @@ import {
   type CljMultiMethod,
   type CljNativeFunction,
   type CljNumber,
+  type CljReduced,
   type CljString,
   type CljSymbol,
   type CljValue,
   type CljVector,
+  type CljVolatile,
 } from './types.ts'
 import { specialFormKeywords } from './evaluator/special-forms.ts'
 
@@ -52,6 +54,10 @@ export const isMultiMethod = (value: CljValue): value is CljMultiMethod =>
   value.kind === 'multi-method'
 export const isAtom = (value: CljValue): value is CljAtom =>
   value.kind === 'atom'
+export const isReduced = (value: CljValue): value is CljReduced =>
+  value.kind === 'reduced'
+export const isVolatile = (value: CljValue): value is CljVolatile =>
+  value.kind === 'volatile'
 export const isCollection = (
   value: CljValue
 ): value is CljList | CljVector | CljMap =>
@@ -98,6 +104,9 @@ const equalityHandlers = {
     return a.value.every((value, index) => isEqual(value, b.value[index]))
   },
   [valueKeywords.atom]: (a: CljAtom, b: CljAtom) => a === b,
+  [valueKeywords.reduced]: (a: CljReduced, b: CljReduced) =>
+    isEqual(a.value, b.value),
+  [valueKeywords.volatile]: (a: CljVolatile, b: CljVolatile) => a === b,
 }
 
 export const isEqual = (a: CljValue, b: CljValue): boolean => {

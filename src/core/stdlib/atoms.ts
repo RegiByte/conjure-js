@@ -1,4 +1,4 @@
-import { isAtom, isAFunction } from '../assertions'
+import { isAtom, isAFunction, isReduced, isVolatile } from '../assertions'
 import { EvaluationError } from '../errors'
 import {
   cljAtom,
@@ -15,9 +15,12 @@ export const atomFunctions: Record<string, CljValue> = {
 
   deref: cljNativeFunction('deref', (value: CljValue) => {
     if (isAtom(value)) return value.value
-    throw new EvaluationError(`deref expects an atom, got ${value.kind}`, {
-      value,
-    })
+    if (isVolatile(value)) return value.value
+    if (isReduced(value)) return value.value
+    throw new EvaluationError(
+      `deref expects an atom, volatile, or reduced value, got ${value.kind}`,
+      { value }
+    )
   }),
 
   'swap!': cljNativeFunctionWithContext(

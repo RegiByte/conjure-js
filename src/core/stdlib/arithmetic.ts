@@ -234,4 +234,34 @@ export const arithmeticFunctions: Record<string, CljValue> = {
     }
     return cljBoolean(Math.abs((n as CljNumber).value) % 2 !== 0)
   }),
+
+  'pos?': cljNativeFunction('pos?', (n: CljValue) => {
+    if (n === undefined || n.kind !== 'number') {
+      throw new EvaluationError(
+        `pos? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`,
+        { n }
+      )
+    }
+    return cljBoolean((n as CljNumber).value > 0)
+  }),
+
+  'neg?': cljNativeFunction('neg?', (n: CljValue) => {
+    if (n === undefined || n.kind !== 'number') {
+      throw new EvaluationError(
+        `neg? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`,
+        { n }
+      )
+    }
+    return cljBoolean((n as CljNumber).value < 0)
+  }),
+
+  'zero?': cljNativeFunction('zero?', (n: CljValue) => {
+    if (n === undefined || n.kind !== 'number') {
+      throw new EvaluationError(
+        `zero? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`,
+        { n }
+      )
+    }
+    return cljBoolean((n as CljNumber).value === 0)
+  }),
 }

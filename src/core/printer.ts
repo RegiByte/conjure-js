@@ -65,6 +65,10 @@ export function printString(value: CljValue): string {
       return `(multi-method ${(value as CljMultiMethod).name})`
     case valueKeywords.atom:
       return `#<Atom ${printString(value.value)}>`
+    case valueKeywords.reduced:
+      return `#<Reduced ${printString(value.value)}>`
+    case valueKeywords.volatile:
+      return `#<Volatile ${printString(value.value)}>`
     default:
       throw new EvaluationError(`unhandled value type: ${value.kind}`, {
         value,

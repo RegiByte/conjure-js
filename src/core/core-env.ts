@@ -7,7 +7,9 @@ import { arithmeticFunctions } from './stdlib/arithmetic'
 import { atomFunctions } from './stdlib/atoms'
 import { collectionFunctions } from './stdlib/collections'
 import { hofFunctions } from './stdlib/hof'
+import { metaFunctions } from './stdlib/meta'
 import { predicateFunctions } from './stdlib/predicates'
+import { transducerFunctions } from './stdlib/transducers'
 import { getUtilFunctions } from './stdlib/utils'
 import { valueToString } from './transformations'
 import {
@@ -22,6 +24,8 @@ function getCoreFunctions(globalEnv: Env) {
     ...collectionFunctions,
     ...predicateFunctions,
     ...hofFunctions,
+    ...metaFunctions,
+    ...transducerFunctions,
     ...getUtilFunctions(globalEnv),
   }
 

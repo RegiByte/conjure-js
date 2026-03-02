@@ -13,6 +13,8 @@ export const valueKeywords = {
   macro: 'macro',
   multiMethod: 'multi-method',
   atom: 'atom',
+  reduced: 'reduced',
+  volatile: 'volatile',
 } as const
 export type ValueKeywords = (typeof valueKeywords)[keyof typeof valueKeywords]
 
@@ -44,6 +46,7 @@ export type CljFunction = {
   kind: 'function'
   arities: Arity[]
   env: Env
+  meta?: CljMap
 }
 
 export type CljMacro = {
@@ -53,6 +56,8 @@ export type CljMacro = {
 }
 
 export type CljAtom = { kind: 'atom'; value: CljValue }
+export type CljReduced = { kind: 'reduced'; value: CljValue }
+export type CljVolatile = { kind: 'volatile'; value: CljValue }
 
 export type CljMultiMethod = {
   kind: 'multi-method'
@@ -78,6 +83,7 @@ export type CljNativeFunction = {
   fn: (...args: CljValue[]) => CljValue
   // Only used in case the function needs to access the evaluation context
   fnWithContext?: (ctx: EvaluationContext, ...args: CljValue[]) => CljValue
+  meta?: CljMap
 }
 
 export type CljValue =
@@ -95,6 +101,8 @@ export type CljValue =
   | CljMacro
   | CljMultiMethod
   | CljAtom
+  | CljReduced
+  | CljVolatile
 
 /** Tokens */
 export const tokenKeywords = {

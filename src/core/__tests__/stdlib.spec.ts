@@ -313,9 +313,9 @@ describe('range', () => {
     expect(() => session().evaluate('(range 0 10 0)')).toThrow()
   })
 
-  it('works with map', () => {
+  it('works with map — returns vector', () => {
     expect(session().evaluate('(map inc (range 3))')).toEqual(
-      session().evaluate("'(1 2 3)")
+      cljVector([cljNumber(1), cljNumber(2), cljNumber(3)])
     )
   })
 })
@@ -330,9 +330,9 @@ describe('identity', () => {
     )
   })
 
-  it('works as a function value', () => {
+  it('works as a function value — returns vector', () => {
     expect(session().evaluate("(map identity '(1 2 3))")).toEqual(
-      session().evaluate("'(1 2 3)")
+      cljVector([cljNumber(1), cljNumber(2), cljNumber(3)])
     )
   })
 })
@@ -474,9 +474,9 @@ describe('partial', () => {
     expect(session().evaluate('((partial + 1 2 3))')).toEqual(cljNumber(6))
   })
 
-  it('can be used with map', () => {
+  it('can be used with map — returns vector', () => {
     expect(session().evaluate("(map (partial + 10) '(1 2 3))")).toEqual(
-      session().evaluate("'(11 12 13)")
+      cljVector([cljNumber(11), cljNumber(12), cljNumber(13)])
     )
   })
 })
@@ -513,15 +513,15 @@ describe('comp', () => {
 })
 
 describe('map-indexed', () => {
-  it('passes index and element to function (list input)', () => {
+  it('passes index and element to function (list input) — returns vector', () => {
     expect(session().evaluate("(map-indexed (fn [i x] i) '(:a :b :c))")).toEqual(
-      session().evaluate("'(0 1 2)")
+      cljVector([cljNumber(0), cljNumber(1), cljNumber(2)])
     )
   })
 
-  it('passes element correctly (list input)', () => {
+  it('passes element correctly (list input) — returns vector', () => {
     expect(session().evaluate("(map-indexed (fn [i x] x) '(:a :b :c))")).toEqual(
-      session().evaluate("'(:a :b :c)")
+      cljVector([cljKeyword(':a'), cljKeyword(':b'), cljKeyword(':c')])
     )
   })
 
@@ -531,15 +531,19 @@ describe('map-indexed', () => {
     )
   })
 
-  it('can build indexed pairs', () => {
+  it('can build indexed pairs — returns vector', () => {
     expect(session().evaluate("(map-indexed vector '(:a :b :c))")).toEqual(
-      session().evaluate("'([0 :a] [1 :b] [2 :c])")
+      cljVector([
+        cljVector([cljNumber(0), cljKeyword(':a')]),
+        cljVector([cljNumber(1), cljKeyword(':b')]),
+        cljVector([cljNumber(2), cljKeyword(':c')]),
+      ])
     )
   })
 
-  it('returns empty for empty collection', () => {
+  it('returns empty vector for empty collection', () => {
     expect(session().evaluate("(map-indexed vector '())")).toEqual(
-      session().evaluate("'()")
+      cljVector([])
     )
   })
 })
@@ -555,9 +559,9 @@ describe('constantly', () => {
     )
   })
 
-  it('works with map', () => {
+  it('works with map — returns vector', () => {
     expect(session().evaluate("(map (constantly 0) '(1 2 3))")).toEqual(
-      session().evaluate("'(0 0 0)")
+      cljVector([cljNumber(0), cljNumber(0), cljNumber(0)])
     )
   })
 })
@@ -568,9 +572,9 @@ describe('complement', () => {
     expect(session().evaluate('((complement nil?) nil)')).toEqual(cljBoolean(false))
   })
 
-  it('works with even? to filter odd numbers', () => {
+  it('works with even? to filter odd numbers — returns vector', () => {
     expect(session().evaluate("(filter (complement even?) '(1 2 3 4 5))")).toEqual(
-      session().evaluate("'(1 3 5)")
+      cljVector([cljNumber(1), cljNumber(3), cljNumber(5)])
     )
   })
 })
