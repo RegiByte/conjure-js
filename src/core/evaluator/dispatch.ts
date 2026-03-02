@@ -11,6 +11,7 @@ import {
 import { lookup } from '../env'
 import { EvaluationError } from '../errors'
 import { cljNil } from '../factories'
+import { printString } from '../printer'
 import type {
   CljList,
   CljValue,
@@ -41,7 +42,7 @@ function dispatchMultiMethod(
   // having a catch-all. Low priority — add CljMultiMethod.defaultDispatchVal
   // and thread it through defmulti, defmethod detection, and here.
   throw new EvaluationError(
-    `No method in multimethod '${mm.name}' for dispatch value`,
+    `No method in multimethod '${mm.name}' for dispatch value ${printString(dispatchVal)}`,
     { mm, dispatchVal }
   )
 }

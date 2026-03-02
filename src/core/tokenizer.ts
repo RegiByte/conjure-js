@@ -167,6 +167,20 @@ const parseNumber = (ctx: TokenizationContext): Token => {
     value += scanner.advance()! // consume '.'
     value += scanner.consumeWhile(isNumber)
   }
+  if (!scanner.isAtEnd() && (scanner.peek() === 'e' || scanner.peek() === 'E')) {
+    value += scanner.advance()! // consume 'e' or 'E'
+    if (!scanner.isAtEnd() && (scanner.peek() === '+' || scanner.peek() === '-')) {
+      value += scanner.advance()! // consume optional sign
+    }
+    const exponentDigits = scanner.consumeWhile(isNumber)
+    if (exponentDigits.length === 0) {
+      throw new TokenizerError(
+        `Invalid number format at line ${start.line} column ${start.col}: "${value}"`,
+        { start, end: scanner.position() }
+      )
+    }
+    value += exponentDigits
+  }
   if (!scanner.isAtEnd() && isDot(scanner.peek()!)) {
     throw new TokenizerError(
       `Invalid number format at line ${start.line} column ${start.col}: "${value}${scanner.consumeWhile((ch) => !isWhitespace(ch) && !isDelimiter(ch))}"`,

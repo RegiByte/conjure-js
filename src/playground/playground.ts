@@ -99,6 +99,12 @@ x
 (take-while even? [2 4 6 8 9 10 11])
 (drop-while even? [2 4 6 8 9 10 11])
 
+(defn factorial [n]
+  (loop [i n acc 1]
+    (if (zero? i) acc
+        (recur (dec i) (* acc i)))))
+(map factorial [1 2 3 4 5 6 7 8 9 10, 30])
+
 `
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
@@ -304,12 +310,18 @@ function createPlayground(appEl: HTMLElement): void {
     appendEntries(entries, outputInnerEl, formSource)
     outputEl.scrollTop = outputEl.scrollHeight
 
-    // Show inline decorator for the result (or error) of the last entry
+    // Show inline decorator for the result (or error) of the last entry.
+    // When there is more code below the evaluated form, crop the annotation to
+    // its first line so it doesn't overlap the following source text.
+    const hasContentBelow = source.slice(formEnd).trim().length > 0
+    const cropIfNeeded = (text: string) =>
+      hasContentBelow ? text.split('\n')[0] : text
+
     const last = entries[entries.length - 1]
     if (last?.kind === 'result') {
-      showInlineResult(formEnd, last.output, false)
+      showInlineResult(formEnd, cropIfNeeded(last.output), false)
     } else if (last?.kind === 'error') {
-      showInlineResult(formEnd, last.message, true)
+      showInlineResult(formEnd, cropIfNeeded(last.message), true)
     }
   }
 

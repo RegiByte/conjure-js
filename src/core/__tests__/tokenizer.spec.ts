@@ -166,6 +166,64 @@ describe('tokenizer', () => {
     expect(tokens).toMatchObject([{ kind: 'Number', value: -1.23 }])
   })
 
+  describe('scientific notation', () => {
+    it('parses integer mantissa with positive exponent: 1e10', () => {
+      const tokens = tokenize('1e10')
+      expect(tokens).toMatchObject([{ kind: 'Number', value: 1e10 }])
+    })
+
+    it('parses uppercase E: 1E10', () => {
+      const tokens = tokenize('1E10')
+      expect(tokens).toMatchObject([{ kind: 'Number', value: 1e10 }])
+    })
+
+    it('parses explicit + sign in exponent: 1e+10', () => {
+      const tokens = tokenize('1e+10')
+      expect(tokens).toMatchObject([{ kind: 'Number', value: 1e10 }])
+    })
+
+    it('parses negative exponent: 1e-10', () => {
+      const tokens = tokenize('1e-10')
+      expect(tokens).toMatchObject([{ kind: 'Number', value: 1e-10 }])
+    })
+
+    it('parses decimal mantissa: 1.5e+32', () => {
+      const tokens = tokenize('1.5e+32')
+      expect(tokens).toMatchObject([{ kind: 'Number', value: 1.5e32 }])
+    })
+
+    it('parses the factorial(30) output: 2.652528598121911e+32', () => {
+      const tokens = tokenize('2.652528598121911e+32')
+      expect(tokens).toMatchObject([
+        { kind: 'Number', value: 2.652528598121911e32 },
+      ])
+    })
+
+    it('parses negative mantissa with exponent: -3.14e-2', () => {
+      const tokens = tokenize('-3.14e-2')
+      expect(tokens).toMatchObject([{ kind: 'Number', value: -3.14e-2 }])
+    })
+
+    it('parses scientific notation inside a vector', () => {
+      const tokens = tokenize('[1 2 3e5]')
+      expect(tokens).toMatchObject([
+        { kind: 'LBracket' },
+        { kind: 'Number', value: 1 },
+        { kind: 'Number', value: 2 },
+        { kind: 'Number', value: 3e5 },
+        { kind: 'RBracket' },
+      ])
+    })
+
+    it('throws on bare e with no exponent digits: 1e', () => {
+      expect(() => tokenize('1e')).toThrow(TokenizerError)
+    })
+
+    it('throws on e with sign but no exponent digits: 1e+', () => {
+      expect(() => tokenize('1e+')).toThrow(TokenizerError)
+    })
+  })
+
   it('should reject malformed number with double dots', () => {
     expect(() => tokenize('1..2')).toThrow(TokenizerError)
   })

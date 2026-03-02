@@ -2673,4 +2673,51 @@ describe('evaluator spec', () => {
       expectEvalError('(zero? "a")', 'zero? expects a number')
     })
   })
+
+  describe('scientific notation literals', () => {
+    it('evaluates a bare integer exponent: 1e10', () => {
+      const s = createSession()
+      expect(s.evaluate('1e10')).toEqual(cljNumber(1e10))
+    })
+
+    it('evaluates uppercase E: 1E10', () => {
+      const s = createSession()
+      expect(s.evaluate('1E10')).toEqual(cljNumber(1e10))
+    })
+
+    it('evaluates explicit positive exponent: 1e+10', () => {
+      const s = createSession()
+      expect(s.evaluate('1e+10')).toEqual(cljNumber(1e10))
+    })
+
+    it('evaluates negative exponent: 1e-10', () => {
+      const s = createSession()
+      expect(s.evaluate('1e-10')).toEqual(cljNumber(1e-10))
+    })
+
+    it('evaluates the factorial(30) result as a literal: 2.652528598121911e+32', () => {
+      const s = createSession()
+      expect(s.evaluate('2.652528598121911e+32')).toEqual(
+        cljNumber(2.652528598121911e32)
+      )
+    })
+
+    it('factorial with loop/recur produces the correct result for n=30', () => {
+      const s = createSession()
+      s.evaluate(`
+        (defn factorial [n]
+          (loop [i n acc 1]
+            (if (zero? i) acc
+              (recur (dec i) (* acc i)))))
+      `)
+      expect(s.evaluate('(factorial 30)')).toEqual(
+        cljNumber(2.652528598121911e32)
+      )
+    })
+
+    it('arithmetic with scientific notation literals', () => {
+      const s = createSession()
+      expect(s.evaluate('(+ 1e3 2e3)')).toEqual(cljNumber(3000))
+    })
+  })
 })
