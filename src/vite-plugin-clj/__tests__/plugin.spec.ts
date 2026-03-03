@@ -59,6 +59,22 @@ describe('safeJsIdentifier', () => {
   it('leaves simple names unchanged', () => {
     expect(safeJsIdentifier('helper')).toBe('helper')
   })
+
+  it('prefixes JS reserved word throw with $', () => {
+    expect(safeJsIdentifier('throw')).toBe('$throw')
+  })
+
+  it('prefixes other JS reserved words with $', () => {
+    expect(safeJsIdentifier('catch')).toBe('$catch')
+    expect(safeJsIdentifier('finally')).toBe('$finally')
+    expect(safeJsIdentifier('try')).toBe('$try')
+    expect(safeJsIdentifier('delete')).toBe('$delete')
+  })
+
+  it('does not prefix non-reserved words that happen to be similar', () => {
+    expect(safeJsIdentifier('throwable')).toBe('throwable')
+    expect(safeJsIdentifier('retry')).toBe('retry')
+  })
 })
 
 describe('cljPlugin', () => {

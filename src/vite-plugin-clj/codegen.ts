@@ -160,8 +160,17 @@ export function generateDts(
   return declarations.join('\n')
 }
 
+const JS_RESERVED_WORDS = new Set([
+  'break', 'case', 'catch', 'class', 'const', 'continue', 'debugger',
+  'default', 'delete', 'do', 'else', 'export', 'extends', 'false',
+  'finally', 'for', 'function', 'if', 'import', 'in', 'instanceof',
+  'let', 'new', 'null', 'return', 'static', 'super', 'switch', 'this',
+  'throw', 'true', 'try', 'typeof', 'var', 'void', 'while', 'with',
+  'yield', 'enum', 'await',
+])
+
 export function safeJsIdentifier(name: string): string {
-  return name
+  const transformed = name
     .replace(/-/g, '_')
     .replace(/\//g, '_DIV_')
     .replace(/\?/g, '_QMARK_')
@@ -172,4 +181,5 @@ export function safeJsIdentifier(name: string): string {
     .replace(/</g, '_LT_')
     .replace(/=/g, '_EQ_')
     .replace(/'/g, '_QUOTE_')
+  return JS_RESERVED_WORDS.has(transformed) ? `$${transformed}` : transformed
 }
