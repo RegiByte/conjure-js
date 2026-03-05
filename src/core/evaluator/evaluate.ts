@@ -33,6 +33,7 @@ export function evaluateWithContext(
       case valueKeywords.function:
       case valueKeywords.multiMethod:
       case valueKeywords.boolean:
+      case valueKeywords.regex:
         return expr
       case valueKeywords.symbol: {
         const slashIdx = expr.name.indexOf('/')

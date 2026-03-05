@@ -181,6 +181,7 @@ export function safeJsIdentifier(name: string): string {
     .replace(/>/g, '_GT_')
     .replace(/</g, '_LT_')
     .replace(/=/g, '_EQ_')
+    .replace(/\./g, '_DOT_')
     .replace(/'/g, '_QUOTE_')
   return JS_RESERVED_WORDS.has(transformed) ? `$${transformed}` : transformed
 }

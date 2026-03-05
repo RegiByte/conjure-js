@@ -9,7 +9,7 @@ import { printString } from './printer'
 import { readForms } from './reader'
 import { tokenize } from './tokenizer'
 import type { CljValue, Env, Token, TokenSymbol } from './types'
-import { coreSource } from '../clojure/core-source'
+import { builtInNamespaceSources } from '../clojure/generated/builtin-namespace-registry'
 
 type NamespaceRegistry = Map<string, Env>
 
@@ -277,24 +277,29 @@ export function createSession(options?: SessionOptions): Session {
 
   let currentNs = 'user'
 
-  const resolveNamespace: ((nsName: string) => boolean) | undefined =
-    options?.readFile && options?.sourceRoots
-      ? (nsName: string) => {
-          for (const root of options.sourceRoots!) {
-            const filePath = `${root.replace(/\/$/, '')}/${nsName.replace(/\./g, '/')}.clj`
-            try {
-              const source = options.readFile!(filePath)
-              if (source) {
-                loadFile(source)
-                return true
-              }
-            } catch {
-              continue
-            }
-          }
-          return false
+  const resolveNamespace = (nsName: string): boolean => {
+    const builtInLoader = builtInNamespaceSources[nsName]
+    if (builtInLoader) {
+      loadFile(builtInLoader(), nsName)
+      return true
+    }
+    if (!(options?.readFile && options?.sourceRoots)) {
+      return false
+    }
+    for (const root of options.sourceRoots) {
+      const filePath = `${root.replace(/\/$/, '')}/${nsName.replace(/\./g, '/')}.clj`
+      try {
+        const source = options.readFile(filePath)
+        if (source) {
+          loadFile(source)
+          return true
         }
-      : undefined
+      } catch {
+        continue
+      }
+    }
+    return false
+  }
 
   function ensureNs(name: string): Env {
     if (!registry.has(name)) {
@@ -345,7 +350,11 @@ export function createSession(options?: SessionOptions): Session {
     evaluateForms(forms, env)
   }
 
-  loadFile(coreSource)
+  const coreLoader = builtInNamespaceSources['clojure.core']
+  if (!coreLoader) {
+    throw new Error('Missing built-in clojure.core source in registry')
+  }
+  loadFile(coreLoader(), 'clojure.core')
 
   for (const source of options?.entries ?? []) {
     loadFile(source)

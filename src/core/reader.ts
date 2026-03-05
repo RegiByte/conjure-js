@@ -1,5 +1,12 @@
 import { ReaderError } from './errors'
-import { cljBoolean, cljList, cljNil, cljSymbol, cljVector } from './factories'
+import {
+  cljBoolean,
+  cljList,
+  cljNil,
+  cljRegex,
+  cljSymbol,
+  cljVector,
+} from './factories'
 import { makeTokenScanner, type TokenScanner } from './scanners'
 import { getTokenValue } from './tokenizer'
 import { valueKeywords, tokenKeywords, type Token } from './types'
@@ -448,6 +455,42 @@ const readAnonFn = (ctx: ReaderCtx) => {
   return result
 }
 
+// Strips leading standalone inline-flag groups (?i), (?m), (?s) from the raw
+// regex pattern and returns them as JS RegExp flags. (?x) is not supported in
+// JS and will throw. (?:...) non-capturing groups are left alone.
+function extractInlineFlags(raw: string): { pattern: string; flags: string } {
+  let remaining = raw
+  let flags = ''
+  const flagGroupRe = /^\(\?([imsx]+)\)/
+  let m: RegExpExecArray | null
+  while ((m = flagGroupRe.exec(remaining)) !== null) {
+    for (const f of m[1]) {
+      if (f === 'x') {
+        throw new ReaderError(
+          'Regex flag (?x) (verbose mode) has no JavaScript equivalent and is not supported',
+          null
+        )
+      }
+      if (!flags.includes(f)) flags += f
+    }
+    remaining = remaining.slice(m[0].length)
+  }
+  return { pattern: remaining, flags }
+}
+
+const readRegex = (ctx: ReaderCtx): CljValue => {
+  const scanner = ctx.scanner
+  const token = scanner.peek()
+  if (!token || token.kind !== tokenKeywords.Regex) {
+    throw new ReaderError('Expected regex token', scanner.position())
+  }
+  scanner.advance()
+  const { pattern, flags } = extractInlineFlags(token.value)
+  const val = cljRegex(pattern, flags)
+  setPos(val, { start: token.start.offset, end: token.end.offset })
+  return val
+}
+
 function readForm(ctx: ReaderCtx): CljValue {
   const scanner = ctx.scanner
   const token = scanner.peek()
@@ -478,6 +521,8 @@ function readForm(ctx: ReaderCtx): CljValue {
       return readAnonFn(ctx)
     case tokenKeywords.Deref:
       return readDeref(ctx)
+    case tokenKeywords.Regex:
+      return readRegex(ctx)
     default:
       throw new ReaderError(
         `Unexpected token: ${getTokenValue(token)} at line ${token.start.line} column ${token.start.col}`,

@@ -73,6 +73,10 @@ describe('safeJsIdentifier', () => {
     expect(safeJsIdentifier('helper')).toBe('helper')
   })
 
+  it('replaces dot with _DOT_', () => {
+    expect(safeJsIdentifier('.indexOf')).toBe('_DOT_indexOf')
+  })
+
   it('encodes standalone - (subtraction fn) as _MINUS_', () => {
     expect(safeJsIdentifier('-')).toBe('_MINUS_')
   })

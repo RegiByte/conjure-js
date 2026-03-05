@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
 import { resolve, relative, join } from 'node:path'
 import type { Plugin, ResolvedConfig } from 'vite'
@@ -20,6 +21,19 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
   let serverSession: Session
   let coreIndexPath: string
   let codegenCtx: CodegenContext
+  let generatorScriptPath: string
+
+  function writeFileIfChanged(path: string, content: string) {
+    try {
+      const existing = readFileSync(path, 'utf-8')
+      if (existing === content) {
+        return
+      }
+    } catch {
+      // file does not exist yet
+    }
+    writeFileSync(path, content, 'utf-8')
+  }
 
   function collectCljFiles(dir: string): string[] {
     let results: string[] = []
@@ -54,7 +68,7 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
           const source = readFileSync(filePath, 'utf-8')
           const nsNameFromPath = pathToNs(relative(projectRoot, filePath), sourceRoots)
           const dts = generateDts(codegenCtx, nsNameFromPath, source)
-          writeFileSync(filePath + '.d.ts', dts, 'utf-8')
+          writeFileIfChanged(filePath + '.d.ts', dts)
         } catch {
           continue
         }
@@ -88,11 +102,25 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
     }
   }
 
+  function regenerateBuiltInNamespaceSources() {
+    try {
+      execFileSync(process.execPath, [generatorScriptPath], {
+        cwd: projectRoot,
+        stdio: 'pipe',
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Failed to generate built-in namespace sources: ${message}`)
+    }
+  }
+
   return {
     name: 'vite-plugin-clj',
 
     configResolved(config: ResolvedConfig) {
       projectRoot = config.root
+      generatorScriptPath = resolve(projectRoot, 'scripts/gen-core-source.mjs')
+      regenerateBuiltInNamespaceSources()
       coreIndexPath = resolve(projectRoot, 'src/core/index.ts')
       initServerSession()
       eagerlyGenerateDts()
@@ -128,7 +156,7 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
         const nsNameFromPath = pathToNs(relative(projectRoot, id), sourceRoots)
         const code = generateModuleCode(codegenCtx, nsNameFromPath, source)
         const dts = generateDts(codegenCtx, nsNameFromPath, source)
-        writeFileSync(id + '.d.ts', dts, 'utf-8')
+        writeFileIfChanged(id + '.d.ts', dts)
         return code
       }
     },
@@ -137,12 +165,15 @@ export function cljPlugin(options?: CljPluginOptions): Plugin {
       if (!file.endsWith('.clj')) return
 
       const doUpdate = async () => {
+        if (file.startsWith(resolve(projectRoot, 'src/clojure') + '/')) {
+          regenerateBuiltInNamespaceSources()
+        }
         const source = await read()
         try {
           const nsNameFromPath = pathToNs(relative(projectRoot, file), sourceRoots)
           serverSession.loadFile(source, nsNameFromPath)
           const dts = generateDts(codegenCtx, nsNameFromPath, source)
-          writeFileSync(file + '.d.ts', dts, 'utf-8')
+          writeFileIfChanged(file + '.d.ts', dts)
         } catch {
           // file may not be under source roots
         }

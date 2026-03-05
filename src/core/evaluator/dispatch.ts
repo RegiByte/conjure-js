@@ -86,6 +86,19 @@ export function evaluateList(
     }
     return defaultReturn
   }
+  if (isMap(evaledFirst)) {
+    if (list.value.length < 2) {
+      throw new EvaluationError('Map used as function requires at least one argument', {
+        list,
+        env,
+      })
+    }
+    const key = ctx.evaluate(list.value[1], env)
+    const defaultReturn =
+      list.value.length > 2 ? ctx.evaluate(list.value[2], env) : cljNil()
+    const entry = evaledFirst.entries.find(([k]) => isEqual(k, key))
+    return entry ? entry[1] : defaultReturn
+  }
   if (isMultiMethod(evaledFirst)) {
     const args = list.value.slice(1).map((v) => ctx.evaluate(v, env))
     return dispatchMultiMethod(evaledFirst, args, ctx)

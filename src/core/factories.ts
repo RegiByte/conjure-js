@@ -13,6 +13,7 @@ import type {
   CljNil,
   CljNumber,
   CljReduced,
+  CljRegex,
   CljString,
   CljSymbol,
   CljValue,
@@ -99,6 +100,12 @@ export const cljMultiArityMacro = (arities: Arity[], env: Env): CljMacro => ({
   kind: 'macro',
   arities,
   env,
+})
+
+export const cljRegex = (pattern: string, flags: string = ''): CljRegex => ({
+  kind: 'regex',
+  pattern,
+  flags,
 })
 
 export const cljAtom = (value: CljValue): CljAtom => ({ kind: 'atom', value })

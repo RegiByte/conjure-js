@@ -328,8 +328,24 @@ bar"`,
       ])
     })
 
-    it('should throw on regex dispatch #"..."', () => {
-      expect(() => tokenize('#"foo"')).toThrow(TokenizerError)
+    it('should tokenize regex dispatch #"..." as a Regex token', () => {
+      const tokens = tokenize('#"foo"')
+      expect(tokens).toMatchObject([{ kind: 'Regex', value: 'foo' }])
+    })
+
+    it('should tokenize regex with escape sequences passed through', () => {
+      // \d is two chars in the raw source — passed through as-is for regex engine
+      const tokens = tokenize('#"\\d+"')
+      expect(tokens).toMatchObject([{ kind: 'Regex', value: '\\d+' }])
+    })
+
+    it('should tokenize regex with escaped quote inside', () => {
+      const tokens = tokenize('#"say \\"hi\\""')
+      expect(tokens).toMatchObject([{ kind: 'Regex', value: 'say "hi"' }])
+    })
+
+    it('should throw on unterminated regex literal', () => {
+      expect(() => tokenize('#"foo')).toThrow(TokenizerError)
     })
 
     it('should throw on set dispatch #{...}', () => {

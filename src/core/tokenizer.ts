@@ -217,6 +217,55 @@ const parseDerefToken = (ctx: TokenizationContext): Token => {
   return { kind: 'Deref', start, end: scanner.position() }
 }
 
+const parseRegexLiteral = (ctx: TokenizationContext, start: ReturnType<typeof ctx.scanner.position>): Token => {
+  const scanner = ctx.scanner
+  scanner.advance() // consume opening '"'
+  const buffer: string[] = []
+  let foundClosingQuote = false
+  while (!scanner.isAtEnd()) {
+    const ch = scanner.peek()!
+    if (ch === '\\') {
+      scanner.advance() // consume backslash
+      const next = scanner.peek()
+      if (next === null) {
+        throw new TokenizerError(
+          `Unterminated regex literal at ${start.offset}`,
+          scanner.position()
+        )
+      }
+      if (next === '"') {
+        // \" → " (only escape that terminates the literal meaning)
+        buffer.push('"')
+      } else {
+        // All other \X sequences (\\, \d, \s, \n, etc.) are passed through as-is
+        // for the regex engine to interpret
+        buffer.push('\\')
+        buffer.push(next)
+      }
+      scanner.advance() // consume the char after backslash
+      continue
+    }
+    if (ch === '"') {
+      scanner.advance() // consume closing '"'
+      foundClosingQuote = true
+      break
+    }
+    buffer.push(scanner.advance()!)
+  }
+  if (!foundClosingQuote) {
+    throw new TokenizerError(
+      `Unterminated regex literal at ${start.offset}`,
+      scanner.position()
+    )
+  }
+  return {
+    kind: tokenKeywords.Regex,
+    value: buffer.join(''),
+    start,
+    end: scanner.position(),
+  }
+}
+
 // Single routing point for all # dispatch characters.
 // Add new dispatch forms here as they are supported.
 function parseDispatch(ctx: TokenizationContext): Token {
@@ -229,8 +278,7 @@ function parseDispatch(ctx: TokenizationContext): Token {
     return { kind: tokenKeywords.AnonFnStart, start, end: scanner.position() }
   }
   if (next === '"') {
-    // TODO: regex literals — #"pattern"
-    throw new TokenizerError('Regex literals are not yet supported', start)
+    return parseRegexLiteral(ctx, start)
   }
   if (next === '{') {
     // TODO: set literals — #{1 2 3}

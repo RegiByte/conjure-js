@@ -42,6 +42,12 @@ export function valueToString(value: CljValue): string {
       return `(native-fn ${value.name})`
     case valueKeywords.nil:
       return 'nil'
+    // Matches Clojure's Pattern.toString() behavior: returns the pattern string
+    // prefixed with inline flags if present, e.g. (?i)hello
+    case valueKeywords.regex: {
+      const prefix = value.flags ? `(?${value.flags})` : ''
+      return `${prefix}${value.pattern}`
+    }
     default:
       throw new EvaluationError(`unhandled value type: ${value.kind}`, {
         value,

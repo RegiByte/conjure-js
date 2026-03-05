@@ -214,6 +214,10 @@ function evaluateDef(
       env,
     })
   }
+  // (def name) with no value is a bare declaration — a no-op in the evaluator.
+  // This lets .clj source files declare runtime-injected symbols so that
+  // clojure-lsp can resolve them, without clobbering the native binding.
+  if (list.value[2] === undefined) return cljNil()
   define(name.name, ctx.evaluate(list.value[2], env), getNamespaceEnv(env))
   return cljNil()
 }

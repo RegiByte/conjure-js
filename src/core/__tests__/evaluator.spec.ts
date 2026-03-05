@@ -1114,6 +1114,279 @@ describe('evaluator spec', () => {
       )
     })
 
+    describe('juxt', () => {
+      it.each([
+        ['((juxt inc dec) 10)', [11, 9]],
+        ['((juxt + *) 2 3 4)', [9, 24]],
+        ['((juxt first last count) [1 2 3 4])', [1, 4, 4]],
+        ['((juxt) 1 2 3)', []],
+      ])(
+        'should evaluate juxt core function: %s should be %s',
+        (code, expected) => {
+          const session = createSession()
+          const result = session.evaluate(code)
+          expect(result).toMatchObject(toCljValue(expected))
+        }
+      )
+
+      it.each([
+        ['((juxt 1) 10)', 'apply expects a function as first argument, got 1'],
+        ['((juxt (fn [x] x)) 1 2)', 'No matching arity for 2'],
+      ])(
+        'should throw on invalid juxt usage: %s should throw "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('merge', () => {
+      it.each([
+        ['(merge)', null],
+        [
+          '(merge {:a 1} {:b 2})',
+          cljMap([
+            [cljKeyword(':a'), cljNumber(1)],
+            [cljKeyword(':b'), cljNumber(2)],
+          ]),
+        ],
+        [
+          '(merge {:a 1} {:a 2 :b 3})',
+          cljMap([
+            [cljKeyword(':a'), cljNumber(2)],
+            [cljKeyword(':b'), cljNumber(3)],
+          ]),
+        ],
+        ['(merge nil {:a 1})', cljMap([[cljKeyword(':a'), cljNumber(1)]])],
+      ])('should evaluate merge core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+
+      it.each([['(merge 1 {:a 2})', 'assoc expects a collection, got 1']])(
+        'should throw on invalid merge arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('select-keys', () => {
+      it.each([
+        [
+          '(select-keys {:a 1 :b 2} [:a])',
+          cljMap([[cljKeyword(':a'), cljNumber(1)]]),
+        ],
+        [
+          '(select-keys {:a nil :b 2} [:a])',
+          cljMap([[cljKeyword(':a'), cljNil()]]),
+        ],
+        ['(select-keys nil [:a])', cljMap([])],
+        ['(select-keys {:a 1} nil)', cljMap([])],
+      ])('should evaluate select-keys core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+
+      it.each([['(select-keys {:a 1} 1)', 'reduce expects a collection']])(
+        'should throw on invalid select-keys arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('update', () => {
+      it.each([
+        [
+          '(update {:a 1 :b 2} :a inc)',
+          cljMap([
+            [cljKeyword(':a'), cljNumber(2)],
+            [cljKeyword(':b'), cljNumber(2)],
+          ]),
+        ],
+        [
+          '(update {:a [1]} :a conj 2 3)',
+          cljMap([
+            [
+              cljKeyword(':a'),
+              cljVector([cljNumber(1), cljNumber(2), cljNumber(3)]),
+            ],
+          ]),
+        ],
+        [
+          '(update nil :a (fn [x] (if (nil? x) 0 x)))',
+          cljMap([[cljKeyword(':a'), cljNumber(0)]]),
+        ],
+      ])('should evaluate update core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+
+      it.each([
+        ['(update {:a 1} :a 42)', 'f is not a function'],
+        ['(update)', 'No matching arity for 0'],
+      ])(
+        'should throw on invalid update arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('frequencies', () => {
+      it.each([
+        [
+          '(frequencies [1 1 2 3 2])',
+          cljMap([
+            [cljNumber(1), cljNumber(2)],
+            [cljNumber(2), cljNumber(2)],
+            [cljNumber(3), cljNumber(1)],
+          ]),
+        ],
+        ['(frequencies nil)', cljMap([])],
+      ])('should evaluate frequencies core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+
+      it.each([['(frequencies 42)', 'reduce expects a collection']])(
+        'should throw on invalid frequencies arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('group-by', () => {
+      it.each([
+        [
+          '(group-by odd? [1 2 3 4])',
+          cljMap([
+            [cljBoolean(true), cljVector([cljNumber(1), cljNumber(3)])],
+            [cljBoolean(false), cljVector([cljNumber(2), cljNumber(4)])],
+          ]),
+        ],
+        ['(group-by inc nil)', cljMap([])],
+      ])('should evaluate group-by core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+
+      it.each([['(group-by 42 [1 2])', 'not a function']])(
+        'should throw on invalid group-by arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('distinct', () => {
+      it.each([
+        ['(distinct [1 2 1 3 2])', [1, 2, 3]],
+        ["(distinct '(1 1 2 2 3))", [1, 2, 3]],
+        ['(distinct nil)', []],
+      ])('should evaluate distinct core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+
+      it.each([['(distinct 42)', 'reduce expects a collection']])(
+        'should throw on invalid distinct arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('flatten', () => {
+      it.each([
+        ['(flatten [1 [2 [3 4] []] 5])', [1, 2, 3, 4, 5]],
+        ["(flatten '((1 2) (3 (4))))", [1, 2, 3, 4]],
+        ['(flatten nil)', []],
+        ['(flatten 42)', [42]],
+      ])('should evaluate flatten core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+    })
+
+    describe('reduce-kv', () => {
+      it.each([
+        ['(reduce-kv (fn [acc k v] (+ acc k v)) 0 [10 20 30])', 63],
+        [
+          '(reduce-kv (fn [acc k v] (assoc acc k (* v 2))) {} {:a 1 :b 2})',
+          cljMap([
+            [cljKeyword(':a'), cljNumber(2)],
+            [cljKeyword(':b'), cljNumber(4)],
+          ]),
+        ],
+      ])('should evaluate reduce-kv core function: %s', (code, expected) => {
+        const session = createSession()
+        const result = session.evaluate(code)
+        expect(result).toMatchObject(toCljValue(expected))
+      })
+
+      it.each([
+        ["(reduce-kv + 0 '(1 2))", 'reduce-kv expects a map or vector'],
+      ])(
+        'should throw on invalid reduce-kv arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
+    describe('sort and sort-by', () => {
+      it.each([
+        ['(sort [3 1 2])', [1, 2, 3]],
+        ['(sort > [3 1 2])', [3, 2, 1]],
+        ['(sort (fn [a b] (- b a)) [1 3 2])', [3, 2, 1]],
+        ['(sort nil)', []],
+        [
+          '(sort-by first [[2 "b"] [1 "a"] [3 "c"]])',
+          [
+            [1, 'a'],
+            [2, 'b'],
+            [3, 'c'],
+          ],
+        ],
+        [
+          '(sort-by first > [[2 "b"] [1 "a"] [3 "c"]])',
+          [
+            [3, 'c'],
+            [2, 'b'],
+            [1, 'a'],
+          ],
+        ],
+      ])(
+        'should evaluate sort/sort-by core functions: %s',
+        (code, expected) => {
+          const session = createSession()
+          const result = session.evaluate(code)
+          expect(result).toMatchObject(toCljValue(expected))
+        }
+      )
+
+      it.each([
+        ['(sort)', 'No matching arity for 0'],
+        ['(sort 42)', 'reduce expects a collection'],
+        ['(sort-by inc)', 'No matching arity for 1'],
+      ])(
+        'should throw on invalid sort/sort-by arguments: %s → "%s"',
+        (code, expected) => {
+          expectEvalError(code, expected)
+        }
+      )
+    })
+
     describe('inc and dec', () => {
       it.each([
         ['(inc 0)', 1],
@@ -1473,6 +1746,7 @@ describe('evaluator spec', () => {
         ['(type [1 2])', cljKeyword(':vector')],
         ['(type {:a 1})', cljKeyword(':map')],
         ['(type +)', cljKeyword(':function')],
+        ['(type #"foo")', cljKeyword(':regex')],
         ['(type (fn [x] x))', cljKeyword(':function')],
       ])('should evaluate type: %s → %s', (code, expected) => {
         const session = createSession()
@@ -3279,6 +3553,56 @@ describe('evaluator spec', () => {
           `)
         ).toEqual(cljString('not found'))
       })
+    })
+  })
+
+  describe('maps as IFn', () => {
+    it('looks up a key and returns its value', () => {
+      const session = createSession()
+      expect(session.evaluate('({:a 1 :b 2} :a)')).toEqual(cljNumber(1))
+      expect(session.evaluate('({:a 1 :b 2} :b)')).toEqual(cljNumber(2))
+    })
+
+    it('returns nil when the key is not found', () => {
+      const session = createSession()
+      expect(session.evaluate('({:a 1} :c)')).toEqual(cljNil())
+    })
+
+    it('returns the default value when the key is not found', () => {
+      const session = createSession()
+      expect(session.evaluate('({:a 1} :c 99)')).toEqual(cljNumber(99))
+    })
+
+    it('returns the value (not the default) when the key is found', () => {
+      const session = createSession()
+      expect(session.evaluate('({:a 1} :a 99)')).toEqual(cljNumber(1))
+    })
+
+    it('works with non-keyword keys', () => {
+      const session = createSession()
+      expect(session.evaluate('({"x" 1 "y" 2} "x")')).toEqual(cljNumber(1))
+      expect(session.evaluate('({1 :one 2 :two} 1)')).toEqual(cljKeyword(':one'))
+    })
+
+    it('works in higher-order position — (map m coll)', () => {
+      const session = createSession()
+      expect(session.evaluate('(map {:a 1 :b 2 :c 3} [:a :c])')).toEqual(
+        cljVector([cljNumber(1), cljNumber(3)])
+      )
+    })
+
+    it('missing keys in higher-order position return nil', () => {
+      const session = createSession()
+      expect(session.evaluate('(map {:a 1} [:a :b :c])')).toEqual(
+        cljVector([cljNumber(1), cljNil(), cljNil()])
+      )
+    })
+
+    it('throws when called with no arguments', () => {
+      const session = createSession()
+      expect(() => session.evaluate('({:a 1})')).toThrow(
+        'Map used as function requires at least one argument'
+      )
     })
   })
 })

@@ -69,6 +69,11 @@ export function printString(value: CljValue): string {
       return `#<Reduced ${printString(value.value)}>`
     case valueKeywords.volatile:
       return `#<Volatile ${printString(value.value)}>`
+    case valueKeywords.regex: {
+      const escaped = value.pattern.replace(/"/g, '\\"')
+      const prefix = value.flags ? `(?${value.flags})` : ''
+      return `#"${prefix}${escaped}"`
+    }
     default:
       throw new EvaluationError(`unhandled value type: ${value.kind}`, {
         value,

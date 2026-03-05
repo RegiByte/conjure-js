@@ -1,6 +1,6 @@
 // Auto-generated from src/clojure/core.clj — do not edit directly.
 // Re-generate with: npm run gen:core-source
-export const coreSource = `\
+export const clojure_coreSource = `\
 (ns clojure.core)
 
 (defmacro defn [name & fdecl]
@@ -103,6 +103,189 @@ export const coreSource = `\
     ([x] (not (f x)))
     ([x y] (not (f x y)))
     ([x y & zs] (not (apply f x y zs)))))
+
+(defn juxt
+  "Takes a set of functions and returns a fn that is the juxtaposition
+  of those fns. The returned fn takes a variable number of args and
+  returns a vector containing the result of applying each fn to the args."
+  [& fns]
+  (fn [& args]
+    (map (fn [f] (apply f args)) fns)))
+
+(defn merge
+  "Returns a map that consists of the rest of the maps conj-ed onto
+  the first. If a key occurs in more than one map, the mapping from
+  the latter (left-to-right) will be the mapping in the result."
+  [& maps]
+  (if (nil? maps)
+    nil
+    (reduce
+     (fn [acc m]
+       (if (nil? m)
+         acc
+         (if (nil? acc)
+           m
+           (reduce
+            (fn [macc entry]
+              (assoc macc (first entry) (second entry)))
+            acc
+            m))))
+     nil
+     maps)))
+
+(defn select-keys
+  "Returns a map containing only those entries in map whose key is in keys."
+  [m keys]
+  (if (or (nil? m) (nil? keys))
+    {}
+    (let [missing (gensym)]
+      (reduce
+       (fn [acc k]
+         (let [v (get m k missing)]
+           (if (= v missing)
+             acc
+             (assoc acc k v))))
+       {}
+       keys))))
+
+(defn update
+  "Updates a value in an associative structure where k is a key and f is a
+  function that will take the old value and any supplied args and return the
+  new value, and returns a new structure."
+  [m k f & args]
+  (let [target (if (nil? m) {} m)]
+    (assoc target k (if (nil? args)
+                      (f (get target k))
+                      (apply f (get target k) args)))))
+
+(defn frequencies
+  "Returns a map from distinct items in coll to the number of times they appear."
+  [coll]
+  (if (nil? coll)
+    {}
+    (reduce
+     (fn [counts item]
+       (assoc counts item (inc (get counts item 0))))
+     {}
+     coll)))
+
+(defn group-by
+  "Returns a map of the elements of coll keyed by the result of f on each
+  element. The value at each key is a vector of matching elements."
+  [f coll]
+  (if (nil? coll)
+    {}
+    (reduce
+     (fn [acc item]
+       (let [k (f item)]
+         (assoc acc k (conj (get acc k []) item))))
+     {}
+     coll)))
+
+(defn distinct
+  "Returns a vector of the elements of coll with duplicates removed,
+  preserving first-seen order."
+  [coll]
+  (if (nil? coll)
+    []
+    (get
+     (reduce
+      (fn [state item]
+        (let [seen (get state 0)
+              out  (get state 1)]
+          (if (get seen item false)
+            state
+            [(assoc seen item true) (conj out item)])))
+      [{} []]
+      coll)
+     1)))
+
+(defn flatten-step
+  "Internal helper for flatten."
+  [v]
+  (if (or (list? v) (vector? v))
+    (reduce
+     (fn [acc item]
+       (into acc (flatten-step item)))
+     []
+     v)
+    [v]))
+
+(defn flatten
+  "Takes any nested combination of sequential things (lists/vectors) and
+  returns their contents as a single flat vector."
+  [x]
+  (if (nil? x)
+    []
+    (flatten-step x)))
+
+(defn reduce-kv
+  "Reduces an associative structure. f should be a function of 3
+  arguments: accumulator, key/index, value."
+  [f init coll]
+  (cond
+    (map? coll)
+    (reduce
+     (fn [acc entry]
+       (f acc (first entry) (second entry)))
+     init
+     coll)
+
+    (vector? coll)
+    (loop [idx 0
+           acc init]
+      (if (< idx (count coll))
+        (recur (inc idx) (f acc idx (nth coll idx)))
+        acc))
+
+    :else
+    (throw
+     (ex-info
+      "reduce-kv expects a map or vector"
+      {:coll coll}))))
+
+(defn sort-compare
+  "Internal helper: normalizes comparator results."
+  [cmp a b]
+  (let [r (cmp a b)]
+    (if (number? r)
+      (< r 0)
+      r)))
+
+(defn insert-sorted
+  "Internal helper for insertion-sort based sort implementation."
+  [cmp x sorted]
+  (loop [left  []
+         right sorted]
+    (if (nil? (seq right))
+      (conj left x)
+      (let [y (first right)]
+        (if (sort-compare cmp x y)
+          (into (conj left x) right)
+          (recur (conj left y) (rest right)))))))
+
+(defn sort
+  "Returns the items in coll in sorted order. With no comparator, sorts
+  ascending using <. Comparator may return boolean or number."
+  ([coll] (sort < coll))
+  ([cmp coll]
+   (if (nil? coll)
+     []
+     (reduce
+      (fn [acc item]
+        (insert-sorted cmp item acc))
+      []
+      coll))))
+
+(defn sort-by
+  "Returns a sorted sequence of items in coll, where the sort order is
+  determined by comparing (keyfn item)."
+  ([keyfn coll] (sort-by keyfn < coll))
+  ([keyfn cmp coll]
+   (sort
+    (fn [a b]
+      (cmp (keyfn a) (keyfn b)))
+    coll)))
 
 (def not-any? (comp not some))
 
@@ -333,6 +516,9 @@ export const coreSource = `\
 
 ;; partition-all: stateful transducer; groups items into vectors of size n
 (defn partition-all
+  "Returns a sequence of lists like partition, but may include
+   partitions with fewer than n items at the end.  Returns a stateful
+   transducer when no collection is provided."
   ([n]
    (fn [rf]
      (let [buf (volatile! [])]
@@ -373,4 +559,9 @@ export const coreSource = `\
                       args#))]
      (println (str (if args-str# (str args-str# "\\n\\n") "")
                    (or d# "No documentation available.")))))
-`
+
+(defn err
+  "Creates an error map with type, message, data and optionally cause"
+  ([type message] (err type message nil nil))
+  ([type message data] (err type message data nil))
+  ([type message data cause] {:type type :message message :data data :cause cause}))`

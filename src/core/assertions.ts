@@ -11,6 +11,7 @@ import {
   type CljNativeFunction,
   type CljNumber,
   type CljReduced,
+  type CljRegex,
   type CljString,
   type CljSymbol,
   type CljValue,
@@ -59,6 +60,8 @@ export const isReduced = (value: CljValue): value is CljReduced =>
   value.kind === 'reduced'
 export const isVolatile = (value: CljValue): value is CljVolatile =>
   value.kind === 'volatile'
+export const isRegex = (value: CljValue): value is CljRegex =>
+  value.kind === 'regex'
 export const isCollection = (
   value: CljValue
 ): value is CljList | CljVector | CljMap =>
@@ -108,6 +111,9 @@ const equalityHandlers = {
   [valueKeywords.reduced]: (a: CljReduced, b: CljReduced) =>
     isEqual(a.value, b.value),
   [valueKeywords.volatile]: (a: CljVolatile, b: CljVolatile) => a === b,
+  // Regex uses reference equality matching Clojure Pattern semantics:
+  // (= #"foo" #"foo") => false — each literal is a distinct object
+  [valueKeywords.regex]: (a: CljRegex, b: CljRegex) => a === b,
 }
 
 export const isEqual = (a: CljValue, b: CljValue): boolean => {

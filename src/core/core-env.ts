@@ -10,6 +10,8 @@ import { errorFunctions } from './stdlib/errors'
 import { hofFunctions } from './stdlib/hof'
 import { metaFunctions } from './stdlib/meta'
 import { predicateFunctions } from './stdlib/predicates'
+import { getRegexFunctions } from './stdlib/regex'
+import { getStringFunctions } from './stdlib/strings'
 import { transducerFunctions } from './stdlib/transducers'
 import { getUtilFunctions } from './stdlib/utils'
 import { valueToString } from './transformations'
@@ -28,6 +30,8 @@ function getCoreFunctions(globalEnv: Env) {
     ...hofFunctions,
     ...metaFunctions,
     ...transducerFunctions,
+    ...getRegexFunctions(),
+    ...getStringFunctions(),
     ...getUtilFunctions(globalEnv),
   }
 

@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   cljBoolean,
   cljKeyword,
+  cljList,
   cljNil,
   cljNumber,
+  cljRegex,
   cljString,
   cljVector,
 } from '../factories'
@@ -647,6 +649,84 @@ describe('not-every?', () => {
   })
 })
 
+describe('clojure.string', () => {
+  it('loads via require and supports str/join with separator', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/join ", " [1 2 3])')).toEqual(cljString('1, 2, 3'))
+  })
+
+  it('supports str/join without separator', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/join ["a" "b" "c"])')).toEqual(cljString('abc'))
+  })
+
+  it('supports str/blank?', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as the-str-lib])")
+    expect(s.evaluate('(the-str-lib/blank? nil)')).toEqual(cljBoolean(true))
+    expect(s.evaluate('(the-str-lib/blank? "")')).toEqual(cljBoolean(true))
+    expect(s.evaluate('(the-str-lib/blank? "x")')).toEqual(cljBoolean(false))
+  })
+
+  it('supports str/split with regex separator', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split "a1b2c" #"\\d")')).toEqual(
+      cljVector([cljString('a'), cljString('b'), cljString('c')])
+    )
+  })
+
+  it('str/split drops trailing empty strings by default', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split "a,b,c," #",")')).toEqual(
+      cljVector([cljString('a'), cljString('b'), cljString('c')])
+    )
+  })
+
+  it('str/split keeps trailing empty strings when limit is provided', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split "a,b,c," #"," 10)')).toEqual(
+      cljVector([cljString('a'), cljString('b'), cljString('c'), cljString('')])
+    )
+  })
+
+  it('str/split returns whole string when separator is absent', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split "abc" #",")')).toEqual(
+      cljVector([cljString('abc')])
+    )
+  })
+
+  it('str/split throws when separator is not a regex', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(() => s.evaluate('(str/split "abc" ",")')).toThrow(
+      'str-split* expects a regex pattern as second argument'
+    )
+  })
+
+  it('str/split with #"" regex splits into individual characters', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split "Hello" #"")')).toEqual(
+      cljVector([cljString('H'), cljString('e'), cljString('l'), cljString('l'), cljString('o')])
+    )
+  })
+
+  it('str/split with #"" and limit stops early and joins the rest', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split "Hello" #"" 3)')).toEqual(
+      cljVector([cljString('H'), cljString('e'), cljString('llo')])
+    )
+  })
+})
+
 describe('qualified-keyword?', () => {
   it('returns true for a qualified keyword', () => {
     expect(session().evaluate('(qualified-keyword? :user/foo)')).toEqual(
@@ -761,5 +841,535 @@ describe('keyword constructor', () => {
 
   it('throws with non-string first argument', () => {
     expect(() => session().evaluate('(keyword 42)')).toThrow()
+  })
+})
+
+describe('regex', () => {
+  describe('literal syntax and printing', () => {
+    it('reads a simple regex literal', () => {
+      expect(session().evaluate('#"foo"')).toEqual(cljRegex('foo', ''))
+    })
+
+    it('reads a regex with \\d and \\s (no escape processing)', () => {
+      // \d and \s are two-char sequences passed through to the regex engine
+      expect(session().evaluate('#"\\d+"')).toEqual(cljRegex('\\d+', ''))
+    })
+
+    it('prints a regex literal back to its source form', () => {
+      expect(printString(cljRegex('foo', ''))).toBe('#"foo"')
+    })
+
+    it('prints a regex with flags as (?flags)pattern', () => {
+      expect(printString(cljRegex('foo', 'i'))).toBe('#"(?i)foo"')
+    })
+
+    it('prints a regex with an embedded quote escaped', () => {
+      expect(printString(cljRegex('say "hi"', ''))).toBe('#"say \\"hi\\""')
+    })
+
+    it('round-trips: str of a regex returns its pattern string (Clojure Pattern.toString)', () => {
+      // In Clojure, (str #"\d+") => "\d+" (the pattern string, no #"..." wrapper)
+      expect(session().evaluate('(str #"\\d+")')).toEqual(cljString('\\d+'))
+    })
+  })
+
+  describe('inline flag extraction', () => {
+    it('extracts (?i) as case-insensitive flag', () => {
+      expect(session().evaluate('#"(?i)hello"')).toEqual(cljRegex('hello', 'i'))
+    })
+
+    it('extracts (?m) as multiline flag', () => {
+      expect(session().evaluate('#"(?m)^foo"')).toEqual(cljRegex('^foo', 'm'))
+    })
+
+    it('extracts (?s) as dotall flag', () => {
+      expect(session().evaluate('#"(?s)."')).toEqual(cljRegex('.', 's'))
+    })
+
+    it('extracts multiple leading flag groups', () => {
+      expect(session().evaluate('#"(?i)(?m)^hello"')).toEqual(
+        cljRegex('^hello', 'im')
+      )
+    })
+
+    it('leaves (?:...) non-capturing groups alone', () => {
+      expect(session().evaluate('#"(?:foo|bar)"')).toEqual(
+        cljRegex('(?:foo|bar)', '')
+      )
+    })
+
+    it('throws on unsupported (?x) verbose flag', () => {
+      expect(() => session().evaluate('#"(?x)foo bar"')).toThrow()
+    })
+  })
+
+  describe('regexp?', () => {
+    it('returns true for a regex', () => {
+      expect(session().evaluate('(regexp? #"foo")')).toEqual(cljBoolean(true))
+    })
+
+    it('returns false for a string', () => {
+      expect(session().evaluate('(regexp? "foo")')).toEqual(cljBoolean(false))
+    })
+
+    it('returns false for nil', () => {
+      expect(session().evaluate('(regexp? nil)')).toEqual(cljBoolean(false))
+    })
+  })
+
+  describe('re-pattern', () => {
+    it('creates a regex from a string', () => {
+      expect(session().evaluate('(re-pattern "\\\\d+")')).toEqual(
+        cljRegex('\\d+', '')
+      )
+    })
+
+    it('extracts inline flags from the string', () => {
+      expect(session().evaluate('(re-pattern "(?i)hello")')).toEqual(
+        cljRegex('hello', 'i')
+      )
+    })
+
+    it('throws on non-string argument', () => {
+      expect(() => session().evaluate('(re-pattern 42)')).toThrow()
+    })
+  })
+
+  describe('equality — reference semantics', () => {
+    it('two identical literals are not equal (reference equality)', () => {
+      expect(session().evaluate('(= #"foo" #"foo")')).toEqual(
+        cljBoolean(false)
+      )
+    })
+
+    it('the same binding is equal to itself', () => {
+      const s = session()
+      s.evaluate('(def r #"foo")')
+      expect(s.evaluate('(= r r)')).toEqual(cljBoolean(true))
+    })
+  })
+
+  describe('re-find', () => {
+    it('returns matched string when there are no capturing groups', () => {
+      expect(session().evaluate('(re-find #"\\d+" "abc123def")')).toEqual(
+        cljString('123')
+      )
+    })
+
+    it('returns nil when no match', () => {
+      expect(session().evaluate('(re-find #"\\d+" "abc")')).toEqual(cljNil())
+    })
+
+    it('returns a vector with whole match and groups when there are captures', () => {
+      expect(
+        session().evaluate('(re-find #"(\\w+) (\\w+)" "hello world")')
+      ).toEqual(
+        cljVector([cljString('hello world'), cljString('hello'), cljString('world')])
+      )
+    })
+
+    it('returns nil for unmatched optional groups', () => {
+      expect(
+        session().evaluate('(re-find #"(\\d+)(\\w+)?" "123")')
+      ).toEqual(
+        cljVector([cljString('123'), cljString('123'), cljNil()])
+      )
+    })
+
+    it('respects (?i) case-insensitive flag', () => {
+      expect(session().evaluate('(re-find #"(?i)hello" "Say HELLO")')).toEqual(
+        cljString('HELLO')
+      )
+    })
+
+    it('only returns the first match', () => {
+      expect(session().evaluate('(re-find #"\\d" "1a2b3")')).toEqual(
+        cljString('1')
+      )
+    })
+  })
+
+  describe('re-matches', () => {
+    it('returns the match when the entire string matches', () => {
+      expect(session().evaluate('(re-matches #"\\d+" "12345")')).toEqual(
+        cljString('12345')
+      )
+    })
+
+    it('returns nil when only part of the string matches', () => {
+      expect(session().evaluate('(re-matches #"\\d+" "123abc")')).toEqual(
+        cljNil()
+      )
+    })
+
+    it('returns nil when there is no match', () => {
+      expect(session().evaluate('(re-matches #"\\d+" "abc")')).toEqual(
+        cljNil()
+      )
+    })
+
+    it('returns a vector with groups on full match', () => {
+      expect(
+        session().evaluate('(re-matches #"(\\w+)@(\\w+)" "user@host")')
+      ).toEqual(
+        cljVector([cljString('user@host'), cljString('user'), cljString('host')])
+      )
+    })
+  })
+
+  describe('re-seq', () => {
+    it('returns a list of all non-overlapping matches', () => {
+      expect(session().evaluate('(re-seq #"\\d+" "a1b22c333")')).toEqual(
+        cljList([cljString('1'), cljString('22'), cljString('333')])
+      )
+    })
+
+    it('returns nil when there are no matches', () => {
+      expect(session().evaluate('(re-seq #"\\d+" "abc")')).toEqual(cljNil())
+    })
+
+    it('returns a list of vectors when there are capturing groups', () => {
+      expect(
+        session().evaluate('(re-seq #"(\\w+)=(\\w+)" "a=1 b=2")')
+      ).toEqual(
+        cljList([
+          cljVector([cljString('a=1'), cljString('a'), cljString('1')]),
+          cljVector([cljString('b=2'), cljString('b'), cljString('2')]),
+        ])
+      )
+    })
+  })
+})
+
+// ---------------------------------------------------------------------------
+// clojure.string — new functions
+// ---------------------------------------------------------------------------
+
+describe('clojure.string/upper-case and lower-case', () => {
+  it('upper-case converts to all caps', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/upper-case "hello world")')).toEqual(cljString('HELLO WORLD'))
+    expect(s.evaluate('(str/upper-case "")')).toEqual(cljString(''))
+  })
+
+  it('lower-case converts to all lower', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/lower-case "HELLO WORLD")')).toEqual(cljString('hello world'))
+    expect(s.evaluate('(str/lower-case "")')).toEqual(cljString(''))
+  })
+})
+
+describe('clojure.string/capitalize', () => {
+  it('capitalizes first char, lowercases rest', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/capitalize "hello world")')).toEqual(cljString('Hello world'))
+    expect(s.evaluate('(str/capitalize "HELLO")')).toEqual(cljString('Hello'))
+  })
+
+  it('handles single character', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/capitalize "a")')).toEqual(cljString('A'))
+    expect(s.evaluate('(str/capitalize "A")')).toEqual(cljString('A'))
+  })
+
+  it('handles empty string', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/capitalize "")')).toEqual(cljString(''))
+  })
+})
+
+describe('clojure.string/trim, triml, trimr', () => {
+  it('trim removes whitespace from both ends', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/trim "  hello  ")')).toEqual(cljString('hello'))
+    expect(s.evaluate('(str/trim "hello")')).toEqual(cljString('hello'))
+    expect(s.evaluate('(str/trim "   ")')).toEqual(cljString(''))
+  })
+
+  it('triml removes whitespace from the left only', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/triml "  hello  ")')).toEqual(cljString('hello  '))
+  })
+
+  it('trimr removes whitespace from the right only', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/trimr "  hello  ")')).toEqual(cljString('  hello'))
+  })
+})
+
+describe('clojure.string/trim-newline', () => {
+  it('removes trailing \\n and \\r characters', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/trim-newline "hello\\n")')).toEqual(cljString('hello'))
+    expect(s.evaluate('(str/trim-newline "hello\\r\\n")')).toEqual(cljString('hello'))
+    expect(s.evaluate('(str/trim-newline "hello\\n\\n")')).toEqual(cljString('hello'))
+  })
+
+  it('does not remove non-newline trailing whitespace', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/trim-newline "hello  ")')).toEqual(cljString('hello  '))
+  })
+
+  it('returns empty string unchanged', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/trim-newline "")')).toEqual(cljString(''))
+  })
+})
+
+describe('clojure.string/blank?', () => {
+  it('returns true for nil', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/blank? nil)')).toEqual(cljBoolean(true))
+  })
+
+  it('returns true for empty string', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/blank? "")')).toEqual(cljBoolean(true))
+  })
+
+  it('returns true for whitespace-only string', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/blank? "   ")')).toEqual(cljBoolean(true))
+    expect(s.evaluate('(str/blank? "\\t\\n")')).toEqual(cljBoolean(true))
+  })
+
+  it('returns false for string with content', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/blank? "hello")')).toEqual(cljBoolean(false))
+    expect(s.evaluate('(str/blank? " x ")')).toEqual(cljBoolean(false))
+  })
+})
+
+describe('clojure.string/starts-with?, ends-with?, includes?', () => {
+  it('starts-with? returns true when s starts with substr', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/starts-with? "hello world" "hello")')).toEqual(cljBoolean(true))
+    expect(s.evaluate('(str/starts-with? "hello world" "world")')).toEqual(cljBoolean(false))
+    expect(s.evaluate('(str/starts-with? "hello" "")')).toEqual(cljBoolean(true))
+  })
+
+  it('ends-with? returns true when s ends with substr', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/ends-with? "hello world" "world")')).toEqual(cljBoolean(true))
+    expect(s.evaluate('(str/ends-with? "hello world" "hello")')).toEqual(cljBoolean(false))
+    expect(s.evaluate('(str/ends-with? "hello" "")')).toEqual(cljBoolean(true))
+  })
+
+  it('includes? returns true when s contains substr', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/includes? "hello world" "lo wo")')).toEqual(cljBoolean(true))
+    expect(s.evaluate('(str/includes? "hello world" "xyz")')).toEqual(cljBoolean(false))
+    expect(s.evaluate('(str/includes? "hello" "")')).toEqual(cljBoolean(true))
+  })
+})
+
+describe('clojure.string/index-of and last-index-of', () => {
+  it('index-of returns index when found', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/index-of "hello" "ll")')).toEqual(cljNumber(2))
+    expect(s.evaluate('(str/index-of "hello" "h")')).toEqual(cljNumber(0))
+  })
+
+  it('index-of returns nil when not found', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/index-of "hello" "xyz")')).toEqual(cljNil())
+  })
+
+  it('index-of with from-index searches from that position', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/index-of "abcabc" "b" 3)')).toEqual(cljNumber(4))
+    expect(s.evaluate('(str/index-of "abcabc" "a" 1)')).toEqual(cljNumber(3))
+  })
+
+  it('last-index-of returns last index when found', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/last-index-of "abcabc" "b")')).toEqual(cljNumber(4))
+  })
+
+  it('last-index-of returns nil when not found', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/last-index-of "hello" "xyz")')).toEqual(cljNil())
+  })
+
+  it('last-index-of with from-index searches backward from that position', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/last-index-of "abcabc" "b" 3)')).toEqual(cljNumber(1))
+  })
+})
+
+describe('clojure.string/reverse', () => {
+  it('reverses a simple string', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/reverse "hello")')).toEqual(cljString('olleh'))
+    expect(s.evaluate('(str/reverse "")')).toEqual(cljString(''))
+    expect(s.evaluate('(str/reverse "a")')).toEqual(cljString('a'))
+  })
+
+  it('reverses a string with spaces', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/reverse "hello world")')).toEqual(cljString('dlrow olleh'))
+  })
+})
+
+describe('clojure.string/replace', () => {
+  it('string/string replaces all occurrences literally', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace "aabbaa" "aa" "x")')).toEqual(cljString('xbbx'))
+    expect(s.evaluate('(str/replace "hello" "x" "y")')).toEqual(cljString('hello'))
+  })
+
+  it('string/string treats match as literal (no regex special chars)', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace "a.b.c" "." "-")')).toEqual(cljString('a-b-c'))
+  })
+
+  it('string/string treats replacement as literal (no $ expansion)', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace "hello" "hello" "$0")')).toEqual(cljString('$0'))
+  })
+
+  it('regex/string replaces all matches', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace "a1b2c3" #"\\d" "X")')).toEqual(cljString('aXbXcX'))
+  })
+
+  it('regex/string supports $1 backreferences', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace "hello world" #"(\\w+)" "[$1]")')).toEqual(
+      cljString('[hello] [world]')
+    )
+  })
+
+  it('regex/fn calls fn with whole match when no groups', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace "hello world" #"\\w+" str/upper-case)')).toEqual(
+      cljString('HELLO WORLD')
+    )
+  })
+
+  it('regex/fn calls fn with vector [whole g1 g2...] when groups present', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(
+      s.evaluate('(str/replace "2024-01-15" #"(\\d{4})-(\\d{2})-(\\d{2})" (fn [v] (str (nth v 3) "/" (nth v 2) "/" (nth v 1))))')
+    ).toEqual(cljString('15/01/2024'))
+  })
+})
+
+describe('clojure.string/replace-first', () => {
+  it('string/string replaces only the first occurrence', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace-first "aabbaa" "aa" "x")')).toEqual(cljString('xbbaa'))
+  })
+
+  it('regex/string replaces only the first match', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace-first "a1b2c3" #"\\d" "X")')).toEqual(cljString('aXb2c3'))
+  })
+
+  it('regex/fn calls fn with the first match only', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/replace-first "hello world" #"\\w+" str/upper-case)')).toEqual(
+      cljString('HELLO world')
+    )
+  })
+})
+
+describe('clojure.string/re-quote-replacement', () => {
+  it('escapes $ so it is treated literally in replace', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(
+      s.evaluate('(str/replace "hello" #"hello" (str/re-quote-replacement "$0 world"))')
+    ).toEqual(cljString('$0 world'))
+  })
+
+  it('leaves strings without $ unchanged', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/re-quote-replacement "world")')).toEqual(cljString('world'))
+  })
+})
+
+describe('clojure.string/split-lines', () => {
+  it('splits on \\n', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split-lines "a\\nb\\nc")')).toEqual(
+      cljVector([cljString('a'), cljString('b'), cljString('c')])
+    )
+  })
+
+  it('splits on \\r\\n', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split-lines "a\\r\\nb\\r\\nc")')).toEqual(
+      cljVector([cljString('a'), cljString('b'), cljString('c')])
+    )
+  })
+
+  it('trailing empty line is dropped', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/split-lines "a\\nb\\n")')).toEqual(
+      cljVector([cljString('a'), cljString('b')])
+    )
+  })
+})
+
+describe('clojure.string/escape', () => {
+  it('replaces characters found in cmap', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(
+      s.evaluate('(str/escape "This <test>" {"<" "&lt;" ">" "&gt;"})')
+    ).toEqual(cljString('This &lt;test&gt;'))
+  })
+
+  it('passes through characters not in cmap', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/escape "abc" {"x" "X"})')).toEqual(cljString('abc'))
+  })
+
+  it('handles empty string', () => {
+    const s = session()
+    s.evaluate("(require '[clojure.string :as str])")
+    expect(s.evaluate('(str/escape "" {"a" "b"})')).toEqual(cljString(''))
   })
 })

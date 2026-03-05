@@ -23,9 +23,16 @@ window.MonacoEnvironment = {
 const INITIAL_CODE = `\
 ;; Clojure Playground — press ⌘+Enter (or Ctrl+Enter) to evaluate
 (ns user
-  (:require [some.namespace :as-alias sns]))
+  (:require [some.namespace :as-alias sns]
+            [clojure.string :as str]))
 
 (::sns/tag {::sns/tag "foo"})
+
+;; clojure.string examples
+(str/join ", " ["hello" "from" "clojure.string"])
+(str/join ["H" "e" "l" "l" "o" " " "W" "o" "r" "l" "d"] )
+(str/blank? "")
+(str/blank? "not blank")
 
 (defn fib [n]
   (loop [a 0 b 1 i n]

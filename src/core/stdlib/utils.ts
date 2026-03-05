@@ -26,6 +26,38 @@ export function getUtilFunctions(globalEnv: Env): Record<string, CljValue> {
       'Returns a concatenated string representation of the given values.',
       [['&', 'args']]
     ),
+    subs: withDoc(
+      cljNativeFunction(
+        'subs',
+        (s: CljValue, start: CljValue, end?: CljValue) => {
+          if (s === undefined || s.kind !== 'string') {
+            throw new EvaluationError(
+              `subs expects a string as first argument${s !== undefined ? `, got ${printString(s)}` : ''}`,
+              { s }
+            )
+          }
+          if (start === undefined || start.kind !== 'number') {
+            throw new EvaluationError(
+              `subs expects a number as second argument${start !== undefined ? `, got ${printString(start)}` : ''}`,
+              { start }
+            )
+          }
+          if (end !== undefined && end.kind !== 'number') {
+            throw new EvaluationError(
+              `subs expects a number as optional third argument${end !== undefined ? `, got ${printString(end)}` : ''}`,
+              { end }
+            )
+          }
+          const from = start.value
+          const to = end?.value
+          return cljString(
+            to === undefined ? s.value.slice(from) : s.value.slice(from, to)
+          )
+        }
+      ),
+      'Returns the substring of s beginning at start, and optionally ending before end.',
+      [['s', 'start'], ['s', 'start', 'end']]
+    ),
     type: withDoc(
       cljNativeFunction('type', (x: CljValue) => {
         if (x === undefined) {
@@ -42,6 +74,7 @@ export function getUtilFunctions(globalEnv: Env): Record<string, CljValue> {
           vector: ':vector',
           map: ':map',
           function: ':function',
+          regex: ':regex',
           'native-function': ':function',
         }
         const name = kindToKeyword[x.kind]

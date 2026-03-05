@@ -80,6 +80,14 @@ describe('namespaces', () => {
         s
       )
     })
+
+    it('lazily loads built-in namespaces from generated registry', () => {
+      const s = session()
+      expect(s.getNs('clojure.string')).toBeNull()
+      s.evaluate("(require '[clojure.string :as str])")
+      expect(s.getNs('clojure.string')).not.toBeNull()
+      expect(s.evaluate('::str/sample')).toEqual(cljKeyword(':clojure.string/sample'))
+    })
   })
 
   describe('require with :refer', () => {
@@ -329,6 +337,20 @@ describe('namespaces', () => {
       s.loadFile('(ns my.utils)\n(def helper 99)')
       s.evaluate("(require '[my.utils :as u])")
       expect(s.evaluate('u/helper')).toEqual(cljNumber(99))
+      expect(readFileCalls).toBe(0)
+    })
+
+    it('does not use readFile for built-in namespaces resolved via generated registry', () => {
+      let readFileCalls = 0
+      const s = createSession({
+        sourceRoots: ['src'],
+        readFile: (_path: string) => {
+          readFileCalls++
+          throw new Error('Should not be called for built-in namespace')
+        },
+      })
+      s.evaluate("(require '[clojure.string :as str])")
+      expect(s.getNs('clojure.string')).not.toBeNull()
       expect(readFileCalls).toBe(0)
     })
   })
