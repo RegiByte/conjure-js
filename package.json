@@ -15,7 +15,7 @@
     "gen:core-source": "node scripts/gen-core-source.mjs"
   },
   "devDependencies": {
-    "@types/node": "^25.3.2",
+    "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
     "prettier": "^3.8.1",
