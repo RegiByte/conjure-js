@@ -1,6 +1,12 @@
 // Higher-order functions: map, filter, reduce, apply, partial, comp,
 // map-indexed, identity
-import { isAFunction, isCollection, isReduced } from '../assertions'
+import {
+  isAFunction,
+  isCallable,
+  isNil,
+  isReduced,
+  isSeqable,
+} from '../assertions'
 import { EvaluationError } from '../errors'
 import {
   cljNativeFunction,
@@ -9,13 +15,7 @@ import {
 } from '../factories'
 import { printString } from '../printer'
 import { toSeq } from '../transformations'
-import type {
-  CljFunction,
-  CljNativeFunction,
-  CljValue,
-  Env,
-  EvaluationContext,
-} from '../types'
+import type { CljValue, Env, EvaluationContext } from '../types'
 
 export const hofFunctions: Record<string, CljValue> = {
   // map: cljNativeFunctionWithContext(
@@ -116,9 +116,20 @@ export const hofFunctions: Record<string, CljValue> = {
         const init: CljValue | undefined = hasInit ? rest[0] : undefined
         const collection = hasInit ? rest[1] : rest[0]
 
-        if (!isCollection(collection)) {
+        // nil is treated as an empty collection (matches Clojure semantics)
+        if (collection.kind === 'nil') {
+          if (!hasInit) {
+            throw new EvaluationError(
+              'reduce called on empty collection with no initial value',
+              { fn }
+            )
+          }
+          return init!
+        }
+
+        if (!isSeqable(collection)) {
           throw new EvaluationError(
-            `reduce expects a collection, got ${printString(collection)}`,
+            `reduce expects a collection or string, got ${printString(collection)}`,
             { collection }
           )
         }
@@ -167,9 +178,9 @@ export const hofFunctions: Record<string, CljValue> = {
         fn: CljValue | undefined,
         ...rest: CljValue[]
       ) => {
-        if (fn === undefined || !isAFunction(fn)) {
+        if (fn === undefined || !isCallable(fn)) {
           throw new EvaluationError(
-            `apply expects a function as first argument${fn !== undefined ? `, got ${printString(fn)}` : ''}`,
+            `apply expects a callable as first argument${fn !== undefined ? `, got ${printString(fn)}` : ''}`,
             { fn }
           )
         }
@@ -179,15 +190,18 @@ export const hofFunctions: Record<string, CljValue> = {
           })
         }
         const lastArg = rest[rest.length - 1]
-        if (!isCollection(lastArg)) {
+        if (!isNil(lastArg) && !isSeqable(lastArg)) {
           throw new EvaluationError(
-            `apply expects a collection as last argument, got ${printString(lastArg)}`,
+            `apply expects a collection or string as last argument, got ${printString(lastArg)}`,
             { lastArg }
           )
         }
 
-        const args = [...rest.slice(0, -1), ...toSeq(lastArg)]
-        return ctx.applyFunction(fn, args, callEnv)
+        const args = [
+          ...rest.slice(0, -1),
+          ...(isNil(lastArg) ? [] : toSeq(lastArg)),
+        ]
+        return ctx.applyCallable(fn, args, callEnv)
       }
     ),
     'Calls f with the elements of the last argument (a collection) as its arguments, optionally prepended by fixed args.',
@@ -199,17 +213,21 @@ export const hofFunctions: Record<string, CljValue> = {
 
   partial: withDoc(
     cljNativeFunction('partial', (fn: CljValue, ...preArgs: CljValue[]) => {
-      if (fn === undefined || !isAFunction(fn)) {
+      if (fn === undefined || !isCallable(fn)) {
         throw new EvaluationError(
-          `partial expects a function as first argument${fn !== undefined ? `, got ${printString(fn)}` : ''}`,
+          `partial expects a callable as first argument${fn !== undefined ? `, got ${printString(fn)}` : ''}`,
           { fn }
         )
       }
-      const capturedFn = fn as CljFunction | CljNativeFunction
+      const capturedFn = fn
       return cljNativeFunctionWithContext(
         'partial',
         (ctx: EvaluationContext, callEnv: Env, ...moreArgs: CljValue[]) => {
-          return ctx.applyFunction(capturedFn, [...preArgs, ...moreArgs], callEnv)
+          return ctx.applyCallable(
+            capturedFn,
+            [...preArgs, ...moreArgs],
+            callEnv
+          )
         }
       )
     }),
@@ -222,32 +240,29 @@ export const hofFunctions: Record<string, CljValue> = {
       if (fns.length === 0) {
         return cljNativeFunction('identity', (x: CljValue) => x)
       }
-      if (fns.some((f) => !isAFunction(f))) {
-        throw new EvaluationError('comp expects functions', { fns })
+      if (fns.some((f) => !isCallable(f))) {
+        throw new EvaluationError(
+          'comp expects functions or other callable values (keywords, maps)',
+          { fns }
+        )
       }
-      const capturedFns = fns as Array<CljFunction | CljNativeFunction>
+      const capturedFns = fns
       return cljNativeFunctionWithContext(
         'composed',
         (ctx: EvaluationContext, callEnv: Env, ...args: CljValue[]) => {
-          let result = ctx.applyFunction(
-            capturedFns[capturedFns.length - 1] as
-              | CljFunction
-              | CljNativeFunction,
+          let result = ctx.applyCallable(
+            capturedFns[capturedFns.length - 1],
             args,
             callEnv
           )
           for (let i = capturedFns.length - 2; i >= 0; i--) {
-            result = ctx.applyFunction(
-              capturedFns[i] as CljFunction | CljNativeFunction,
-              [result],
-              callEnv
-            )
+            result = ctx.applyCallable(capturedFns[i], [result], callEnv)
           }
           return result
         }
       )
     }),
-    'Returns the composition of fns, applied right-to-left. (comp f g) is equivalent to (fn [x] (f (g x))).',
+    'Returns the composition of fns, applied right-to-left. (comp f g) is equivalent to (fn [x] (f (g x))). Accepts any callable: functions, keywords, and maps.',
     [[], ['f'], ['f', 'g'], ['f', 'g', '&', 'fns']]
   ),
 

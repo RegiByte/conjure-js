@@ -104,13 +104,21 @@ function cljValueToTsType(value: CljValue): string {
   }
 }
 
+function patternName(p: Arity['params'][number], index: number): string {
+  if (p.kind === 'symbol') return safeJsIdentifier(p.name)
+  return `arg${index}`
+}
+
 function arityToSignature(arity: Arity): string {
   const fixedParams = arity.params
-    .map((p) => `${safeJsIdentifier(p.name)}: unknown`)
+    .map((p, i) => `${patternName(p, i)}: unknown`)
     .join(', ')
 
   if (arity.restParam) {
-    const restName = safeJsIdentifier(arity.restParam.name)
+    const restName =
+      arity.restParam.kind === 'symbol'
+        ? safeJsIdentifier(arity.restParam.name)
+        : 'rest'
     const params = fixedParams
       ? `${fixedParams}, ...${restName}: unknown[]`
       : `...${restName}: unknown[]`

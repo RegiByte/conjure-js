@@ -2,9 +2,9 @@
 
 import {
   isAFunction,
-  isCollection,
   isNil,
   isReduced,
+  isSeqable,
   isVolatile,
 } from '../assertions'
 import { EvaluationError } from '../errors'
@@ -214,9 +214,9 @@ export const transducerFunctions: Record<string, CljValue> = {
           )
         }
 
-        if (!isCollection(actualColl)) {
+        if (!isSeqable(actualColl)) {
           throw new EvaluationError(
-            `transduce expects a collection as ${coll === undefined ? 'third' : 'fourth'} argument, got ${printString(actualColl)}`,
+            `transduce expects a collection or string as ${coll === undefined ? 'third' : 'fourth'} argument, got ${printString(actualColl)}`,
             { coll: actualColl }
           )
         }

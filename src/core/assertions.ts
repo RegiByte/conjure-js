@@ -52,6 +52,10 @@ export const isAFunction = (
   value: CljValue
 ): value is CljFunction | CljNativeFunction =>
   isFunction(value) || isNativeFunction(value)
+
+/** True for any value that can be invoked like a function (IFn). */
+export const isCallable = (value: CljValue): boolean =>
+  isAFunction(value) || isKeyword(value) || isMap(value)
 export const isMultiMethod = (value: CljValue): value is CljMultiMethod =>
   value.kind === 'multi-method'
 export const isAtom = (value: CljValue): value is CljAtom =>
@@ -66,6 +70,11 @@ export const isCollection = (
   value: CljValue
 ): value is CljList | CljVector | CljMap =>
   isVector(value) || isMap(value) || isList(value)
+
+export const isSeqable = (
+  value: CljValue
+): value is CljList | CljVector | CljMap | CljString =>
+  isCollection(value) || value.kind === 'string'
 
 export const isCljValue = (value: any): value is CljValue => {
   return (

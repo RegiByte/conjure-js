@@ -28,3 +28,8 @@ coverage
 
 # Generated TypeScript declarations for .clj modules (emitted by vite-plugin-clj)
 **/*.clj.d.ts
+
+calva-example/
+
+# Build output
+cli

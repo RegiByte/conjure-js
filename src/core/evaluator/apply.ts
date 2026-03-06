@@ -1,4 +1,7 @@
+import { isAFunction, isEqual, isKeyword, isMap } from '../assertions'
 import { EvaluationError } from '../errors'
+import { cljNil } from '../factories'
+import { printString } from '../printer'
 import type {
   CljFunction,
   CljMacro,
@@ -30,7 +33,9 @@ export function applyFunctionWithContext(
         arity.params,
         arity.restParam,
         currentArgs,
-        fn.env
+        fn.env,
+        ctx,
+        callEnv
       )
       try {
         return ctx.evaluateForms(arity.body, localEnv)
@@ -53,12 +58,57 @@ export function applyFunctionWithContext(
   )
 }
 
+/**
+ * Invokes any IFn value — functions, native functions, keywords, and maps.
+ * Used by comp, partial, and any other HOF that needs to call an arbitrary
+ * callable without going through the full list-evaluation dispatch.
+ */
+export function applyCallableWithContext(
+  fn: CljValue,
+  args: CljValue[],
+  ctx: EvaluationContext,
+  callEnv: Env
+): CljValue {
+  if (isAFunction(fn)) {
+    return applyFunctionWithContext(fn, args, ctx, callEnv)
+  }
+  if (isKeyword(fn)) {
+    const target = args[0]
+    const defaultVal = args.length > 1 ? args[1] : cljNil()
+    if (isMap(target)) {
+      const entry = target.entries.find(([k]) => isEqual(k, fn))
+      return entry ? entry[1] : defaultVal
+    }
+    return defaultVal
+  }
+  if (isMap(fn)) {
+    if (args.length === 0) {
+      throw new EvaluationError('Map used as function requires at least one argument', { fn, args })
+    }
+    const key = args[0]
+    const defaultVal = args.length > 1 ? args[1] : cljNil()
+    const entry = fn.entries.find(([k]) => isEqual(k, key))
+    return entry ? entry[1] : defaultVal
+  }
+  throw new EvaluationError(`${printString(fn)} is not a callable value`, {
+    fn,
+    args,
+  })
+}
+
 export function applyMacroWithContext(
   macro: CljMacro,
   rawArgs: CljValue[],
   ctx: EvaluationContext
 ): CljValue {
   const arity = resolveArity(macro.arities, rawArgs.length)
-  const localEnv = bindParams(arity.params, arity.restParam, rawArgs, macro.env)
+  const localEnv = bindParams(
+    arity.params,
+    arity.restParam,
+    rawArgs,
+    macro.env,
+    ctx,
+    macro.env
+  )
   return ctx.evaluateForms(arity.body, localEnv)
 }

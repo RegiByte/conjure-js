@@ -1,9 +1,10 @@
 // Miscellaneous utilities: str, type, gensym, eval, macroexpand-1, macroexpand,
 // namespace, name, keyword
-import { isKeyword, isList, isMacro, isSymbol } from '../assertions'
+import { isKeyword, isList, isMacro, isSymbol, isTruthy } from '../assertions'
 import { getRootEnv, tryLookup } from '../env'
 import { EvaluationError } from '../errors'
 import {
+  cljBoolean,
   cljKeyword,
   cljNativeFunction,
   cljNativeFunctionWithContext,
@@ -273,5 +274,14 @@ export const utilFunctions: Record<string, CljValue> = {
       'e.g. (keyword "foo") => :foo',
     ]),
     [['name'], ['ns', 'name']]
+  ),
+
+  boolean: withDoc(
+    cljNativeFunction('boolean', (x: CljValue) => {
+      if (x === undefined) return cljBoolean(false)
+      return cljBoolean(isTruthy(x))
+    }),
+    'Coerces to boolean. Everything is true except false and nil.',
+    [['x']]
   ),
 }

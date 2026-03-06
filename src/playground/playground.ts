@@ -18,123 +18,25 @@ window.MonacoEnvironment = {
   },
 }
 
-// ── Starter code ─────────────────────────────────────────────────────────────
+// ── Sample files ─────────────────────────────────────────────────────────────
+// ?raw imports bypass the vite-plugin-clj transform (both resolveId and load
+// gate on !id.includes('?')) and return the file contents as plain strings.
 
-const INITIAL_CODE = `\
-;; Clojure Playground — press ⌘+Enter (or Ctrl+Enter) to evaluate
-(ns user
-  (:require [some.namespace :as-alias sns]
-            [clojure.string :as str]))
+import welcomeSrc from './samples/00-welcome.clj?raw'
+import collectionsSrc from './samples/01-collections.clj?raw'
+import hofSrc from './samples/02-higher-order-functions.clj?raw'
+import destructuringSrc from './samples/03-destructuring.clj?raw'
+import stringsRegexSrc from './samples/04-strings-and-regex.clj?raw'
+import errorHandlingSrc from './samples/05-error-handling.clj?raw'
 
-(::sns/tag {::sns/tag "foo"})
-
-;; clojure.string examples
-(str/join ", " ["hello" "from" "clojure.string"])
-(str/join ["H" "e" "l" "l" "o" " " "W" "o" "r" "l" "d"] )
-(str/blank? "")
-(str/blank? "not blank")
-
-(defn fib [n]
-  (loop [a 0 b 1 i n]
-    (if (= i 0) a
-      (recur b (+ a b) (dec i)))))
-
-;; First 10 Fibonacci numbers
-(map fib [0 1 2 3 4 5 6 7 8 9])
-
-(repeat 3 1)
-(hash-map :key1 "value1" :key2 "value2")
-(def x 10)
-x
-(vector 1 2 3)
-(list 1 2 3)
-(map inc [1 2 3])
-(filter even? [1 2 3 4 5 6])
-(reduce + [1 2 3 4])
-(take 3 [1 2 3 4 5 6 7 8 9 10])
-(drop 3 [1 2 3 4 5 6 7 8 9 10])
-((constantly 3) 1 2 3)
-((constantly nil) true false (println 1 2 3))
-
-(defmulti area :shape)
-
-(defmethod area :rect
-  ([r]       (* (:w r) (:h r)))
-  ([r scale] (* (:w r) (:h r) scale)))
-
-(area {:shape :rect :w 10 :h 20})
-(area {:shape :rect :w 10 :h 20} 2)
-
-(comment
-  "This is a comment"
-  (println "These forms are not evaluated")
-  (println "You can evaluate individual forms too")
-  (println "place the cursor in front of a form and press ⌘+Enter (or Ctrl+Enter)")
-  ;; Try evaluating these forms
-  1
-  true
-  false
-  nil
-  {:keyword "value"}
-  [1 2 3]
-  [1,2,,,,,,,3]
-  (+ 1 2 3)
-  (range 5)
-  (range 5 16)
-  (range 5 16 2)
-
- ((comp (fn [x] (* x 5)) 
-         (fn [x] (+ x 3))) 3)
-  ((comp (fn [x] (+ x 3)) 
-         (fn [x] (* x 5))) 3)
-  ((partial + 10) 5)
-
-  (map-indexed 
-    (fn [index, value] 
-      {:idx index 
-       :val value
-       :squared (* value value)}) 
-    [1 2 3 4])
-
-  (map #(+ 1 %) [1 2 3])
-  (map-indexed #(* (max %1 1) %2) [1 2 3 4 5 6 7 8 9])
-
-  (max 1 2 3)  
-)
-
-(doc reduce)
-(take-while even? [2 4 6 8 9 10 11])
-(drop-while even? [2 4 6 8 9 10 11])
-
-(defn factorial [n]
-  (loop [i n acc 1]
-    (if (zero? i) acc
-        (recur (dec i) (* acc i)))))
-(map factorial [1 2 3 4 5 6 7 8 9 10, 30])
-
-(try
-  (/ 1 0)
-  (catch :default e
-    (println (str "Got an error here: " (ex-message e)))))
-
-(try
-  (+ 1 2 "ops")
-  (catch :default e
-    (println (str "Got an error here: " (ex-message e)))))
-
-(try
-  (throw 42)
-  (catch number? e
-    (+ e 1)))
-
-(try
-  (throw (assoc (ex-info "Got something funny here" {:offending "arg"}) 
-      :type 
-      :error/unexpected))
-  (catch :error/unexpected e
-    (println (str "Error here: " (ex-message e)))))
-
-`
+const SAMPLES = [
+  { label: 'Welcome',           content: welcomeSrc },
+  { label: 'Collections',       content: collectionsSrc },
+  { label: 'Higher-Order Fns',  content: hofSrc },
+  { label: 'Destructuring',     content: destructuringSrc },
+  { label: 'Strings & Regex',   content: stringsRegexSrc },
+  { label: 'Error Handling',    content: errorHandlingSrc },
+]
 
 // ── DOM helpers ───────────────────────────────────────────────────────────────
 
@@ -200,6 +102,9 @@ function createDurationEl(durationMs: number): HTMLSpanElement {
 function createPlayground(appEl: HTMLElement): void {
   const state = makeRepl()
 
+  // Track which sample is currently loaded so we can revert the select on cancel
+  let currentSampleIdx = 0
+
   // ── DOM skeleton ───────────────────────────────────────────────────────────
 
   const pgEl = el('div', 'pg')
@@ -217,6 +122,15 @@ function createPlayground(appEl: HTMLElement): void {
 
   const actionsEl = el('div', 'pg-header__actions')
 
+  // Sample selector
+  const sampleSelect = el('select', 'pg-btn pg-sample-select')
+  for (const [i, s] of SAMPLES.entries()) {
+    const opt = document.createElement('option')
+    opt.value = String(i)
+    opt.textContent = s.label
+    sampleSelect.appendChild(opt)
+  }
+
   const runBtn = el('button', 'pg-btn pg-btn--primary')
   runBtn.textContent = 'Run all'
   runBtn.title = 'Evaluate the entire editor buffer (Shift+⌘Enter)'
@@ -225,6 +139,7 @@ function createPlayground(appEl: HTMLElement): void {
   clearBtn.textContent = 'Clear output'
   clearBtn.title = 'Clear the output panel'
 
+  actionsEl.appendChild(sampleSelect)
   actionsEl.appendChild(runBtn)
   actionsEl.appendChild(clearBtn)
   headerEl.appendChild(leftEl)
@@ -254,7 +169,7 @@ function createPlayground(appEl: HTMLElement): void {
   defineMonacoTheme(monaco)
 
   const editor = monaco.editor.create(editorWrapEl, {
-    value: INITIAL_CODE,
+    value: SAMPLES[0].content,
     language: 'clojure',
     theme: THEME_ID,
     fontSize: 14,
@@ -324,6 +239,27 @@ function createPlayground(appEl: HTMLElement): void {
     clearOnEdit?.dispose()
     clearOnEdit = null
   }
+
+  // ── Sample selector logic ──────────────────────────────────────────────────
+
+  sampleSelect.addEventListener('change', () => {
+    const idx = Number(sampleSelect.value)
+    const sample = SAMPLES[idx]
+    if (!sample) return
+
+    const ok = window.confirm(
+      `Load "${sample.label}"?\n\nYour current edits will be lost.`,
+    )
+    if (!ok) {
+      // Revert the select to whichever sample is currently in the editor
+      sampleSelect.value = String(currentSampleIdx)
+      return
+    }
+
+    currentSampleIdx = idx
+    editor.setValue(sample.content)
+    clearInlineResult()
+  })
 
   // ── Eval logic ─────────────────────────────────────────────────────────────
 

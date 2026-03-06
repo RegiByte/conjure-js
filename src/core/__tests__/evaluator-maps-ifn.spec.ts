@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljKeyword, cljNil, cljNumber, cljVector } from '../factories'
+import { cljKeyword, cljList, cljNil, cljNumber } from '../factories'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 describe('maps as IFn', () => {
@@ -33,14 +33,14 @@ describe('maps as IFn', () => {
   it('works in higher-order position — (map m coll)', () => {
     const session = freshSession()
     expect(session.evaluate('(map {:a 1 :b 2 :c 3} [:a :c])')).toEqual(
-      cljVector([cljNumber(1), cljNumber(3)])
+      cljList([cljNumber(1), cljNumber(3)])
     )
   })
 
   it('missing keys in higher-order position return nil', () => {
     const session = freshSession()
     expect(session.evaluate('(map {:a 1} [:a :b :c])')).toEqual(
-      cljVector([cljNumber(1), cljNil(), cljNil()])
+      cljList([cljNumber(1), cljNil(), cljNil()])
     )
   })
 

@@ -33,6 +33,7 @@ import type {
   EvaluationContext,
 } from '../types'
 import { parseArities, RecurSignal } from './arity'
+import { destructureBindings } from './destructure'
 import { evaluateQuasiquote } from './quasiquote'
 import { assertRecurInTailPosition } from './recur-check'
 
@@ -251,12 +252,6 @@ function evaluateLet(
   env: Env,
   ctx: EvaluationContext
 ): CljValue {
-  // (let [bindings] body)
-  // for let, each binding extends the outer environment, creating a new one
-  // that's why earlier bindings can be used in the later bindings,
-  // they are already resolved and part of the context
-  // notice that bindings is specifically a vector, not a list
-  // we also need to check if the bindings are valid, balanced pairs, keys are symbols, values are expressions
   const bindings = list.value[1]
   if (!isVector(bindings)) {
     throw new EvaluationError('Bindings must be a vector', {
@@ -273,12 +268,14 @@ function evaluateLet(
   const body = list.value.slice(2)
   let localEnv = env
   for (let i = 0; i < bindings.value.length; i += 2) {
-    const key = bindings.value[i]
-    if (!isSymbol(key)) {
-      throw new EvaluationError('Keys must be symbols', { key, env })
-    }
+    const pattern = bindings.value[i]
     const value = ctx.evaluate(bindings.value[i + 1], localEnv)
-    localEnv = extend([key.name], [value], localEnv)
+    const pairs = destructureBindings(pattern, value, ctx, localEnv)
+    localEnv = extend(
+      pairs.map(([n]) => n),
+      pairs.map(([, v]) => v),
+      localEnv
+    )
   }
 
   return ctx.evaluateForms(body, localEnv)
@@ -336,36 +333,52 @@ function evaluateLoop(
   const loopBody = list.value.slice(2)
   assertRecurInTailPosition(loopBody)
 
-  const names: string[] = []
+  // Collect top-level patterns and initial values.
+  // recur rebinds at the top-level pattern granularity (not individual symbols).
+  const patterns: CljValue[] = []
+  const initValues: CljValue[] = []
   let initEnv = env
   for (let i = 0; i < loopBindings.value.length; i += 2) {
-    const key = loopBindings.value[i]
-    if (!isSymbol(key)) {
-      throw new EvaluationError('loop binding keys must be symbols', {
-        key,
-        env,
-      })
-    }
-    names.push(key.name)
+    const pattern = loopBindings.value[i]
     const value = ctx.evaluate(loopBindings.value[i + 1], initEnv)
-    initEnv = extend([key.name], [value], initEnv)
+    patterns.push(pattern)
+    initValues.push(value)
+    const pairs = destructureBindings(pattern, value, ctx, initEnv)
+    initEnv = extend(
+      pairs.map(([n]) => n),
+      pairs.map(([, v]) => v),
+      initEnv
+    )
   }
 
-  let currentArgs = names.map((n) => lookup(n, initEnv))
+  let currentValues = initValues
 
   while (true) {
-    const loopEnv = extend(names, currentArgs, env)
+    let loopEnv = env
+    for (let i = 0; i < patterns.length; i++) {
+      const pairs = destructureBindings(
+        patterns[i],
+        currentValues[i],
+        ctx,
+        loopEnv
+      )
+      loopEnv = extend(
+        pairs.map(([n]) => n),
+        pairs.map(([, v]) => v),
+        loopEnv
+      )
+    }
     try {
       return ctx.evaluateForms(loopBody, loopEnv)
     } catch (e) {
       if (e instanceof RecurSignal) {
-        if (e.args.length !== names.length) {
+        if (e.args.length !== patterns.length) {
           throw new EvaluationError(
-            `recur expects ${names.length} arguments but got ${e.args.length}`,
+            `recur expects ${patterns.length} arguments but got ${e.args.length}`,
             { list, env }
           )
         }
-        currentArgs = e.args
+        currentValues = e.args
         continue
       }
       throw e

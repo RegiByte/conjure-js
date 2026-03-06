@@ -215,17 +215,17 @@ describe('transduce', () => {
 })
 
 describe('sequence', () => {
-  it('(sequence coll) materialises coll into a vector', () => {
+  it('(sequence coll) materialises coll into a seq (list)', () => {
     const s = freshSession()
     expect(s.evaluate("(sequence '(1 2 3))")).toMatchObject(
-      cljVector([cljNumber(1), cljNumber(2), cljNumber(3)])
+      cljList([cljNumber(1), cljNumber(2), cljNumber(3)])
     )
   })
 
-  it('(sequence xf coll) applies transducer and returns vector', () => {
+  it('(sequence xf coll) applies transducer and returns a seq (list)', () => {
     const s = freshSession()
     expect(s.evaluate('(sequence (map inc) [1 2 3])')).toMatchObject(
-      cljVector([cljNumber(2), cljNumber(3), cljNumber(4)])
+      cljList([cljNumber(2), cljNumber(3), cljNumber(4)])
     )
   })
 })
@@ -257,7 +257,7 @@ describe('take-while transducer', () => {
   it('(take-while pos? [1 2 0 3]) stops at 0', () => {
     const s = freshSession()
     expect(s.evaluate('(take-while pos? [1 2 0 3])')).toMatchObject(
-      cljVector([cljNumber(1), cljNumber(2)])
+      cljList([cljNumber(1), cljNumber(2)])
     )
   })
 
@@ -269,7 +269,7 @@ describe('take-while transducer', () => {
   it('empty result when first element fails pred', () => {
     const s = freshSession()
     expect(s.evaluate('(take-while pos? [-1 2 3])')).toMatchObject(
-      cljVector([])
+      cljList([])
     )
   })
 })
@@ -294,14 +294,14 @@ describe('drop-while transducer', () => {
   it('(drop-while neg? [-1 -2 3 4]) skips negatives', () => {
     const s = freshSession()
     expect(s.evaluate('(drop-while neg? [-1 -2 3 4])')).toMatchObject(
-      cljVector([cljNumber(3), cljNumber(4)])
+      cljList([cljNumber(3), cljNumber(4)])
     )
   })
 
   it('passes through everything once pred fails', () => {
     const s = freshSession()
     expect(s.evaluate('(drop-while even? [2 4 5 6])')).toMatchObject(
-      cljVector([cljNumber(5), cljNumber(6)])
+      cljList([cljNumber(5), cljNumber(6)])
     )
   })
 })
@@ -319,7 +319,7 @@ describe('map-indexed transducer', () => {
   it('(map-indexed vector [10 20 30]) adds index', () => {
     const s = freshSession()
     expect(s.evaluate('(map-indexed vector [10 20 30])')).toMatchObject(
-      cljVector([
+      cljList([
         cljVector([cljNumber(0), cljNumber(10)]),
         cljVector([cljNumber(1), cljNumber(20)]),
         cljVector([cljNumber(2), cljNumber(30)]),
@@ -337,7 +337,7 @@ describe('dedupe transducer', () => {
   it('(dedupe [1 1 2 3 3 3 4]) removes consecutive duplicates', () => {
     const s = freshSession()
     expect(s.evaluate('(dedupe [1 1 2 3 3 3 4])')).toMatchObject(
-      cljVector([cljNumber(1), cljNumber(2), cljNumber(3), cljNumber(4)])
+      cljList([cljNumber(1), cljNumber(2), cljNumber(3), cljNumber(4)])
     )
   })
 
@@ -349,14 +349,14 @@ describe('dedupe transducer', () => {
   it('non-consecutive duplicates are kept', () => {
     const s = freshSession()
     expect(s.evaluate('(dedupe [1 2 1 2])')).toMatchObject(
-      cljVector([cljNumber(1), cljNumber(2), cljNumber(1), cljNumber(2)])
+      cljList([cljNumber(1), cljNumber(2), cljNumber(1), cljNumber(2)])
     )
   })
 
   it('nil values handled correctly', () => {
     const s = freshSession()
     expect(s.evaluate('(dedupe [nil nil 1 nil])')).toMatchObject(
-      cljVector([cljNil(), cljNumber(1), cljNil()])
+      cljList([cljNil(), cljNumber(1), cljNil()])
     )
   })
 })
@@ -365,7 +365,7 @@ describe('partition-all transducer', () => {
   it('(partition-all 2 [1 2 3 4]) groups into pairs', () => {
     const s = freshSession()
     expect(s.evaluate('(partition-all 2 [1 2 3 4])')).toMatchObject(
-      cljVector([
+      cljList([
         cljVector([cljNumber(1), cljNumber(2)]),
         cljVector([cljNumber(3), cljNumber(4)]),
       ])
@@ -375,7 +375,7 @@ describe('partition-all transducer', () => {
   it('flushes partial partition at completion', () => {
     const s = freshSession()
     expect(s.evaluate('(partition-all 2 [1 2 3])')).toMatchObject(
-      cljVector([
+      cljList([
         cljVector([cljNumber(1), cljNumber(2)]),
         cljVector([cljNumber(3)]),
       ])
@@ -389,7 +389,7 @@ describe('partition-all transducer', () => {
 
   it('empty collection produces empty result', () => {
     const s = freshSession()
-    expect(s.evaluate('(partition-all 3 [])')).toMatchObject(cljVector([]))
+    expect(s.evaluate('(partition-all 3 [])')).toMatchObject(cljList([]))
   })
 
   it('can compose with other transducers', () => {

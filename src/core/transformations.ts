@@ -1,6 +1,6 @@
 import { isList, isMap, isVector } from './assertions'
 import { EvaluationError } from './errors'
-import { cljVector } from './factories'
+import { cljString, cljVector } from './factories'
 import { printString } from './printer'
 import { type CljValue, valueKeywords } from './types'
 
@@ -65,8 +65,11 @@ export const toSeq = (collection: CljValue): CljValue[] => {
   if (isMap(collection)) {
     return collection.entries.map(([k, v]) => cljVector([k, v]))
   }
+  if (collection.kind === 'string') {
+    return [...collection.value].map(cljString)
+  }
   throw new EvaluationError(
-    `toSeq expects a collection, got ${printString(collection)}`,
+    `toSeq expects a collection or string, got ${printString(collection)}`,
     { collection }
   )
 }

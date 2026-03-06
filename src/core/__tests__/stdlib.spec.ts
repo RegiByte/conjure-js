@@ -167,14 +167,14 @@ describe('stdlib macros', () => {
 
     it('threads as last arg of a list form', () => {
       expect(session().evaluate('(->> [1 2 3] (map inc))')).toEqual(
-        cljVector([cljNumber(2), cljNumber(3), cljNumber(4)])
+        cljList([cljNumber(2), cljNumber(3), cljNumber(4)])
       )
     })
 
     it('threads through multiple list forms', () => {
       expect(
         session().evaluate('(->> [1 2 3] (map inc) (filter (fn [x] (> x 3))))')
-      ).toEqual(cljVector([cljNumber(4)]))
+      ).toEqual(cljList([cljNumber(4)]))
     })
 
     it('threads count as symbol', () => {
@@ -376,9 +376,9 @@ describe('range', () => {
     expect(() => session().evaluate('(range 0 10 0)')).toThrow()
   })
 
-  it('works with map — returns vector', () => {
+  it('works with map — returns seq', () => {
     expect(session().evaluate('(map inc (range 3))')).toEqual(
-      cljVector([cljNumber(1), cljNumber(2), cljNumber(3)])
+      cljList([cljNumber(1), cljNumber(2), cljNumber(3)])
     )
   })
 })
@@ -393,9 +393,9 @@ describe('identity', () => {
     )
   })
 
-  it('works as a function value — returns vector', () => {
+  it('works as a function value — returns seq', () => {
     expect(session().evaluate("(map identity '(1 2 3))")).toEqual(
-      cljVector([cljNumber(1), cljNumber(2), cljNumber(3)])
+      cljList([cljNumber(1), cljNumber(2), cljNumber(3)])
     )
   })
 })
@@ -560,9 +560,9 @@ describe('partial', () => {
     expect(session().evaluate('((partial + 1 2 3))')).toEqual(cljNumber(6))
   })
 
-  it('can be used with map — returns vector', () => {
+  it('can be used with map — returns seq', () => {
     expect(session().evaluate("(map (partial + 10) '(1 2 3))")).toEqual(
-      cljVector([cljNumber(11), cljNumber(12), cljNumber(13)])
+      cljList([cljNumber(11), cljNumber(12), cljNumber(13)])
     )
   })
 })
@@ -599,27 +599,27 @@ describe('comp', () => {
 })
 
 describe('map-indexed', () => {
-  it('passes index and element to function (list input) — returns vector', () => {
+  it('passes index and element to function — returns seq', () => {
     expect(
       session().evaluate("(map-indexed (fn [i x] i) '(:a :b :c))")
-    ).toEqual(cljVector([cljNumber(0), cljNumber(1), cljNumber(2)]))
+    ).toEqual(cljList([cljNumber(0), cljNumber(1), cljNumber(2)]))
   })
 
-  it('passes element correctly (list input) — returns vector', () => {
+  it('passes element correctly — returns seq', () => {
     expect(
       session().evaluate("(map-indexed (fn [i x] x) '(:a :b :c))")
-    ).toEqual(cljVector([cljKeyword(':a'), cljKeyword(':b'), cljKeyword(':c')]))
+    ).toEqual(cljList([cljKeyword(':a'), cljKeyword(':b'), cljKeyword(':c')]))
   })
 
-  it('returns a vector when given a vector input', () => {
+  it('returns a seq when given a vector input', () => {
     expect(session().evaluate('(map-indexed (fn [i x] i) [:a :b :c])')).toEqual(
-      cljVector([cljNumber(0), cljNumber(1), cljNumber(2)])
+      cljList([cljNumber(0), cljNumber(1), cljNumber(2)])
     )
   })
 
-  it('can build indexed pairs — returns vector', () => {
+  it('can build indexed pairs — returns seq of vectors', () => {
     expect(session().evaluate("(map-indexed vector '(:a :b :c))")).toEqual(
-      cljVector([
+      cljList([
         cljVector([cljNumber(0), cljKeyword(':a')]),
         cljVector([cljNumber(1), cljKeyword(':b')]),
         cljVector([cljNumber(2), cljKeyword(':c')]),
@@ -627,9 +627,9 @@ describe('map-indexed', () => {
     )
   })
 
-  it('returns empty vector for empty collection', () => {
+  it('returns empty seq for empty collection', () => {
     expect(session().evaluate("(map-indexed vector '())")).toEqual(
-      cljVector([])
+      cljList([])
     )
   })
 })
@@ -645,9 +645,9 @@ describe('constantly', () => {
     )
   })
 
-  it('works with map — returns vector', () => {
+  it('works with map — returns seq', () => {
     expect(session().evaluate("(map (constantly 0) '(1 2 3))")).toEqual(
-      cljVector([cljNumber(0), cljNumber(0), cljNumber(0)])
+      cljList([cljNumber(0), cljNumber(0), cljNumber(0)])
     )
   })
 })
@@ -662,10 +662,10 @@ describe('complement', () => {
     )
   })
 
-  it('works with even? to filter odd numbers — returns vector', () => {
+  it('works with even? to filter odd numbers — returns seq', () => {
     expect(
       session().evaluate("(filter (complement even?) '(1 2 3 4 5))")
-    ).toEqual(cljVector([cljNumber(1), cljNumber(3), cljNumber(5)]))
+    ).toEqual(cljList([cljNumber(1), cljNumber(3), cljNumber(5)]))
   })
 })
 

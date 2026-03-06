@@ -1,15 +1,11 @@
 import {
-  isAFunction,
+  isCallable,
   isEqual,
-  isKeyword,
-  isMap,
   isMultiMethod,
   isSpecialForm,
   isSymbol,
 } from '../assertions'
-import { lookup } from '../env'
 import { EvaluationError } from '../errors'
-import { cljNil } from '../factories'
 import { printString } from '../printer'
 import type {
   CljList,
@@ -61,62 +57,17 @@ export function evaluateList(
   }
 
   const evaledFirst = ctx.evaluate(first, env)
-  // Macro expansion now happens as a dedicated phase before evaluation
-  // (see session.ts and ctx.expandAll). This branch is kept commented for reference.
-  // if (isMacro(evaledFirst)) {
-  //   const rawArgs = list.value.slice(1)
-  //   const expanded = applyMacroWithContext(evaledFirst, rawArgs, ctx)
-  //   return ctx.evaluate(expanded, env)
-  // }
-  if (isAFunction(evaledFirst)) {
-    const args = list.value.slice(1).map((v) => ctx.evaluate(v, env))
-    return ctx.applyFunction(evaledFirst, args, env)
-  }
-  if (isKeyword(evaledFirst)) {
-    const next = ctx.evaluate(list.value[1], env)
-    const defaultReturn =
-      list.value.length > 2 ? ctx.evaluate(list.value[2], env) : cljNil()
-    if (isMap(next)) {
-      const entry = next.entries.find(([key]) => {
-        return isEqual(key, evaledFirst)
-      })
-      if (entry) {
-        return entry[1]
-      }
-      return defaultReturn
-    }
-    return defaultReturn
-  }
-  if (isMap(evaledFirst)) {
-    if (list.value.length < 2) {
-      throw new EvaluationError('Map used as function requires at least one argument', {
-        list,
-        env,
-      })
-    }
-    const key = ctx.evaluate(list.value[1], env)
-    const defaultReturn =
-      list.value.length > 2 ? ctx.evaluate(list.value[2], env) : cljNil()
-    const entry = evaledFirst.entries.find(([k]) => isEqual(k, key))
-    return entry ? entry[1] : defaultReturn
-  }
+
   if (isMultiMethod(evaledFirst)) {
     const args = list.value.slice(1).map((v) => ctx.evaluate(v, env))
     return dispatchMultiMethod(evaledFirst, args, ctx, env)
   }
-  if (!isSymbol(first)) {
-    throw new EvaluationError(
-      'First element of list must be a function or special form',
-      { list, env }
-    )
-  }
-  const symbol = first.name
 
-  const fnSymbol = lookup(symbol, env)
-  if (!isAFunction(fnSymbol)) {
-    throw new EvaluationError(`${symbol} is not a function`, { list, env })
+  if (!isCallable(evaledFirst)) {
+    const name = isSymbol(first) ? first.name : printString(first)
+    throw new EvaluationError(`${name} is not callable`, { list, env })
   }
 
   const args = list.value.slice(1).map((v) => ctx.evaluate(v, env))
-  return ctx.applyFunction(fnSymbol, args, env)
+  return ctx.applyCallable(evaledFirst, args, env)
 }

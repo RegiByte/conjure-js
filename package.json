@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.build.json && vite build",
+    "bun:repl": "bun run src/bin/cli.ts repl",
+    "bun:run": "bun run src/bin/cli.ts run",
+    "bun:build-cli": "bun build --compile src/bin/cli.ts --outfile cli",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest",

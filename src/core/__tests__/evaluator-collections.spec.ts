@@ -49,6 +49,9 @@ describe('first', () => {
     ['(first {"a" 1 "b" 2})', [cljString('a'), cljNumber(1)]],
     ['(first [1 2])', 1],
     ["(first '(2 3))", 2],
+    ['(first "hello")', 'h'],
+    ['(first "")', null],
+    ['(first nil)', null],
   ])(
     'should evalute first core function: %s should be %s',
     (code, expected) => {
@@ -67,6 +70,10 @@ describe('rest', () => {
     ['(rest {})', cljMap([])],
     ['(rest [])', cljVector([])],
     ["(rest '())", cljList([])],
+    ['(rest "hello")', cljList([cljString('e'), cljString('l'), cljString('l'), cljString('o')])],
+    ['(rest "a")', cljList([])],
+    ['(rest "")', cljList([])],
+    ['(rest nil)', cljList([])],
   ])(
     'should evalute rest core function: %s should be %s',
     (code, expected) => {
@@ -346,6 +353,12 @@ describe('seq', () => {
         cljVector([cljKeyword(':b'), cljNumber(2)]),
       ]),
     ],
+    [
+      '(seq "hello")',
+      cljList([cljString('h'), cljString('e'), cljString('l'), cljString('l'), cljString('o')]),
+    ],
+    ['(seq "a")', cljList([cljString('a')])],
+    ['(seq "")', null],
     ['(seq [])', null],
     ["(seq '())", null],
     ['(seq nil)', null],
@@ -359,15 +372,46 @@ describe('seq', () => {
   )
 
   it.each([
-    ['(seq "abc")', 'seq expects a collection or nil, got "abc"'],
-    ['(seq 1)', 'seq expects a collection or nil, got 1'],
-    ['(seq true)', 'seq expects a collection or nil, got true'],
+    ['(seq 1)', 'seq expects a collection, string, or nil, got 1'],
+    ['(seq true)', 'seq expects a collection, string, or nil, got true'],
   ])(
     'should throw on invalid seq arguments: %s should throw "%s"',
     (code, expected) => {
       expectError(code, expected)
     }
   )
+})
+
+describe('strings as seqable', () => {
+  it('reduce over a string', () => {
+    const session = freshSession()
+    const result = session.evaluate('(reduce str "" "hello")')
+    expect(result).toMatchObject(cljString('hello'))
+  })
+
+  it('apply str over a string', () => {
+    const session = freshSession()
+    const result = session.evaluate('(apply str "abc")')
+    expect(result).toMatchObject(cljString('abc'))
+  })
+
+  it('map over a string', () => {
+    const session = freshSession()
+    const result = session.evaluate('(into [] (map identity) "hi")')
+    expect(result).toMatchObject(toCljValue(['h', 'i']))
+  })
+
+  it('count on a string', () => {
+    const session = freshSession()
+    const result = session.evaluate('(count "hello")')
+    expect(result).toMatchObject(cljNumber(5))
+  })
+
+  it('unicode-safe seq', () => {
+    const session = freshSession()
+    const result = session.evaluate('(count (seq "café"))')
+    expect(result).toMatchObject(cljNumber(4))
+  })
 })
 
 describe('map', () => {
@@ -378,32 +422,37 @@ describe('map', () => {
   })
 
   it.each([
-    ['(map (fn [n] (+ n 1)) [1 2 3])', [2, 3, 4]],
-    // list input now returns a vector (sequence always materialises into [])
-    ["(map (fn [n] (+ n 1)) '(1 2 3))", [2, 3, 4]],
+    // 2-arg map returns a seq (list), matching Clojure semantics
+    [
+      '(map (fn [n] (+ n 1)) [1 2 3])',
+      cljList([cljNumber(2), cljNumber(3), cljNumber(4)]),
+    ],
+    [
+      "(map (fn [n] (+ n 1)) '(1 2 3))",
+      cljList([cljNumber(2), cljNumber(3), cljNumber(4)]),
+    ],
     [
       `(map 
    (fn [entry]
  [(str (get entry 0) (get entry 0)),
   (* 2 (get entry 1))])
    {:a 1 :b 2})`,
-      [
+      cljList([
         cljVector([cljString(':a:a'), cljNumber(2)]),
         cljVector([cljString(':b:b'), cljNumber(4)]),
-      ],
+      ]),
     ],
-    // nil collection returns empty vector
-    ['(map (fn [n] (+ n 1)) nil)', []],
+    // nil collection returns empty seq
+    ['(map (fn [n] (+ n 1)) nil)', cljList([])],
   ])(`should evaluate map: %s should be %s`, (code, expected) => {
     const session = freshSession()
     const result = session.evaluate(code)
-    expect(result).toMatchObject(toCljValue(expected))
+    expect(result).toMatchObject(expected)
   })
 
   it.each([
     ['(map)', 'No matching arity for 0'],
-    ['(map "a" [1 2 3])', 'not a function'],
-    ['(map (fn [n] (+ n 1)) "abc")', 'transduce expects a collection'],
+    ['(map "a" [1 2 3])', 'not callable'],
     ['(map (fn [n] (+ n 1)) true)', 'transduce expects a collection'],
     ['(map (fn [n] (+ n 1)) false)', 'transduce expects a collection'],
     ['(map (fn [n] (+ n 1)) 0)', 'transduce expects a collection'],
@@ -469,32 +518,37 @@ describe('filter', () => {
   })
 
   it.each([
-    ['(filter (fn [n] (> n 2)) [1 2 3 4 5])', [3, 4, 5]],
-    // list input now returns a vector
-    ["(filter (fn [n] (> n 2)) '(1 2 3 4 5))", [3, 4, 5]],
+    // 2-arg filter returns a seq (list), matching Clojure semantics
+    [
+      '(filter (fn [n] (> n 2)) [1 2 3 4 5])',
+      cljList([cljNumber(3), cljNumber(4), cljNumber(5)]),
+    ],
+    [
+      "(filter (fn [n] (> n 2)) '(1 2 3 4 5))",
+      cljList([cljNumber(3), cljNumber(4), cljNumber(5)]),
+    ],
     [
       `(filter (fn [n] (not (= "a" n))) ["a" "b" "c" "a" "d" "e"])`,
-      ['b', 'c', 'd', 'e'],
+      cljList([cljString('b'), cljString('c'), cljString('d'), cljString('e')]),
     ],
     [
       `(filter (fn [entry] (> (get entry 1) 2)) {:a 1 :b 2 :c 3 :d 4})`,
-      [
+      cljList([
         cljVector([cljKeyword(':c'), cljNumber(3)]),
         cljVector([cljKeyword(':d'), cljNumber(4)]),
-      ],
+      ]),
     ],
-    // nil collection returns empty vector
-    ['(filter (fn [n] (> n 2)) nil)', []],
+    // nil collection returns empty seq
+    ['(filter (fn [n] (> n 2)) nil)', cljList([])],
   ])('should evaluate filter: %s should be %s', (code, expected) => {
     const session = freshSession()
     const result = session.evaluate(code)
-    expect(result).toMatchObject(toCljValue(expected))
+    expect(result).toMatchObject(expected)
   })
 
   it.each([
     ['(filter)', 'No matching arity for 0'],
-    ['(filter "a" [1 2 3])', 'not a function'],
-    ['(filter (fn [n] (+ n 1)) "abc")', 'transduce expects a collection'],
+    ['(filter "a" [1 2 3])', 'not callable'],
     ['(filter (fn [n] (+ n 1)) true)', 'transduce expects a collection'],
     ['(filter (fn [n] (+ n 1)) false)', 'transduce expects a collection'],
     ['(filter (fn [n] (+ n 1)) 0)', 'transduce expects a collection'],
@@ -545,8 +599,6 @@ describe('reduce', () => {
       '(reduce 1 [1 2 3])',
       'reduce expects a function as first argument, got 1',
     ],
-    ['(reduce + "abc")', 'reduce expects a collection, got "abc"'],
-    ['(reduce + 0 "abc")', 'reduce expects a collection, got "abc"'],
     ['(reduce +)', 'reduce expects 2 or 3 arguments'],
     ['(reduce + 0 [] [])', 'reduce expects 2 or 3 arguments'],
     [
@@ -595,12 +647,12 @@ describe('take and drop', () => {
   })
 
   it.each([
-    ['(take 2 [1 2 3 4])', [1, 2]],
+    // take/drop return a seq (list), matching Clojure semantics
+    ['(take 2 [1 2 3 4])', [cljNumber(1), cljNumber(2)]],
     ['(take 0 [1 2 3])', []],
     ['(take -1 [1 2 3])', []],
-    ['(take 10 [1 2 3])', [1, 2, 3]],
-    // list input now returns a vector
-    ["(take 2 '(1 2 3 4))", [1, 2]],
+    ['(take 10 [1 2 3])', [cljNumber(1), cljNumber(2), cljNumber(3)]],
+    ["(take 2 '(1 2 3 4))", [cljNumber(1), cljNumber(2)]],
     [
       '(take 2 {:a 1 :b 2 :c 3})',
       [
@@ -608,25 +660,23 @@ describe('take and drop', () => {
         cljVector([cljKeyword(':b'), cljNumber(2)]),
       ],
     ],
-    ['(drop 2 [1 2 3 4])', [3, 4]],
-    ['(drop 0 [1 2 3])', [1, 2, 3]],
-    ['(drop -1 [1 2 3])', [1, 2, 3]],
+    ['(drop 2 [1 2 3 4])', [cljNumber(3), cljNumber(4)]],
+    ['(drop 0 [1 2 3])', [cljNumber(1), cljNumber(2), cljNumber(3)]],
+    ['(drop -1 [1 2 3])', [cljNumber(1), cljNumber(2), cljNumber(3)]],
     ['(drop 10 [1 2 3])', []],
-    ["(drop 1 '(1 2 3))", [2, 3]],
+    ["(drop 1 '(1 2 3))", [cljNumber(2), cljNumber(3)]],
   ])('should evaluate take / drop: %s → %s', (code, expected) => {
     const session = freshSession()
     const result = session.evaluate(code)
     expect(result).toMatchObject(
-      cljVector((expected as any[]).map(toCljValue))
+      cljList((expected as any[]).map(toCljValue))
     )
   })
 
   it.each([
     // take/drop are now Clojure fns; non-number n causes dec error on first step
     ['(take "a" [1 2 3])', 'dec expects a number'],
-    ['(take 2 "abc")', 'transduce expects a collection'],
     ['(drop "a" [1 2 3])', 'dec expects a number'],
-    ['(drop 2 "abc")', 'transduce expects a collection'],
   ])(
     'should throw on invalid take / drop arguments: %s → "%s"',
     (code, expected) => {
@@ -659,8 +709,8 @@ describe('concat', () => {
   })
 
   it.each([
-    ['(concat 1 [2 3])', 'concat expects collections, got 1'],
-    ['(concat [1 2] "abc")', 'concat expects collections, got "abc"'],
+    ['(concat 1 [2 3])', 'concat expects collections or strings, got 1'],
+    ['(concat [1 2] true)', 'concat expects collections or strings, got true'],
   ])(
     'should throw on invalid concat arguments: %s → "%s"',
     (code, expected) => {
@@ -717,7 +767,6 @@ describe('into', () => {
   it.each([
     // into is now (reduce conj to from); errors surface from conj/reduce
     ['(into 1 [1 2])', 'conj expects a collection'],
-    ['(into [] "abc")', 'reduce expects a collection'],
     [
       '(into {} [1 2])',
       'conj on maps expects each argument to be a vector key-pair',
@@ -763,12 +812,12 @@ describe('zipmap', () => {
 
   it.each([
     [
-      '(zipmap "abc" [1 2])',
-      'zipmap expects a collection as first argument',
+      '(zipmap true [1 2])',
+      'zipmap expects a collection or string as first argument',
     ],
     [
       '(zipmap [:a :b] 1)',
-      'zipmap expects a collection as second argument',
+      'zipmap expects a collection or string as second argument',
     ],
   ])(
     'should throw on invalid zipmap arguments: %s → "%s"',
@@ -803,6 +852,67 @@ describe('keys and vals', () => {
     ['(vals "abc")', 'vals expects a map'],
   ])(
     'should throw on invalid keys / vals arguments: %s → "%s"',
+    (code, expected) => {
+      expectError(code, expected)
+    }
+  )
+})
+
+describe('empty?', () => {
+  it.each([
+    ['(empty? [])', true],
+    ["(empty? '())", true],
+    ['(empty? {})', true],
+    ['(empty? "")', true],
+    ['(empty? nil)', true],
+    ['(empty? [1 2])', false],
+    ["(empty? '(1))", false],
+    ['(empty? {:a 1})', false],
+    ['(empty? "hello")', false],
+  ])('should evaluate empty?: %s → %s', (code, expected) => {
+    const session = freshSession()
+    const result = session.evaluate(code)
+    expect(result).toMatchObject(toCljValue(expected))
+  })
+
+  it.each([
+    ['(empty? 42)', 'empty? expects a collection, string, or nil, got 42'],
+    ['(empty? true)', 'empty? expects a collection, string, or nil, got true'],
+  ])(
+    'should throw on invalid empty? arguments: %s → "%s"',
+    (code, expected) => {
+      expectError(code, expected)
+    }
+  )
+})
+
+describe('contains?', () => {
+  it.each([
+    ['(contains? {:a 1 :b 2} :a)', true],
+    ['(contains? {:a 1 :b 2} :c)', false],
+    // distinguishes absent key from key with nil value
+    ['(contains? {:a nil} :a)', true],
+    ['(contains? {:a nil} :b)', false],
+    // vector index bounds
+    ['(contains? [10 20 30] 0)', true],
+    ['(contains? [10 20 30] 2)', true],
+    ['(contains? [10 20 30] 3)', false],
+    ['(contains? [10 20 30] -1)', false],
+    // nil
+    ['(contains? nil :a)', false],
+    // non-number key on vector
+    ['(contains? [1 2 3] :a)', false],
+  ])('should evaluate contains?: %s → %s', (code, expected) => {
+    const session = freshSession()
+    const result = session.evaluate(code)
+    expect(result).toMatchObject(toCljValue(expected))
+  })
+
+  it.each([
+    ['(contains? "hello" 0)', "contains? expects a map, vector, or nil, got"],
+    ['(contains? 42 0)', "contains? expects a map, vector, or nil, got"],
+  ])(
+    'should throw on invalid contains? arguments: %s → "%s"',
     (code, expected) => {
       expectError(code, expected)
     }

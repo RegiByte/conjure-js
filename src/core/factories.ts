@@ -19,6 +19,7 @@ import type {
   CljValue,
   CljVector,
   CljVolatile,
+  DestructurePattern,
   Env,
   EvaluationContext,
 } from './types'
@@ -42,8 +43,8 @@ export const cljVector = <T extends CljValue[]>(value: T) =>
 export const cljMap = <T extends [CljValue, CljValue][]>(entries: T) =>
   ({ kind: 'map', entries }) as const satisfies CljMap
 export const cljFunction = (
-  params: CljSymbol[],
-  restParam: CljSymbol | null,
+  params: DestructurePattern[],
+  restParam: DestructurePattern | null,
   body: CljValue[],
   env: Env
 ): CljFunction => ({
@@ -87,8 +88,8 @@ export const cljNativeFunctionWithContext = <
   }) as const satisfies CljNativeFunction
 
 export const cljMacro = (
-  params: CljSymbol[],
-  restParam: CljSymbol | null,
+  params: DestructurePattern[],
+  restParam: DestructurePattern | null,
   body: CljValue[],
   env: Env
 ): CljMacro => ({

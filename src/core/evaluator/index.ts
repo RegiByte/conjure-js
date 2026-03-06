@@ -7,7 +7,11 @@ import {
   type EvaluationContext,
 } from '../types.ts'
 import { makeEnv } from '../env.ts'
-import { applyFunctionWithContext, applyMacroWithContext } from './apply.ts'
+import {
+  applyCallableWithContext,
+  applyFunctionWithContext,
+  applyMacroWithContext,
+} from './apply.ts'
 import { macroExpandAllWithContext } from './expand.ts'
 import {
   type EvaluationMeasurement,
@@ -29,6 +33,8 @@ export function createEvaluationContext(): EvaluationContext {
       args: CljValue[],
       callEnv: Env
     ) => applyFunctionWithContext(fn, args, ctx, callEnv),
+    applyCallable: (fn: CljValue, args: CljValue[], callEnv: Env) =>
+      applyCallableWithContext(fn, args, ctx, callEnv),
     applyMacro: (macro: CljMacro, rawArgs: CljValue[]) =>
       applyMacroWithContext(macro, rawArgs, ctx),
     expandAll: (form: CljValue, env: Env) =>

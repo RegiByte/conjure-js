@@ -214,3 +214,21 @@ describe('type', () => {
     expect(result).toMatchObject(expected)
   })
 })
+
+describe('boolean', () => {
+  it.each([
+    ['(boolean true)', cljBoolean(true)],
+    ['(boolean false)', cljBoolean(false)],
+    ['(boolean nil)', cljBoolean(false)],
+    ['(boolean 0)', cljBoolean(true)],
+    ['(boolean 1)', cljBoolean(true)],
+    ['(boolean "")', cljBoolean(true)],
+    ['(boolean "hello")', cljBoolean(true)],
+    ['(boolean [])', cljBoolean(true)],
+    ['(boolean :foo)', cljBoolean(true)],
+  ])('should evaluate boolean: %s → %s', (code, expected) => {
+    const session = freshSession()
+    const result = session.evaluate(code)
+    expect(result).toMatchObject(expected)
+  })
+})

@@ -39,7 +39,14 @@ export function findFormBeforeCursor(
   try {
     tokens = tokenize(source)
   } catch {
-    return null
+    // Full-source tokenization failed (e.g. unsupported syntax elsewhere in
+    // the file).  Retry with just the text up to the cursor — enough to find
+    // the form before it, and avoids any bad syntax that lives after it.
+    try {
+      tokens = tokenize(source.slice(0, cursorOffset))
+    } catch {
+      return null
+    }
   }
 
   // Relevant tokens: non-whitespace, non-comment, ending at or before cursor

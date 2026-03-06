@@ -1,8 +1,16 @@
-import { isList, isSymbol, isVector } from '../assertions'
+import { isList, isMap, isSymbol, isVector } from '../assertions'
 import { extend } from '../env'
 import { EvaluationError } from '../errors'
 import { cljList, cljNil } from '../factories'
-import type { Arity, CljSymbol, CljValue, CljVector, Env } from '../types'
+import type {
+  Arity,
+  CljValue,
+  CljVector,
+  DestructurePattern,
+  Env,
+  EvaluationContext,
+} from '../types'
+import { destructureBindings } from './destructure'
 
 export class RecurSignal {
   args: CljValue[]
@@ -14,14 +22,13 @@ export class RecurSignal {
 export function parseParamVector(
   args: CljVector,
   env: Env
-): { params: CljSymbol[]; restParam: CljSymbol | null } {
+): { params: DestructurePattern[]; restParam: DestructurePattern | null } {
   const ampIdx = args.value.findIndex((a) => isSymbol(a) && a.name === '&')
-  let params: CljSymbol[] = []
-  let restParam: CljSymbol | null = null
+  let params: DestructurePattern[] = []
+  let restParam: DestructurePattern | null = null
   if (ampIdx === -1) {
-    params = args.value.map((a) => a as CljSymbol)
+    params = args.value as DestructurePattern[]
   } else {
-    // validate: & must be second-to-last
     const ampsCount = args.value.filter(
       (a) => isSymbol(a) && a.name === '&'
     ).length
@@ -34,8 +41,8 @@ export function parseParamVector(
         env,
       })
     }
-    params = args.value.slice(0, ampIdx).map((a) => a as CljSymbol)
-    restParam = args.value[ampIdx + 1] as CljSymbol
+    params = args.value.slice(0, ampIdx) as DestructurePattern[]
+    restParam = args.value[ampIdx + 1] as DestructurePattern
   }
   return { params, restParam }
 }
@@ -53,12 +60,6 @@ export function parseArities(forms: CljValue[], env: Env): Arity[] {
 
   if (isVector(forms[0])) {
     const paramVec = forms[0]
-    if (paramVec.value.some((arg) => !isSymbol(arg))) {
-      throw new EvaluationError('Parameters must be symbols', {
-        paramVec,
-        env,
-      })
-    }
     const { params, restParam } = parseParamVector(paramVec, env)
     return [{ params, restParam, body: forms.slice(1) }]
   }
@@ -78,12 +79,6 @@ export function parseArities(forms: CljValue[], env: Env): Arity[] {
           'First element of arity clause must be a parameter vector',
           { paramVec, env }
         )
-      }
-      if (paramVec.value.some((arg) => !isSymbol(arg))) {
-        throw new EvaluationError('Parameters must be symbols', {
-          paramVec,
-          env,
-        })
       }
       const { params, restParam } = parseParamVector(paramVec, env)
       arities.push({ params, restParam, body: form.value.slice(1) })
@@ -107,46 +102,55 @@ export function parseArities(forms: CljValue[], env: Env): Arity[] {
 }
 
 export function bindParams(
-  params: CljSymbol[],
-  restParam: CljSymbol | null,
+  params: DestructurePattern[],
+  restParam: DestructurePattern | null,
   args: CljValue[],
-  outerEnv: Env
+  outerEnv: Env,
+  ctx: EvaluationContext,
+  bindEnv: Env
 ): Env {
-  const paramNames = params.map((p) => p.name)
-  const paramValues = args.slice(0, paramNames.length)
   if (restParam === null) {
-    // non variadic binding
     if (args.length !== params.length) {
       throw new EvaluationError(
         `Arguments length mismatch: fn accepts ${params.length} arguments, but ${args.length} were provided`,
-        {
-          params,
-          args,
-          outerEnv,
-        }
+        { params, args, outerEnv }
       )
     }
   } else {
-    // variadic binding
     if (args.length < params.length) {
       throw new EvaluationError(
         `Arguments length mismatch: fn expects at least ${params.length} arguments, but ${args.length} were provided`,
-        {
-          params,
-          args,
-          outerEnv,
-        }
+        { params, args, outerEnv }
       )
     }
-
-    const restArgs = args.slice(paramNames.length)
-    const restValue = restArgs.length > 0 ? cljList(restArgs) : cljNil()
-    paramNames.push(restParam.name)
-    paramValues.push(restValue)
-    return extend(paramNames, paramValues, outerEnv)
   }
 
-  return extend(paramNames, paramValues, outerEnv)
+  const allPairs: [string, CljValue][] = []
+
+  for (let i = 0; i < params.length; i++) {
+    allPairs.push(...destructureBindings(params[i], args[i], ctx, bindEnv))
+  }
+
+  if (restParam !== null) {
+    const restArgs = args.slice(params.length)
+    let restValue: CljValue
+    if (isMap(restParam) && restArgs.length > 0) {
+      const entries: [CljValue, CljValue][] = []
+      for (let i = 0; i < restArgs.length; i += 2) {
+        entries.push([restArgs[i], restArgs[i + 1] ?? cljNil()])
+      }
+      restValue = { kind: 'map', entries }
+    } else {
+      restValue = restArgs.length > 0 ? cljList(restArgs) : cljNil()
+    }
+    allPairs.push(...destructureBindings(restParam, restValue, ctx, bindEnv))
+  }
+
+  return extend(
+    allPairs.map(([n]) => n),
+    allPairs.map(([, v]) => v),
+    outerEnv
+  )
 }
 
 export function resolveArity(arities: Arity[], argCount: number): Arity {

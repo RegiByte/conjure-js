@@ -7,6 +7,7 @@ import {
   isEqual,
   isFalsy,
   isKeyword,
+  isSeqable,
   isSymbol,
   isTruthy,
   isList,
@@ -194,9 +195,9 @@ export const predicateFunctions: Record<string, CljValue> = {
       if (coll === undefined) {
         return cljNil()
       }
-      if (!isCollection(coll)) {
+      if (!isSeqable(coll)) {
         throw new EvaluationError(
-          `some expects a collection as second argument, got ${printString(coll)}`,
+          `some expects a collection or string as second argument, got ${printString(coll)}`,
           { coll }
         )
       }
@@ -220,9 +221,9 @@ export const predicateFunctions: Record<string, CljValue> = {
           { pred }
         )
       }
-      if (coll === undefined || !isCollection(coll)) {
+      if (coll === undefined || !isSeqable(coll)) {
         throw new EvaluationError(
-          `every? expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+          `every? expects a collection or string as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
           { coll }
         )
       }

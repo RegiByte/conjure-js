@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   cljBoolean,
   cljKeyword,
+  cljList,
   cljMap,
   cljNil,
   cljNumber,
@@ -83,11 +84,6 @@ describe('apply', () => {
     ['(apply + [1 2 3])', 6],
     ['(apply + 42 [1 2 3])', 48],
     ['(apply + 0 [1 2 3])', 6],
-    [
-      `(def inc (fn [n] (+ n 1)))
-  (apply map [inc [1 2 3 4 5]])`,
-      [2, 3, 4, 5, 6],
-    ],
   ])(
     'should evaluate apply core function %s should be %s',
     (code, expected) => {
@@ -96,6 +92,17 @@ describe('apply', () => {
       expect(result).toMatchObject(toCljValue(expected))
     }
   )
+
+  it('(apply map ...) returns a seq (list)', () => {
+    const session = freshSession()
+    const result = session.evaluate(
+      `(def inc (fn [n] (+ n 1)))
+       (apply map [inc [1 2 3 4 5]])`
+    )
+    expect(result).toMatchObject(
+      cljList([cljNumber(2), cljNumber(3), cljNumber(4), cljNumber(5), cljNumber(6)])
+    )
+  })
 })
 
 describe('juxt', () => {
@@ -114,7 +121,7 @@ describe('juxt', () => {
   )
 
   it.each([
-    ['((juxt 1) 10)', 'apply expects a function as first argument, got 1'],
+    ['((juxt 1) 10)', 'apply expects a callable as first argument, got 1'],
     ['((juxt (fn [x] x)) 1 2)', 'No matching arity for 2'],
   ])(
     'should throw on invalid juxt usage: %s should throw "%s"',
@@ -211,7 +218,7 @@ describe('update', () => {
   })
 
   it.each([
-    ['(update {:a 1} :a 42)', 'f is not a function'],
+    ['(update {:a 1} :a 42)', 'f is not callable'],
     ['(update)', 'No matching arity for 0'],
   ])(
     'should throw on invalid update arguments: %s → "%s"',
@@ -262,7 +269,7 @@ describe('group-by', () => {
     expect(result).toMatchObject(toCljValue(expected))
   })
 
-  it.each([['(group-by 42 [1 2])', 'not a function']])(
+  it.each([['(group-by 42 [1 2])', 'not callable']])(
     'should throw on invalid group-by arguments: %s → "%s"',
     (code, expected) => {
       expectError(code, expected)
@@ -365,6 +372,81 @@ describe('sort and sort-by', () => {
     ['(sort-by inc)', 'No matching arity for 1'],
   ])(
     'should throw on invalid sort/sort-by arguments: %s → "%s"',
+    (code, expected) => {
+      expectError(code, expected)
+    }
+  )
+})
+
+describe('comp', () => {
+  it.each([
+    ['((comp) 42)', 42],
+    ['((comp inc) 1)', 2],
+    ['((comp inc inc) 1)', 3],
+    ['((comp str inc) 41)', '42'],
+    // composed in right-to-left order: first inc, then str
+    ['((comp str inc dec) 5)', '5'],
+  ])(
+    'should evaluate comp: %s → %s',
+    (code, expected) => {
+      const session = freshSession()
+      const result = session.evaluate(code)
+      expect(result).toMatchObject(toCljValue(expected))
+    }
+  )
+
+  it('comp with a keyword (IFn) — most common real-world use case', () => {
+    const session = freshSession()
+    const result = session.evaluate(
+      `(def users [{:name "Alice" :role :admin} {:name "Bob" :role :user}])
+       (filter (comp #(= % :admin) :role) users)`
+    )
+    expect(result).toMatchObject(
+      cljList([cljMap([[cljKeyword(':name'), cljString('Alice')], [cljKeyword(':role'), cljKeyword(':admin')]])])
+    )
+  })
+
+  it('(comp :role) as a standalone extractor', () => {
+    const session = freshSession()
+    const result = session.evaluate('((comp :name) {:name "Alice" :age 30})')
+    expect(result).toMatchObject(cljString('Alice'))
+  })
+
+  it.each([
+    ['(comp 1 inc)', 'comp expects functions'],
+  ])(
+    'should throw on non-callable arguments: %s → "%s"',
+    (code, expected) => {
+      expectError(code, expected)
+    }
+  )
+})
+
+describe('partial', () => {
+  it.each([
+    ['((partial + 10) 5)', 15],
+    ['((partial + 10) 5 3)', 18],
+    ['((partial str "hello") " world")', 'hello world'],
+    ['((partial map inc) [1 2 3])', cljList([cljNumber(2), cljNumber(3), cljNumber(4)])],
+  ])(
+    'should evaluate partial: %s → %s',
+    (code, expected) => {
+      const session = freshSession()
+      const result = session.evaluate(code)
+      expect(result).toMatchObject(toCljValue(expected as any))
+    }
+  )
+
+  it('partial with a keyword', () => {
+    const session = freshSession()
+    const result = session.evaluate('((partial :name) {:name "Alice"})')
+    expect(result).toMatchObject(cljString('Alice'))
+  })
+
+  it.each([
+    ['(partial 42)', 'partial expects a callable'],
+  ])(
+    'should throw on non-callable first argument: %s → "%s"',
     (code, expected) => {
       expectError(code, expected)
     }

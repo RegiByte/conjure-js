@@ -37,9 +37,11 @@ export type Env = {
   resolveNs?: (name: string) => Env | null // only present on the root coreEnv
 }
 
+export type DestructurePattern = CljSymbol | CljVector | CljMap
+
 export type Arity = {
-  params: CljSymbol[]
-  restParam: CljSymbol | null
+  params: DestructurePattern[]
+  restParam: DestructurePattern | null
   body: CljValue[]
 }
 
@@ -77,6 +79,8 @@ export type EvaluationContext = {
     args: CljValue[],
     callEnv: Env
   ) => CljValue
+  /** Invokes any IFn value: functions, native functions, keywords, and maps. */
+  applyCallable: (fn: CljValue, args: CljValue[], callEnv: Env) => CljValue
   applyMacro: (macro: CljMacro, rawArgs: CljValue[]) => CljValue
   expandAll: (form: CljValue, env: Env) => CljValue
 }

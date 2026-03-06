@@ -2,7 +2,15 @@
 // nth, get, assoc, dissoc, keys, vals, take, drop, concat, into, zipmap,
 // last, reverse, empty?, repeat, range
 
-import { isCollection, isEqual, isList, isMap, isVector } from '../assertions'
+import {
+  isCollection,
+  isEqual,
+  isList,
+  isMap,
+  isNil,
+  isSeqable,
+  isVector,
+} from '../assertions'
 import { EvaluationError } from '../errors'
 import {
   cljBoolean,
@@ -72,33 +80,39 @@ export const collectionFunctions: Record<string, CljValue> = {
   seq: withDoc(
     cljNativeFunction('seq', (coll: CljValue) => {
       if (coll.kind === 'nil') return cljNil()
-      if (!isCollection(coll)) {
+      if (!isSeqable(coll)) {
         throw new EvaluationError(
-          `seq expects a collection or nil, got ${printString(coll)}`,
+          `seq expects a collection, string, or nil, got ${printString(coll)}`,
           { collection: coll }
         )
       }
       const items = toSeq(coll)
       return items.length === 0 ? cljNil() : cljList(items)
     }),
-    'Returns a sequence of the given collection.',
+    'Returns a sequence of the given collection or string. Strings yield a sequence of single-character strings.',
     [['coll']]
   ),
   first: withDoc(
     cljNativeFunction('first', (collection: CljValue) => {
-      if (!isCollection(collection)) {
-        throw new EvaluationError('first expects a collection', { collection })
+      if (collection.kind === 'nil') return cljNil()
+      if (!isSeqable(collection)) {
+        throw new EvaluationError('first expects a collection or string', {
+          collection,
+        })
       }
       const entries = toSeq(collection)
       return entries.length === 0 ? cljNil() : entries[0]
     }),
-    'Returns the first element of the given collection.',
+    'Returns the first element of the given collection or string.',
     [['coll']]
   ),
   rest: withDoc(
     cljNativeFunction('rest', (collection: CljValue) => {
-      if (!isCollection(collection)) {
-        throw new EvaluationError('rest expects a collection', { collection })
+      if (collection.kind === 'nil') return cljList([])
+      if (!isSeqable(collection)) {
+        throw new EvaluationError('rest expects a collection or string', {
+          collection,
+        })
       }
       if (isList(collection)) {
         if (collection.value.length === 0) {
@@ -115,12 +129,16 @@ export const collectionFunctions: Record<string, CljValue> = {
         }
         return cljMap(collection.entries.slice(1))
       }
+      if (collection.kind === 'string') {
+        const chars = toSeq(collection)
+        return cljList(chars.slice(1))
+      }
       throw new EvaluationError(
-        `rest expects a collection, got ${printString(collection)}`,
+        `rest expects a collection or string, got ${printString(collection)}`,
         { collection }
       )
     }),
-    'Returns a sequence of the given collection excluding the first element.',
+    'Returns a sequence of the given collection or string excluding the first element.',
     [['coll']]
   ),
   conj: withDoc(
@@ -217,6 +235,10 @@ export const collectionFunctions: Record<string, CljValue> = {
           'assoc expects a collection as first argument',
           { collection }
         )
+      }
+      // nil is treated as an empty map, matching Clojure: (assoc nil :k v) => {:k v}
+      if (isNil(collection)) {
+        collection = cljMap([])
       }
       if (isList(collection)) {
         throw new EvaluationError(
@@ -470,9 +492,9 @@ export const collectionFunctions: Record<string, CljValue> = {
     cljNativeFunction('concat', (...colls: CljValue[]) => {
       const result: CljValue[] = []
       for (const coll of colls) {
-        if (!isCollection(coll)) {
+        if (!isSeqable(coll)) {
           throw new EvaluationError(
-            `concat expects collections, got ${printString(coll)}`,
+            `concat expects collections or strings, got ${printString(coll)}`,
             { coll }
           )
         }
@@ -480,7 +502,7 @@ export const collectionFunctions: Record<string, CljValue> = {
       }
       return cljList(result)
     }),
-    'Returns a new sequence that is the concatenation of the given sequences.',
+    'Returns a new sequence that is the concatenation of the given sequences or strings.',
     [['&', 'colls']]
   ),
 
@@ -528,15 +550,15 @@ export const collectionFunctions: Record<string, CljValue> = {
 
   zipmap: withDoc(
     cljNativeFunction('zipmap', (ks: CljValue, vs: CljValue) => {
-      if (ks === undefined || !isCollection(ks)) {
+      if (ks === undefined || !isSeqable(ks)) {
         throw new EvaluationError(
-          `zipmap expects a collection as first argument${ks !== undefined ? `, got ${printString(ks)}` : ''}`,
+          `zipmap expects a collection or string as first argument${ks !== undefined ? `, got ${printString(ks)}` : ''}`,
           { ks }
         )
       }
-      if (vs === undefined || !isCollection(vs)) {
+      if (vs === undefined || !isSeqable(vs)) {
         throw new EvaluationError(
-          `zipmap expects a collection as second argument${vs !== undefined ? `, got ${printString(vs)}` : ''}`,
+          `zipmap expects a collection or string as second argument${vs !== undefined ? `, got ${printString(vs)}` : ''}`,
           { vs }
         )
       }
@@ -583,16 +605,52 @@ export const collectionFunctions: Record<string, CljValue> = {
 
   'empty?': withDoc(
     cljNativeFunction('empty?', (coll: CljValue) => {
-      if (coll === undefined || !isCollection(coll)) {
+      if (coll === undefined) {
+        throw new EvaluationError('empty? expects one argument', {})
+      }
+      // nil and empty string count as empty, matching Clojure semantics
+      if (coll.kind === 'nil') return cljBoolean(true)
+      if (!isSeqable(coll)) {
         throw new EvaluationError(
-          `empty? expects a collection${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
+          `empty? expects a collection, string, or nil, got ${printString(coll)}`,
           { coll }
         )
       }
       return cljBoolean(toSeq(coll).length === 0)
     }),
-    'Returns true if the given collection is empty, false otherwise.',
+    'Returns true if coll has no items. Accepts collections, strings, and nil.',
     [['coll']]
+  ),
+
+  'contains?': withDoc(
+    cljNativeFunction('contains?', (coll: CljValue, key: CljValue) => {
+      if (coll === undefined) {
+        throw new EvaluationError(
+          'contains? expects a collection as first argument',
+          {}
+        )
+      }
+      if (key === undefined) {
+        throw new EvaluationError(
+          'contains? expects a key as second argument',
+          {}
+        )
+      }
+      if (coll.kind === 'nil') return cljBoolean(false)
+      if (isMap(coll)) {
+        return cljBoolean(coll.entries.some(([k]) => isEqual(k, key)))
+      }
+      if (isVector(coll)) {
+        if (key.kind !== 'number') return cljBoolean(false)
+        return cljBoolean(key.value >= 0 && key.value < coll.value.length)
+      }
+      throw new EvaluationError(
+        `contains? expects a map, vector, or nil, got ${printString(coll)}`,
+        { coll }
+      )
+    }),
+    'Returns true if key is present in coll. For maps checks key existence (including keys with nil values). For vectors checks index bounds.',
+    [['coll', 'key']]
   ),
 
   repeat: withDoc(

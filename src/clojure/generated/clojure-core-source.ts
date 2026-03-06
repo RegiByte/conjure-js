@@ -110,7 +110,7 @@ export const clojure_coreSource = `\
   returns a vector containing the result of applying each fn to the args."
   [& fns]
   (fn [& args]
-    (map (fn [f] (apply f args)) fns)))
+    (reduce (fn [acc f] (conj acc (apply f args))) [] fns)))
 
 (defn merge
   "Returns a map that consists of the rest of the maps conj-ed onto
@@ -157,6 +157,48 @@ export const clojure_coreSource = `\
     (assoc target k (if (nil? args)
                       (f (get target k))
                       (apply f (get target k) args)))))
+
+(defn get-in
+  "Returns the value in a nested associative structure, where ks is a
+  sequence of keys. Returns nil if the key is not present, or the not-found
+  value if supplied."
+  ([m ks]
+   (reduce get m ks))
+  ([m ks not-found]
+   (loop [m m, ks (seq ks)]
+     (if (nil? ks)
+       m
+       (if (contains? m (first ks))
+         (recur (get m (first ks)) (next ks))
+         not-found)))))
+
+(defn assoc-in
+  "Associates a value in a nested associative structure, where ks is a
+  sequence of keys and v is the new value. Returns a new nested structure."
+  [m [k & ks] v]
+  (if ks
+    (assoc m k (assoc-in (get m k) ks v))
+    (assoc m k v)))
+
+(defn update-in
+  "Updates a value in a nested associative structure, where ks is a
+  sequence of keys and f is a function that will take the old value and any
+  supplied args and return the new value. Returns a new nested structure."
+  [m ks f & args]
+  (assoc-in m ks (apply f (get-in m ks) args)))
+
+(defn fnil
+  "Takes a function f, and returns a function that calls f, replacing
+  a nil first argument with x, optionally nil second with y, nil third with z."
+  ([f x]
+   (fn [a & more]
+     (apply f (if (nil? a) x a) more)))
+  ([f x y]
+   (fn [a b & more]
+     (apply f (if (nil? a) x a) (if (nil? b) y b) more)))
+  ([f x y z]
+   (fn [a b c & more]
+     (apply f (if (nil? a) x a) (if (nil? b) y b) (if (nil? c) z c) more))))
 
 (defn frequencies
   "Returns a map from distinct items in coll to the number of times they appear."
@@ -303,14 +345,14 @@ export const clojure_coreSource = `\
   ([to from] (reduce conj to from))
   ([to xf from] (transduce xf conj to from)))
 
-;; sequence: materialise a transducer over a collection into a vector
+;; sequence: materialise a transducer over a collection into a seq (list)
 (defn sequence
   "Coerces coll to a (possibly empty) sequence, if it is not already
   one. Will not force a seq. (sequence nil) yields (), When a
   transducer is supplied, returns a lazy sequence of applications of
   the transform to the items in coll"
-  ([coll] (into [] coll))
-  ([xf coll] (into [] xf coll)))
+  ([coll] (apply list (into [] coll)))
+  ([xf coll] (apply list (into [] xf coll))))
 
 (defn completing
   "Takes a reducing function f of 2 args and returns a fn suitable for
