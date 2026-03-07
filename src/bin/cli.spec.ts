@@ -39,8 +39,9 @@ describe('bun cli', () => {
     expect(exitCode).toBe(1)
     expect(lines).toEqual([
       'Usage:',
-      '  regiclj repl',
-      '  regiclj run <file.clj>',
+      '  conjure repl',
+      '  conjure run <file.clj>',
+      '  conjure nrepl-server [--port <number>] [--host <string>]',
     ])
   })
 

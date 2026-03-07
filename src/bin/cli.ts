@@ -5,6 +5,8 @@ import { stdin as input, stdout as output } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { createSession, printString, type Session } from '../core'
 import { extractNsName } from '../vite-plugin-clj/namespace-utils'
+import { inferSourceRoot, discoverSourceRoots } from './nrepl-utils'
+import { startNreplServer } from './nrepl'
 
 type CliIo = {
   writeLine: (text: string) => void
@@ -35,23 +37,11 @@ function getSourceRoots(filePath?: string): string[] {
   return [...roots]
 }
 
-function inferSourceRoot(filePath: string, source: string): string | null {
-  const nsName = extractNsName(source)
-  if (!nsName) return null
-
-  const normalizedPath = filePath.replace(/\\/g, '/')
-  const nsSuffix = `/${nsName.replace(/\./g, '/')}.clj`
-  if (!normalizedPath.endsWith(nsSuffix)) {
-    return null
-  }
-
-  return normalizedPath.slice(0, -nsSuffix.length) || '/'
-}
-
 function printUsage(io: CliIo) {
   io.writeLine('Usage:')
-  io.writeLine('  regiclj repl')
-  io.writeLine('  regiclj run <file.clj>')
+  io.writeLine('  conjure repl')
+  io.writeLine('  conjure run <file.clj>')
+  io.writeLine('  conjure nrepl-server [--port <number>] [--host <string>]')
 }
 
 export function runFile(fileArg: string, io: CliIo = makeCliIo()): number {
@@ -153,6 +143,19 @@ export async function startRepl(io: CliIo = makeCliIo()): Promise<number> {
   return startInteractiveRepl(session, io)
 }
 
+function parseNreplArgs(args: string[]): { port: number; host: string } {
+  let port = 7888
+  let host = '127.0.0.1'
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--port' && args[i + 1]) {
+      port = parseInt(args[++i], 10)
+    } else if (args[i] === '--host' && args[i + 1]) {
+      host = args[++i]
+    }
+  }
+  return { port, host }
+}
+
 export async function runCli(
   args: string[],
   io: CliIo = makeCliIo()
@@ -170,6 +173,14 @@ export async function runCli(
       return 1
     }
     return runFile(fileArg, io)
+  }
+
+  if (command === 'nrepl-server') {
+    const { port, host } = parseNreplArgs(rest)
+    const sourceRoots = discoverSourceRoots(process.cwd())
+    startNreplServer({ port, host, sourceRoots })
+    // Keep the process alive; the TCP server holds the event loop open.
+    return new Promise(() => {})
   }
 
   printUsage(io)

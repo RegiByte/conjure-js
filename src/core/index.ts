@@ -1,6 +1,6 @@
 // Session API
-export { createSession } from './session'
-export type { Session } from './session'
+export { createSession, snapshotSession, createSessionFromSnapshot } from './session'
+export type { Session, SessionSnapshot } from './session'
 
 // Conversions
 export { cljToJs, jsToClj, ConversionError } from './conversions'

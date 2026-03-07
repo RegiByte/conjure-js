@@ -1,13 +1,20 @@
 {
-  "name": "regibyte-clj-interpreter",
-  "private": true,
-  "version": "0.0.0",
+  "name": "conjure-js",
+  "private": false,
+  "version": "0.0.1",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/regibyte/conjure-js.git"
+  },
+  "author": "Regibyte",
+  "homepage": "https://github.com/regibyte/conjure-js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.build.json && vite build",
     "bun:repl": "bun run src/bin/cli.ts repl",
     "bun:run": "bun run src/bin/cli.ts run",
+    "bun:nrepl": "bun run src/bin/cli.ts nrepl-server",
     "bun:build-cli": "bun build --compile src/bin/cli.ts --outfile cli",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
@@ -26,5 +33,10 @@
   },
   "dependencies": {
     "monaco-editor": "^0.55.1"
+  },
+  "conjure": {
+    "sourceRoots": [
+      "src/clojure"
+    ]
   }
 }

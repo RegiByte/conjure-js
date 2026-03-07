@@ -14,7 +14,7 @@ export class ReaderError extends Error {
   pos?: Pos
   constructor(message: string, context: unknown, pos?: Pos) {
     super(message)
-    this.name = 'ParserError'
+    this.name = 'ReaderError'
     this.context = context
     this.pos = pos
   }

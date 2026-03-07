@@ -1,0 +1,155 @@
+; Jacking in...
+; Connecting using "Clojure (projectless)" project type.
+; Starting Jack-in: (cd /Users/reginaldo/code/clojure-land/regibyte-clj-interpreter; clojure -Sdeps '{:deps {nrepl/nrepl {:mvn/version,"1.5.1"},cider/cider-nrepl {:mvn/version,"0.58.0"}}}' -M -m nrepl.cmdline --middleware "[cider.nrepl/cider-middleware]")
+; Jacking in...
+; TypeError: Cannot read properties of undefined (reading 'label')
+; Aborting jack-in.
+; Connecting using "Generic" project type.
+; Connecting ...
+; Reading port file: file:///Users/reginaldo/code/clojure-land/regibyte-clj-interpreter/.nrepl-port ...
+; No nrepl port file found.
+; Hooking up nREPL sessions on port 7888...
+; Connected session: clj, port: 7888
+; Evaluating code from settings: 'calva.autoEvaluateCode.onConnect.clj'
+; Symbol when-let not found
+;   at line 1, col 2:
+;   (when-let [requires (resolve 'clojure.main/repl-requires)] (clojure.core/apply clojure.core/require @requires))
+;    ^^^^^^^^
+clj꞉user꞉> 
+"Please see https://calva.io/output/#about-stdout-in-the-repl-window
+about why stdout printed to this file is prepended with `;` to be line comments."
+clj꞉user꞉> 
+3
+clj꞉user꞉> 
+; Hello World! From Calva!!!!!!
+nil
+clj꞉user꞉> 
+:map
+clj꞉user꞉> 
+; YesThisIs working!
+42
+clj꞉user꞉> 
+; Yes
+; This
+; Is working!
+42
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+; No such namespace or alias: m
+;   at line 1, col 10:
+;   (def add m/add)
+;            ^^^^^
+clj꞉user꞉> 
+; Namespace demo.math not found. Only already-loaded namespaces can be required.
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+"Hello from Clojure! Welcome, Regibyte!"
+clj꞉user꞉> 
+(3 4 5 6 9 3)
+clj꞉user꞉> 
+; nREPL Connection was closed for client: nrepl-client-1, port: 7888
+; Jacking in...
+; TypeError: Cannot read properties of undefined (reading 'label')
+; Aborting jack-in.
+; Connecting using "Generic" project type.
+; Connecting ...
+; Reading port file: file:///Users/reginaldo/code/clojure-land/regibyte-clj-interpreter/.nrepl-port ...
+; No nrepl port file found.
+; Hooking up nREPL sessions on port 7888...
+; Connected session: clj, port: 7888
+; Evaluating code from settings: 'calva.autoEvaluateCode.onConnect.clj'
+; Symbol when-let not found
+;   at line 1, col 2:
+;   (when-let [requires (resolve 'clojure.main/repl-requires)] (clojure.core/apply clojure.core/require @requires))
+;    ^^^^^^^^
+clj꞉user꞉> 
+; Yes
+; This
+; Is working!
+42
+clj꞉user꞉> 
+(3 4 5 6 9 3)
+clj꞉user꞉> 
+:map
+clj꞉user꞉> 
+; Hello World! From Calva!!!!!!
+nil
+clj꞉user꞉> 
+; Namespace demo.math not found. Only already-loaded namespaces can be required.
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+; No such namespace or alias: m
+;   at line 1, col 10:
+;   (def add m/add)
+;            ^^^^^
+clj꞉user꞉> 
+; Namespace demo.math not found. Only already-loaded namespaces can be required.
+clj꞉user꞉> 
+; nREPL Connection was closed for client: nrepl-client-2, port: 7888
+; Jacking in...
+; TypeError: Cannot read properties of undefined (reading 'label')
+; Aborting jack-in.
+; Connecting using "Generic" project type.
+; Connecting ...
+; Reading port file: file:///Users/reginaldo/code/clojure-land/regibyte-clj-interpreter/.nrepl-port ...
+; No nrepl port file found.
+; Hooking up nREPL sessions on port 7888...
+; Connected session: clj, port: 7888
+; Evaluating code from settings: 'calva.autoEvaluateCode.onConnect.clj'
+; Symbol when-let not found
+;   at line 1, col 2:
+;   (when-let [requires (resolve 'clojure.main/repl-requires)] (clojure.core/apply clojure.core/require @requires))
+;    ^^^^^^^^
+clj꞉user꞉> 
+; Evaluating file: demo.clj
+; Hello World! From Calva!!!!!!Yes
+; This
+; Is working!
+nil
+clj꞉demo꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+nil
+clj꞉user꞉> 
+; No matching arity for 4 arguments. Available arities: 2
+;   at line 1, col 1:
+;   (add 1 2 3 4)
+;   ^^^^^^^^^^^^^
+clj꞉user꞉> 
+3
+clj꞉user꞉> 
+; ([& nums])
+; 
+; Returns the sum of the arguments. Throws on non-number arguments.
+nil
+clj꞉user꞉> 
+; ([f coll])
+; ([f val coll])
+; 
+; Reduces a collection to a single value by iteratively applying f. (reduce f coll) or (reduce f init coll).
+nil
+clj꞉user꞉> 
+; nREPL Connection was closed for client: nrepl-client-3, port: 7888

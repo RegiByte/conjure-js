@@ -1,6 +1,7 @@
 import { isKeyword, isList, isSymbol, isVector } from './assertions'
 import { loadCoreFunctions } from './core-env'
 import { define, lookup, makeEnv } from './env'
+import { valueToString } from './transformations'
 import { createEvaluationContext, RecurSignal } from './evaluator'
 import { CljThrownSignal, EvaluationError, ReaderError } from './errors'
 import { cljNativeFunction, cljNil } from './factories'
@@ -28,6 +29,7 @@ export type Session = {
   loadFile: (source: string, nsName?: string) => void
   evaluate: (source: string) => CljValue
   evaluateForms: (forms: CljValue[]) => CljValue
+  addSourceRoot: (path: string) => void
 }
 
 // Lightweight token scan to extract the namespace name before full parsing.
@@ -316,6 +318,29 @@ function buildSessionApi(
   const coreEnv = registry.get('clojure.core')!
   coreEnv.resolveNs = (name: string) => registry.get(name) ?? null
 
+  // Re-wire output-dependent functions if an output callback is provided.
+  // This matters for sessions created via createSessionFromSnapshot, where
+  // the cloned coreEnv was built without an output callback.
+  if (options?.output) {
+    const outputFn = options.output
+    define(
+      'println',
+      cljNativeFunction('println', (...args: CljValue[]) => {
+        const text = args.map(valueToString).join(' ')
+        outputFn(text)
+        return cljNil()
+      }),
+      coreEnv
+    )
+  }
+
+  // Mutable source roots — seeded from options, growable via addSourceRoot.
+  const sourceRoots = new Set<string>(options?.sourceRoots ?? [])
+
+  function addSourceRoot(path: string) {
+    sourceRoots.add(path)
+  }
+
   // One shared evaluation context for the lifetime of this session.
   const ctx = createEvaluationContext()
 
@@ -325,10 +350,10 @@ function buildSessionApi(
       loadFile(builtInLoader(), nsName)
       return true
     }
-    if (!(options?.readFile && options?.sourceRoots)) {
+    if (!options?.readFile || sourceRoots.size === 0) {
       return false
     }
-    for (const root of options.sourceRoots) {
+    for (const root of sourceRoots) {
       const filePath = `${root.replace(/\/$/, '')}/${nsName.replace(/\./g, '/')}.clj`
       try {
         const source = options.readFile(filePath)
@@ -403,6 +428,7 @@ function buildSessionApi(
     setNs,
     getNs,
     loadFile,
+    addSourceRoot,
     evaluate(source: string) {
       try {
         const tokens = tokenize(source)
