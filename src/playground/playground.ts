@@ -114,7 +114,7 @@ function createPlayground(appEl: HTMLElement): void {
 
   const leftEl = el('div', 'pg-header__left')
   const titleEl = el('span', 'pg-header__title')
-  titleEl.textContent = 'Regibyte Clojure Playground'
+  titleEl.textContent = 'Conjure Web REPL'
   const hintEl = el('span', 'pg-header__hint')
   hintEl.innerHTML = '<kbd>⌘Enter</kbd> eval form'
   leftEl.appendChild(titleEl)
