@@ -115,6 +115,7 @@ The core data model, namespace system, macro system, and standard library semant
 ```bash
 npm install -g conjure-js
 # or 
+bun install -g conjure-js
 ```
 
 The main host environment is Bun's runtime
