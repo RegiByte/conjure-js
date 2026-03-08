@@ -3,7 +3,9 @@
 ;; (def pi 3.14159)
 (def pi 3.14159)
 
-(defn add [a b]
+(defn add
+  "Adds two numbers together"
+  [a b]
   (+ a b))
 
 (defn square [x]

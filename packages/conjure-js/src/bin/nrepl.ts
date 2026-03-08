@@ -7,9 +7,12 @@ import {
   createSessionFromSnapshot,
   printString,
   snapshotSession,
+  type CljMap,
+  type CljValue,
   type Session,
   type SessionSnapshot,
 } from '../core'
+import { tryLookup, getNamespaceEnv } from '../core/env'
 import { inferSourceRoot } from './nrepl-utils'
 import { VERSION } from './version'
 import { injectNodeHostFunctions } from '../host/node'
@@ -27,6 +30,8 @@ type ManagedSession = {
   session: Session
   /** Mutable: updated to the current eval message id before each eval call */
   currentMsgId: string
+  /** Tracks which file each namespace was loaded from, for go-to-definition */
+  nsToFile: Map<string, string>
 }
 
 // ---------------------------------------------------------------------------
@@ -40,7 +45,8 @@ function makeSessionId(): string {
 function createManagedSession(
   id: string,
   snapshot: SessionSnapshot,
-  encoder: BEncoderStream
+  encoder: BEncoderStream,
+  sourceRoots?: string[]
 ): ManagedSession {
   let currentMsgId = ''
 
@@ -49,6 +55,7 @@ function createManagedSession(
       send(encoder, { id: currentMsgId, session: id, out: text })
     },
     readFile: (filePath) => readFileSync(filePath, 'utf8'),
+    sourceRoots,
   })
 
   injectNodeHostFunctions(session)
@@ -62,6 +69,7 @@ function createManagedSession(
     set currentMsgId(v) {
       currentMsgId = v
     },
+    nsToFile: new Map(),
   }
 }
 
@@ -96,11 +104,12 @@ function handleClone(
   msg: NreplMessage,
   sessions: Map<string, ManagedSession>,
   snapshot: SessionSnapshot,
-  encoder: BEncoderStream
+  encoder: BEncoderStream,
+  sourceRoots?: string[]
 ) {
   const id = (msg['id'] as string) ?? ''
   const newId = makeSessionId()
-  const managed = createManagedSession(newId, snapshot, encoder)
+  const managed = createManagedSession(newId, snapshot, encoder, sourceRoots)
   sessions.set(newId, managed)
   done(encoder, id, undefined, { 'new-session': newId })
 }
@@ -115,6 +124,9 @@ function handleDescribe(msg: NreplMessage, encoder: BEncoderStream) {
       close: {},
       complete: {},
       describe: {},
+      eldoc: {},
+      info: {},
+      lookup: {},
       'load-file': {},
     },
     versions: {
@@ -177,6 +189,12 @@ function handleLoadFile(
       fileName.replace(/\.clj$/, '').replace(/\//g, '.') || undefined
     const loadedNs = managed.session.loadFile(source, nsHint)
 
+    // Track the file path for this namespace so info/lookup can return :file
+    // for go-to-definition support.
+    if (filePath && loadedNs) {
+      managed.nsToFile.set(loadedNs, filePath)
+    }
+
     // Switch the session's active namespace to the one declared in the loaded
     // file. Without this, subsequent eval ops land in the wrong namespace and
     // can't see the defs that were just loaded.
@@ -226,6 +244,207 @@ function handleClose(
   send(encoder, { id, session: sessionId, status: ['done'] })
 }
 
+function resolveSymbol(
+  sym: string,
+  managed: ManagedSession,
+  contextNs?: string
+): { value: CljValue; resolvedNs: string; localName: string } | null {
+  const ns = contextNs ?? managed.session.currentNs
+  const slashIdx = sym.indexOf('/')
+
+  if (slashIdx > 0) {
+    const qualifier = sym.slice(0, slashIdx)
+    const localName = sym.slice(slashIdx + 1)
+
+    // 1. Try as full namespace name
+    const nsEnv = managed.session.getNs(qualifier)
+    if (nsEnv) {
+      const value = tryLookup(localName, nsEnv)
+      if (value !== undefined) return { value, resolvedNs: qualifier, localName }
+    }
+
+    // 2. Try as alias (:as str → clojure.string)
+    const currentEnv = managed.session.getNs(ns)
+    const aliasedEnv = currentEnv?.aliases?.get(qualifier)
+    if (aliasedEnv) {
+      const value = tryLookup(localName, aliasedEnv)
+      if (value !== undefined)
+        return { value, resolvedNs: aliasedEnv.namespace ?? qualifier, localName }
+    }
+
+    return null
+  }
+
+  // Unqualified symbol
+  const localName = sym
+  const nsEnv = managed.session.getNs(ns)
+  if (!nsEnv) return null
+  const value = tryLookup(sym, nsEnv)
+  if (value === undefined) return null
+
+  // Determine the namespace where this symbol is defined
+  let resolvedNs: string
+  if (value.kind === 'function' || value.kind === 'macro') {
+    resolvedNs = getNamespaceEnv(value.env).namespace ?? ns
+  } else if (value.kind === 'native-function') {
+    const i = value.name.indexOf('/')
+    resolvedNs = i > 0 ? value.name.slice(0, i) : ns
+  } else {
+    resolvedNs = ns
+  }
+
+  return { value, resolvedNs, localName }
+}
+
+function extractMeta(value: CljValue): {
+  doc: string
+  arglistsStr: string
+  eldocArgs: string[][] | null
+  type: string
+} {
+  const type =
+    value.kind === 'macro'
+      ? 'macro'
+      : value.kind === 'function' || value.kind === 'native-function'
+        ? 'function'
+        : 'var'
+
+  const meta: CljMap | undefined =
+    value.kind === 'function'
+      ? value.meta
+      : value.kind === 'native-function'
+        ? value.meta
+        : undefined
+
+  let doc = ''
+  let arglistsStr = ''
+  let eldocArgs: string[][] | null = null
+
+  if (meta) {
+    const docEntry = meta.entries.find(
+      ([k]) => k.kind === 'keyword' && k.name === ':doc'
+    )
+    if (docEntry && docEntry[1].kind === 'string') doc = docEntry[1].value
+
+    const argsEntry = meta.entries.find(
+      ([k]) => k.kind === 'keyword' && k.name === ':arglists'
+    )
+    if (argsEntry && argsEntry[1].kind === 'vector') {
+      const arglists = argsEntry[1]
+      arglistsStr = '(' + arglists.value.map((al) => printString(al)).join(' ') + ')'
+      eldocArgs = arglists.value.map((al) => {
+        if (al.kind !== 'vector') return [printString(al)]
+        return al.value.map((p) => (p.kind === 'symbol' ? p.name : printString(p)))
+      })
+    }
+  }
+
+  // Fallback: derive arglists from structural arities (fn/macro without meta)
+  if (
+    arglistsStr === '' &&
+    (value.kind === 'function' || value.kind === 'macro')
+  ) {
+    const arityStrs = value.arities.map((arity) => {
+      const params = arity.params.map((p) => printString(p))
+      if (arity.restParam) params.push('&', printString(arity.restParam))
+      return '[' + params.join(' ') + ']'
+    })
+    arglistsStr = '(' + arityStrs.join(' ') + ')'
+    eldocArgs = value.arities.map((arity) => {
+      const params = arity.params.map((p) => printString(p))
+      if (arity.restParam) params.push('&', printString(arity.restParam))
+      return params
+    })
+  }
+
+  return { doc, arglistsStr, eldocArgs, type }
+}
+
+function handleInfo(
+  msg: NreplMessage,
+  managed: ManagedSession,
+  encoder: BEncoderStream
+) {
+  const id = (msg['id'] as string) ?? ''
+  const sym = msg['sym'] as string | undefined
+  const nsOverride = msg['ns'] as string | undefined
+
+  if (!sym) {
+    done(encoder, id, managed.id, { status: ['no-info', 'done'] })
+    return
+  }
+
+  const resolved = resolveSymbol(sym, managed, nsOverride)
+  if (!resolved) {
+    // Check if sym is itself a namespace name (e.g. navigating to demo.math)
+    const nsFile = managed.nsToFile.get(sym)
+    if (nsFile) {
+      done(encoder, id, managed.id, {
+        ns: sym,
+        name: sym,
+        type: 'namespace',
+        file: nsFile,
+      })
+      return
+    }
+    done(encoder, id, managed.id, { status: ['no-info', 'done'] })
+    return
+  }
+
+  const meta = extractMeta(resolved.value)
+  const file = managed.nsToFile.get(resolved.resolvedNs)
+  done(encoder, id, managed.id, {
+    ns: resolved.resolvedNs,
+    name: resolved.localName,
+    doc: meta.doc,
+    'arglists-str': meta.arglistsStr,
+    type: meta.type,
+    ...(file ? { file } : {}),
+  })
+}
+
+function handleLookup(
+  msg: NreplMessage,
+  managed: ManagedSession,
+  encoder: BEncoderStream
+) {
+  handleInfo(msg, managed, encoder)
+}
+
+function handleEldoc(
+  msg: NreplMessage,
+  managed: ManagedSession,
+  encoder: BEncoderStream
+) {
+  const id = (msg['id'] as string) ?? ''
+  const sym = msg['sym'] as string | undefined
+  const nsOverride = msg['ns'] as string | undefined
+
+  if (!sym) {
+    done(encoder, id, managed.id, { status: ['no-eldoc', 'done'] })
+    return
+  }
+
+  const resolved = resolveSymbol(sym, managed, nsOverride)
+  if (!resolved) {
+    done(encoder, id, managed.id, { status: ['no-eldoc', 'done'] })
+    return
+  }
+
+  const meta = extractMeta(resolved.value)
+  if (!meta.eldocArgs) {
+    done(encoder, id, managed.id, { status: ['no-eldoc', 'done'] })
+    return
+  }
+
+  done(encoder, id, managed.id, {
+    name: resolved.localName,
+    ns: resolved.resolvedNs,
+    type: meta.type,
+    eldoc: meta.eldocArgs,
+  })
+}
+
 function handleUnknown(msg: NreplMessage, encoder: BEncoderStream) {
   const id = (msg['id'] as string) ?? ''
   send(encoder, { id, status: ['unknown-op', 'done'] })
@@ -240,7 +459,8 @@ function handleMessage(
   sessions: Map<string, ManagedSession>,
   snapshot: SessionSnapshot,
   encoder: BEncoderStream,
-  defaultSession: ManagedSession
+  defaultSession: ManagedSession,
+  sourceRoots?: string[]
 ) {
   const op = msg['op'] as string
   const sessionId = msg['session'] as string | undefined
@@ -250,7 +470,7 @@ function handleMessage(
 
   switch (op) {
     case 'clone':
-      handleClone(msg, sessions, snapshot, encoder)
+      handleClone(msg, sessions, snapshot, encoder, sourceRoots)
       break
     case 'describe':
       handleDescribe(msg, encoder)
@@ -266,6 +486,15 @@ function handleMessage(
       break
     case 'close':
       handleClose(msg, sessions, encoder)
+      break
+    case 'info':
+      handleInfo(msg, managed, encoder)
+      break
+    case 'lookup':
+      handleLookup(msg, managed, encoder)
+      break
+    case 'eldoc':
+      handleEldoc(msg, managed, encoder)
       break
     default:
       handleUnknown(msg, encoder)
@@ -305,11 +534,11 @@ export function startNreplServer(options: NreplServerOptions = {}): net.Server {
 
     // A default session for session-less messages (e.g. Calva's initial eval)
     const defaultId = makeSessionId()
-    const defaultSession = createManagedSession(defaultId, snapshot, encoder)
+    const defaultSession = createManagedSession(defaultId, snapshot, encoder, options.sourceRoots)
     sessions.set(defaultId, defaultSession)
 
     decoder.on('data', (msg: NreplMessage) => {
-      handleMessage(msg, sessions, snapshot, encoder, defaultSession)
+      handleMessage(msg, sessions, snapshot, encoder, defaultSession, options.sourceRoots)
     })
 
     socket.on('error', () => {
@@ -331,6 +560,7 @@ export function startNreplServer(options: NreplServerOptions = {}): net.Server {
   const cleanup = () => {
     if (existsSync(portFile)) unlinkSync(portFile)
   }
+  server.on('close', cleanup)
   process.on('exit', cleanup)
   process.on('SIGINT', () => {
     cleanup()

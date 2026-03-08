@@ -456,6 +456,14 @@ function buildSessionApi(
     evaluate(source: string) {
       try {
         const tokens = tokenize(source)
+        // If source opens with an ns declaration, switch to that namespace
+        // so requires resolve against the right env and currentNs is updated.
+        // This mirrors what loadFile does, making eval and load-file consistent.
+        const declaredNs = extractNsNameFromTokens(tokens)
+        if (declaredNs) {
+          ensureNs(declaredNs)
+          currentNs = declaredNs
+        }
         const env = getNs(currentNs)!
         // Seed alias map from tokens (new aliases declared in this source) and
         // from env.aliases/:as (prior require calls) and env.readerAliases/:as-alias.

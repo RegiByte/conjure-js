@@ -9,7 +9,12 @@ greeting
 
 (add 1 2)
 
+(+ 1 2)
+
+pi
+
 (slurp "test.txt")
+(spit "test.txt" "hello from the runtime")
 
 (doc reduce)
 
@@ -18,13 +23,17 @@ greeting
 
 (greet "Regibyte")
 
-(defn fibonacci [n]
+(defn fibonacci
+  "This is the fibonacci function"
+  [n]
   (loop [i 0 a 0 b 1]
     (if (= i n)
       a
       (recur (inc i) b (+ a b)))))
 
 (map fibonacci [1 2 3 4 5 6])
+
+m/factorial
 
 (+ 1 2)
 
