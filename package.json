@@ -1,69 +1,11 @@
 {
-  "name": "conjure-js",
-  "private": false,
-  "version": "0.0.8",
-  "type": "module",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/RegiByte/conjure-js.git"
-  },
-  "author": "Regibyte",
-  "homepage": "https://github.com/RegiByte/conjure-js",
-  "license": "MIT",
-  "bin": {
-    "conjure-js": "./dist-cli/conjure-js.mjs"
-  },
-  "files": [
-    "dist-cli/**/*",
-    "dist/**/*",
-    "src/**/*.ts",
-    "src/**/*.clj",
-    "!src/**/__tests__/**",
-    "!src/**/*.spec.ts",
-    "!src/**/*.test.ts",
-    "!src/demo-entry.ts",
-    "!src/vite-plugin-clj/**",
-    "tsconfig.json",
-    "tsconfig.build.json"
-  ],
-  "keywords": [
-    "clojure",
-    "lisp",
-    "interpreter",
-    "nrepl",
-    "repl"
+  "private": true,
+  "workspaces": [
+    "packages/*"
   ],
   "scripts": {
-    "dev": "vite",
-    "build": "node scripts/gen-version.mjs && tsc -p tsconfig.build.json && vite build",
-    "repl": "bun run src/bin/cli.ts repl",
-    "run": "bun run src/bin/cli.ts run",
-    "nrepl": "bun run src/bin/cli.ts nrepl-server",
-    "build-cli": "node scripts/gen-version.mjs && bun build --compile src/bin/cli.ts --outfile conjure-js",
-    "build-npm-bin": "node scripts/gen-version.mjs && node scripts/build-npm-bin.mjs",
-    "typecheck": "tsc --noEmit",
-    "preview": "vite preview",
-    "test": "vitest",
-    "gen:core-source": "bun run scripts/gen-core-source.mjs",
-    "gen:version": "node scripts/gen-version.mjs"
-  },
-  "devDependencies": {
-    "@bithero/monaco-editor-vite-plugin": "^1.0.3",
-    "@types/bun": "^1.3.10",
-    "@types/node": "^25.3.5",
-    "@vitest/coverage-v8": "^4.0.18",
-    "@vitest/ui": "^4.0.18",
-    "prettier": "^3.8.1",
-    "typescript": "~5.9.3",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
-  },
-  "dependencies": {
-    "monaco-editor": "^0.55.1"
-  },
-  "conjure": {
-    "sourceRoots": [
-      "src/clojure"
-    ]
+    "test": "bun run --filter 'conjure-js' test",
+    "build": "bun run --filter 'conjure-js' build-npm-bin",
+    "dev": "bun run --filter 'playground' dev"
   }
 }

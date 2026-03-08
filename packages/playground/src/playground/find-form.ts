@@ -1,4 +1,4 @@
-import { tokenize } from '../core/tokenizer'
+import { tokenize } from 'conjure-js'
 
 export type FormRange = {
   /** Inclusive start offset in the source string */

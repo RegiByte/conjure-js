@@ -1,7 +1,5 @@
-import { EvaluationError } from '../core/errors'
-import { printString } from '../core/printer'
-import { createSession } from '../core/session'
-import type { Session } from '../core/session'
+import { EvaluationError, printString, createSession } from 'conjure-js'
+import type { Session } from 'conjure-js'
 
 export type ReplEntrySource = {
   kind: 'source'

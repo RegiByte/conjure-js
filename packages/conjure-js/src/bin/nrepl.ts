@@ -1,23 +1,18 @@
 import * as net from 'net'
 import { readFileSync, writeFileSync, unlinkSync, existsSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { BDecoderStream, BEncoderStream } from './bencode'
 import {
   createSession,
   createSessionFromSnapshot,
   printString,
   snapshotSession,
-  define,
-  cljNativeFunction,
-  cljNil,
-  cljString,
-  valueToString,
   type Session,
   type SessionSnapshot,
-  type CljValue,
 } from '../core'
 import { inferSourceRoot } from './nrepl-utils'
 import { VERSION } from './version'
+import { injectNodeHostFunctions } from '../host/node'
 
 const CONJURE_VERSION = VERSION
 
@@ -42,49 +37,6 @@ function makeSessionId(): string {
   return crypto.randomUUID()
 }
 
-function injectHostFunctions(session: Session): void {
-  const coreEnv = session.getNs('clojure.core')!
-
-  define(
-    'slurp',
-    cljNativeFunction('slurp', (pathVal: CljValue) => {
-      const filePath = resolve(valueToString(pathVal))
-      if (!existsSync(filePath)) {
-        throw new Error(`slurp: file not found: ${filePath}`)
-      }
-      return cljString(readFileSync(filePath, 'utf8'))
-    }),
-    coreEnv
-  )
-
-  define(
-    'spit',
-    cljNativeFunction('spit', (pathVal: CljValue, content: CljValue) => {
-      const filePath = resolve(valueToString(pathVal))
-      writeFileSync(filePath, valueToString(content), 'utf8')
-      return cljNil()
-    }),
-    coreEnv
-  )
-
-  define(
-    'load',
-    cljNativeFunction('load', (pathVal: CljValue) => {
-      const filePath = resolve(valueToString(pathVal))
-      if (!existsSync(filePath)) {
-        throw new Error(`load: file not found: ${filePath}`)
-      }
-      const source = readFileSync(filePath, 'utf8')
-      const inferred = inferSourceRoot(filePath, source)
-      if (inferred) session.addSourceRoot(inferred)
-      const loadedNs = session.loadFile(source)
-      session.setNs(loadedNs)
-      return cljNil()
-    }),
-    coreEnv
-  )
-}
-
 function createManagedSession(
   id: string,
   snapshot: SessionSnapshot,
@@ -99,7 +51,7 @@ function createManagedSession(
     readFile: (filePath) => readFileSync(filePath, 'utf8'),
   })
 
-  injectHostFunctions(session)
+  injectNodeHostFunctions(session)
 
   return {
     id,

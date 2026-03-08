@@ -38,6 +38,7 @@ conjure
 # nREPL port file (written at server start, deleted on exit)
 .nrepl-port
 # Generated version file
-src/bin/version.ts
+packages/conjure-js/src/bin/version.ts
 
 .calva/
+.claude/

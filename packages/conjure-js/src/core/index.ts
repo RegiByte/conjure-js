@@ -56,6 +56,9 @@ export { valueToString } from './transformations'
 // Printer
 export { printString } from './printer'
 
+// Tokenizer (public for tooling consumers)
+export { tokenize } from './tokenizer'
+
 // Types
 export type {
   CljValue,
