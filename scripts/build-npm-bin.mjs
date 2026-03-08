@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, chmodSync } from 'fs'
 import { execSync } from 'child_process'
 
-const outfile = 'dist/bin/conjure-js.mjs'
+const outfile = 'dist-cli/conjure-js.mjs'
 
 execSync(`bun build src/bin/cli.ts --outfile ${outfile} --target node`, {
   stdio: 'inherit',
