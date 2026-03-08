@@ -1,6 +1,6 @@
 import { isKeyword, isList, isSymbol, isVector } from './assertions'
 import { loadCoreFunctions } from './core-env'
-import { define, lookup, makeEnv, tryLookup } from './env'
+import { define, lookup, lookupVar, makeEnv, tryLookup } from './env'
 import { valueToString } from './transformations'
 import { createEvaluationContext, RecurSignal } from './evaluator'
 import { CljThrownSignal, EvaluationError, ReaderError } from './errors'
@@ -244,16 +244,21 @@ function processRequireSpec(
             sym,
           })
         }
-        let value: CljValue
-        try {
-          value = lookup(sym.name, targetEnv)
-        } catch {
-          throw new EvaluationError(
-            `Symbol ${sym.name} not found in namespace ${nsName}`,
-            { nsName, symbol: sym.name }
-          )
+        const v = lookupVar(sym.name, targetEnv)
+        if (v !== undefined) {
+          currentEnv.bindings.set(sym.name, v)
+        } else {
+          let value: CljValue
+          try {
+            value = lookup(sym.name, targetEnv)
+          } catch {
+            throw new EvaluationError(
+              `Symbol ${sym.name} not found in namespace ${nsName}`,
+              { nsName, symbol: sym.name }
+            )
+          }
+          define(sym.name, value, currentEnv)
         }
-        define(sym.name, value, currentEnv)
       }
       i++
     } else {
@@ -269,10 +274,18 @@ function processRequireSpec(
 // Clone helpers — used by snapshotSession / createSessionFromSnapshot
 // ---------------------------------------------------------------------------
 
+function cloneBindings(bindings: Map<string, CljValue>): Map<string, CljValue> {
+  const out = new Map<string, CljValue>()
+  for (const [k, v] of bindings) {
+    out.set(k, v.kind === 'var' ? { ...v } : v)
+  }
+  return out
+}
+
 function cloneEnv(env: Env, memo: Map<Env, Env>): Env {
   if (memo.has(env)) return memo.get(env)!
   const cloned: Env = {
-    bindings: new Map(env.bindings),
+    bindings: cloneBindings(env.bindings),
     outer: null,
     namespace: env.namespace,
   }

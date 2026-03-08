@@ -12,7 +12,7 @@ import {
   type Session,
   type SessionSnapshot,
 } from '../core'
-import { tryLookup, getNamespaceEnv } from '../core/env'
+import { tryLookup, lookupVar, getNamespaceEnv } from '../core/env'
 import { inferSourceRoot } from './nrepl-utils'
 import { VERSION } from './version'
 import { injectNodeHostFunctions } from '../host/node'
@@ -282,9 +282,13 @@ function resolveSymbol(
   const value = tryLookup(sym, nsEnv)
   if (value === undefined) return null
 
-  // Determine the namespace where this symbol is defined
+  // Determine the namespace where this symbol is defined.
+  // CljVar carries the authoritative ns; fall back to other heuristics.
+  const varObj = lookupVar(sym, nsEnv)
   let resolvedNs: string
-  if (value.kind === 'function' || value.kind === 'macro') {
+  if (varObj) {
+    resolvedNs = varObj.ns
+  } else if (value.kind === 'function' || value.kind === 'macro') {
     resolvedNs = getNamespaceEnv(value.env).namespace ?? ns
   } else if (value.kind === 'native-function') {
     const i = value.name.indexOf('/')

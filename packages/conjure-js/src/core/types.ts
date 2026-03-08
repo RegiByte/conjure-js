@@ -16,6 +16,7 @@ export const valueKeywords = {
   reduced: 'reduced',
   volatile: 'volatile',
   regex: 'regex',
+  var: 'var',
 } as const
 export type ValueKeywords = (typeof valueKeywords)[keyof typeof valueKeywords]
 
@@ -62,6 +63,14 @@ export type CljAtom = { kind: 'atom'; value: CljValue }
 export type CljReduced = { kind: 'reduced'; value: CljValue }
 export type CljVolatile = { kind: 'volatile'; value: CljValue }
 export type CljRegex = { kind: 'regex'; pattern: string; flags: string }
+
+export type CljVar = {
+  kind: 'var'
+  ns: string
+  name: string
+  value: CljValue
+  meta?: CljMap
+}
 
 export type CljMultiMethod = {
   kind: 'multi-method'
@@ -116,6 +125,7 @@ export type CljValue =
   | CljReduced
   | CljVolatile
   | CljRegex
+  | CljVar
 
 /** Tokens */
 export const tokenKeywords = {
@@ -138,6 +148,7 @@ export const tokenKeywords = {
   AnonFnStart: 'AnonFnStart',
   Deref: 'Deref',
   Regex: 'Regex',
+  VarQuote: 'VarQuote',
 } as const
 export const tokenSymbols = {
   Quote: 'quote',
@@ -235,6 +246,9 @@ export type TokenRegex = {
   kind: 'Regex'
   value: string
 }
+export type TokenVarQuote = {
+  kind: 'VarQuote'
+}
 export type Token = (
   | TokenLParen
   | TokenRParen
@@ -255,4 +269,5 @@ export type Token = (
   | TokenAnonFnStart
   | TokenDeref
   | TokenRegex
+  | TokenVarQuote
 ) & { start: Cursor; end: Cursor }

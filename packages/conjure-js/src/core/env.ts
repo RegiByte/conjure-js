@@ -1,5 +1,5 @@
 import { EvaluationError } from './errors'
-import type { CljValue, Env } from './types'
+import type { CljValue, CljVar, Env } from './types'
 
 class EnvError extends Error {
   context: any
@@ -21,7 +21,8 @@ export function lookup(name: string, env: Env): CljValue {
   let current = env as Env | null
   while (current) {
     if (current.bindings.has(name)) {
-      return current.bindings.get(name)!
+      const val = current.bindings.get(name)!
+      return val.kind === 'var' ? val.value : val
     }
     current = current.outer
   }
@@ -32,7 +33,20 @@ export function tryLookup(name: string, env: Env): CljValue | undefined {
   let current = env as Env | null
   while (current) {
     if (current.bindings.has(name)) {
-      return current.bindings.get(name)!
+      const val = current.bindings.get(name)!
+      return val.kind === 'var' ? val.value : val
+    }
+    current = current.outer
+  }
+  return undefined
+}
+
+export function lookupVar(name: string, env: Env): CljVar | undefined {
+  let current = env as Env | null
+  while (current) {
+    if (current.bindings.has(name)) {
+      const val = current.bindings.get(name)!
+      return val.kind === 'var' ? val : undefined
     }
     current = current.outer
   }

@@ -188,12 +188,10 @@ describe('generateModuleCode', () => {
     const source = '(ns test.vals)\n(def greeting "hello")\n(def my-count 42)'
     const code = generateModuleCode(ctx, 'test.vals', source)
 
-    expect(code).toContain(
-      'export const greeting = cljToJs(__ns.bindings.get("greeting"))'
-    )
-    expect(code).toContain(
-      'export const my_count = cljToJs(__ns.bindings.get("my-count"))'
-    )
+    expect(code).toContain('export const greeting = cljToJs(')
+    expect(code).toContain('"greeting"')
+    expect(code).toContain('export const my_count = cljToJs(')
+    expect(code).toContain('"my-count"')
   })
 
   it('excludes macros from exports', () => {

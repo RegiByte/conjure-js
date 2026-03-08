@@ -36,14 +36,17 @@ export function generateModuleCode(
   }
 
   const exportLines: string[] = []
-  for (const [name, value] of nsEnv.bindings) {
+  for (const [name, rawValue] of nsEnv.bindings) {
+    const value = rawValue.kind === 'var' ? rawValue.value : rawValue
     if (isMacro(value)) continue
 
     const safeName = safeJsIdentifier(name)
+    // At runtime, bindings.get() returns a CljVar; deref with .value if needed
+    const deref = `((__v = __ns.bindings.get(${JSON.stringify(name)})), __v.kind === 'var' ? __v.value : __v)`
     if (isAFunction(value)) {
       exportLines.push(
         `export function ${safeName}(...args) {` +
-          `  const fn = __ns.bindings.get(${JSON.stringify(name)});` +
+          `  let __v; const fn = ${deref};` +
           `  const cljArgs = args.map(jsToClj);` +
           `  const result = applyFunction(fn, cljArgs);` +
           `  return cljToJs(result);` +
@@ -51,7 +54,7 @@ export function generateModuleCode(
       )
     } else {
       exportLines.push(
-        `export const ${safeName} = cljToJs(__ns.bindings.get(${JSON.stringify(name)}));`
+        `export const ${safeName} = cljToJs(((__v = __ns.bindings.get(${JSON.stringify(name)})), __v.kind === 'var' ? __v.value : __v));`
       )
     }
   }
@@ -99,6 +102,8 @@ function cljValueToTsType(value: CljValue): string {
       return '(...args: unknown[]) => unknown'
     case 'macro':
       return 'never'
+    case 'var':
+      return 'unknown'
     default:
       throw new Error(`Unknown CljValue kind: ${value.kind}`)
   }
@@ -145,7 +150,8 @@ export function generateDts(
   if (!nsEnv) return ''
 
   const declarations: string[] = []
-  for (const [name, value] of nsEnv.bindings) {
+  for (const [name, rawValue] of nsEnv.bindings) {
+    const value = rawValue.kind === 'var' ? rawValue.value : rawValue
     if (isMacro(value)) continue
 
     const safeName = safeJsIdentifier(name)
