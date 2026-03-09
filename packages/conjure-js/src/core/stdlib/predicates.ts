@@ -16,7 +16,7 @@ import {
 } from '../assertions'
 import { applyFunction } from '../evaluator'
 import { EvaluationError } from '../errors'
-import { cljBoolean, cljNativeFunction, cljNil, withDoc } from '../factories'
+import { cljBoolean, cljNativeFunction, cljNil, cljNumber, withDoc } from '../factories'
 import { printString } from '../printer'
 import { toSeq } from '../transformations'
 import type { CljValue } from '../types'
@@ -224,5 +224,117 @@ export const predicateFunctions: Record<string, CljValue> = {
     }),
     'Returns true if all items in coll satisfy pred, false otherwise.',
     [['pred', 'coll']]
+  ),
+
+  'identical?': withDoc(
+    cljNativeFunction('identical?', function identicalPredImpl(x: CljValue, y: CljValue) {
+      return cljBoolean(x === y)
+    }),
+    'Tests if 2 arguments are the same object (reference equality).',
+    [['x', 'y']]
+  ),
+
+  'seqable?': withDoc(
+    cljNativeFunction('seqable?', function seqablePredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && isSeqable(x))
+    }),
+    'Return true if the seq function is supported for x.',
+    [['x']]
+  ),
+
+  'sequential?': withDoc(
+    cljNativeFunction('sequential?', function sequentialPredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && (isList(x) || isVector(x)))
+    }),
+    'Returns true if coll is a sequential collection (list or vector).',
+    [['coll']]
+  ),
+
+  'associative?': withDoc(
+    cljNativeFunction('associative?', function associativePredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && (isMap(x) || isVector(x)))
+    }),
+    'Returns true if coll implements Associative (map or vector).',
+    [['coll']]
+  ),
+
+  'counted?': withDoc(
+    cljNativeFunction('counted?', function countedPredImpl(x: CljValue) {
+      return cljBoolean(
+        x !== undefined &&
+        (isList(x) || isVector(x) || isMap(x) || x.kind === 'set' || x.kind === 'string')
+      )
+    }),
+    'Returns true if coll implements count in constant time.',
+    [['coll']]
+  ),
+
+  'int?': withDoc(
+    cljNativeFunction('int?', function intPredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && x.kind === 'number' && Number.isInteger((x as import('../types').CljNumber).value))
+    }),
+    'Return true if x is a fixed precision integer.',
+    [['x']]
+  ),
+
+  'double?': withDoc(
+    cljNativeFunction('double?', function doublePredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && x.kind === 'number')
+    }),
+    'Return true if x is a Double (all numbers in JS are doubles).',
+    [['x']]
+  ),
+
+  'NaN?': withDoc(
+    cljNativeFunction('NaN?', function nanPredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && x.kind === 'number' && isNaN((x as import('../types').CljNumber).value))
+    }),
+    'Returns true if num is NaN, else false.',
+    [['num']]
+  ),
+
+  'infinite?': withDoc(
+    cljNativeFunction('infinite?', function infinitePredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && x.kind === 'number' && !isFinite((x as import('../types').CljNumber).value))
+    }),
+    'Returns true if num is positive or negative infinity, else false.',
+    [['num']]
+  ),
+
+  compare: withDoc(
+    cljNativeFunction('compare', function compareImpl(x: CljValue, y: CljValue): CljValue {
+      if (x.kind === 'nil' && y.kind === 'nil') return cljNumber(0)
+      if (x.kind === 'nil') return cljNumber(-1)
+      if (y.kind === 'nil') return cljNumber(1)
+      if (x.kind === 'number' && y.kind === 'number') {
+        return cljNumber(
+          (x as import('../types').CljNumber).value < (y as import('../types').CljNumber).value ? -1 :
+          (x as import('../types').CljNumber).value > (y as import('../types').CljNumber).value ? 1 : 0
+        )
+      }
+      if (x.kind === 'string' && y.kind === 'string') {
+        return cljNumber(x.value < y.value ? -1 : x.value > y.value ? 1 : 0)
+      }
+      if (isKeyword(x) && isKeyword(y)) {
+        return cljNumber(x.name < y.name ? -1 : x.name > y.name ? 1 : 0)
+      }
+      throw new EvaluationError(`compare: cannot compare ${printString(x)} to ${printString(y)}`, { x, y })
+    }),
+    'Comparator. Returns a negative number, zero, or a positive number.',
+    [['x', 'y']]
+  ),
+
+  hash: withDoc(
+    cljNativeFunction('hash', function hashImpl(x: CljValue) {
+      // Simple hash — consistent within a session, not cryptographic
+      const s = printString(x)
+      let h = 0
+      for (let i = 0; i < s.length; i++) {
+        h = (Math.imul(31, h) + s.charCodeAt(i)) | 0
+      }
+      return cljNumber(h)
+    }),
+    'Returns the hash code of its argument.',
+    [['x']]
   ),
 }

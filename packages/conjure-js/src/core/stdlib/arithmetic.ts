@@ -1,7 +1,8 @@
+import { isEqual, isList, isSeqable, isVector } from '../assertions'
 import { EvaluationError } from '../errors'
-import { cljBoolean, cljNativeFunction, cljNumber, withDoc } from '../factories'
-import { isEqual } from '../assertions'
+import { cljBoolean, cljNativeFunction, cljNumber, cljVector, withDoc } from '../factories'
 import { printString } from '../printer'
+import { toSeq } from '../transformations'
 import type { CljNumber, CljValue } from '../types'
 
 export const arithmeticFunctions: Record<string, CljValue> = {
@@ -344,5 +345,174 @@ export const arithmeticFunctions: Record<string, CljValue> = {
     }),
     'Returns true if the argument is zero, false otherwise.',
     [['n']]
+  ),
+
+  abs: withDoc(
+    cljNativeFunction('abs', function absImpl(n: CljValue) {
+      if (n === undefined || n.kind !== 'number') {
+        throw EvaluationError.atArg(`abs expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`, { n }, 0)
+      }
+      return cljNumber(Math.abs((n as CljNumber).value))
+    }),
+    'Returns the absolute value of a.',
+    [['a']]
+  ),
+
+  quot: withDoc(
+    cljNativeFunction('quot', function quotImpl(num: CljValue, div: CljValue) {
+      if (num === undefined || num.kind !== 'number') {
+        throw EvaluationError.atArg(`quot expects a number as first argument`, { num }, 0)
+      }
+      if (div === undefined || div.kind !== 'number') {
+        throw EvaluationError.atArg(`quot expects a number as second argument`, { div }, 1)
+      }
+      if ((div as CljNumber).value === 0) {
+        throw new EvaluationError('quot: division by zero', { num, div })
+      }
+      return cljNumber(Math.trunc((num as CljNumber).value / (div as CljNumber).value))
+    }),
+    'quot[ient] of dividing numerator by denominator.',
+    [['num', 'div']]
+  ),
+
+  rem: withDoc(
+    cljNativeFunction('rem', function remImpl(num: CljValue, div: CljValue) {
+      if (num === undefined || num.kind !== 'number') {
+        throw EvaluationError.atArg(`rem expects a number as first argument`, { num }, 0)
+      }
+      if (div === undefined || div.kind !== 'number') {
+        throw EvaluationError.atArg(`rem expects a number as second argument`, { div }, 1)
+      }
+      if ((div as CljNumber).value === 0) {
+        throw new EvaluationError('rem: division by zero', { num, div })
+      }
+      return cljNumber((num as CljNumber).value % (div as CljNumber).value)
+    }),
+    'remainder of dividing numerator by denominator.',
+    [['num', 'div']]
+  ),
+
+  rand: withDoc(
+    cljNativeFunction('rand', function randImpl(...args: CljValue[]) {
+      if (args.length === 0) return cljNumber(Math.random())
+      if (args[0].kind !== 'number') {
+        throw EvaluationError.atArg(`rand expects a number`, { n: args[0] }, 0)
+      }
+      return cljNumber(Math.random() * (args[0] as CljNumber).value)
+    }),
+    'Returns a random floating point number between 0 (inclusive) and n (default 1) (exclusive).',
+    [[], ['n']]
+  ),
+
+  'rand-int': withDoc(
+    cljNativeFunction('rand-int', function randIntImpl(n: CljValue) {
+      if (n === undefined || n.kind !== 'number') {
+        throw EvaluationError.atArg(`rand-int expects a number`, { n }, 0)
+      }
+      return cljNumber(Math.floor(Math.random() * (n as CljNumber).value))
+    }),
+    'Returns a random integer between 0 (inclusive) and n (exclusive).',
+    [['n']]
+  ),
+
+  'rand-nth': withDoc(
+    cljNativeFunction('rand-nth', function randNthImpl(coll: CljValue) {
+      if (coll === undefined || (!isList(coll) && !isVector(coll))) {
+        throw EvaluationError.atArg(`rand-nth expects a list or vector`, { coll }, 0)
+      }
+      const items = (coll as import('../types').CljList | import('../types').CljVector).value
+      if (items.length === 0) {
+        throw new EvaluationError('rand-nth called on empty collection', { coll })
+      }
+      return items[Math.floor(Math.random() * items.length)]
+    }),
+    'Return a random element of the (sequential) collection.',
+    [['coll']]
+  ),
+
+  shuffle: withDoc(
+    cljNativeFunction('shuffle', function shuffleImpl(coll: CljValue) {
+      if (coll === undefined || coll.kind === 'nil') return cljVector([])
+      if (!isSeqable(coll)) {
+        throw EvaluationError.atArg(`shuffle expects a collection, got ${printString(coll)}`, { coll }, 0)
+      }
+      const arr = [...toSeq(coll)]
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]]
+      }
+      return cljVector(arr)
+    }),
+    'Return a random permutation of coll.',
+    [['coll']]
+  ),
+
+  'bit-and': withDoc(
+    cljNativeFunction('bit-and', function bitAndImpl(x: CljValue, y: CljValue) {
+      if (x?.kind !== 'number') throw EvaluationError.atArg('bit-and expects numbers', { x }, 0)
+      if (y?.kind !== 'number') throw EvaluationError.atArg('bit-and expects numbers', { y }, 1)
+      return cljNumber((x as CljNumber).value & (y as CljNumber).value)
+    }),
+    'Bitwise and',
+    [['x', 'y']]
+  ),
+
+  'bit-or': withDoc(
+    cljNativeFunction('bit-or', function bitOrImpl(x: CljValue, y: CljValue) {
+      if (x?.kind !== 'number') throw EvaluationError.atArg('bit-or expects numbers', { x }, 0)
+      if (y?.kind !== 'number') throw EvaluationError.atArg('bit-or expects numbers', { y }, 1)
+      return cljNumber((x as CljNumber).value | (y as CljNumber).value)
+    }),
+    'Bitwise or',
+    [['x', 'y']]
+  ),
+
+  'bit-xor': withDoc(
+    cljNativeFunction('bit-xor', function bitXorImpl(x: CljValue, y: CljValue) {
+      if (x?.kind !== 'number') throw EvaluationError.atArg('bit-xor expects numbers', { x }, 0)
+      if (y?.kind !== 'number') throw EvaluationError.atArg('bit-xor expects numbers', { y }, 1)
+      return cljNumber((x as CljNumber).value ^ (y as CljNumber).value)
+    }),
+    'Bitwise exclusive or',
+    [['x', 'y']]
+  ),
+
+  'bit-not': withDoc(
+    cljNativeFunction('bit-not', function bitNotImpl(x: CljValue) {
+      if (x?.kind !== 'number') throw EvaluationError.atArg('bit-not expects a number', { x }, 0)
+      return cljNumber(~(x as CljNumber).value)
+    }),
+    'Bitwise complement',
+    [['x']]
+  ),
+
+  'bit-shift-left': withDoc(
+    cljNativeFunction('bit-shift-left', function bitShiftLeftImpl(x: CljValue, n: CljValue) {
+      if (x?.kind !== 'number') throw EvaluationError.atArg('bit-shift-left expects numbers', { x }, 0)
+      if (n?.kind !== 'number') throw EvaluationError.atArg('bit-shift-left expects numbers', { n }, 1)
+      return cljNumber((x as CljNumber).value << (n as CljNumber).value)
+    }),
+    'Bitwise shift left',
+    [['x', 'n']]
+  ),
+
+  'bit-shift-right': withDoc(
+    cljNativeFunction('bit-shift-right', function bitShiftRightImpl(x: CljValue, n: CljValue) {
+      if (x?.kind !== 'number') throw EvaluationError.atArg('bit-shift-right expects numbers', { x }, 0)
+      if (n?.kind !== 'number') throw EvaluationError.atArg('bit-shift-right expects numbers', { n }, 1)
+      return cljNumber((x as CljNumber).value >> (n as CljNumber).value)
+    }),
+    'Bitwise shift right',
+    [['x', 'n']]
+  ),
+
+  'unsigned-bit-shift-right': withDoc(
+    cljNativeFunction('unsigned-bit-shift-right', function unsignedBitShiftRightImpl(x: CljValue, n: CljValue) {
+      if (x?.kind !== 'number') throw EvaluationError.atArg('unsigned-bit-shift-right expects numbers', { x }, 0)
+      if (n?.kind !== 'number') throw EvaluationError.atArg('unsigned-bit-shift-right expects numbers', { n }, 1)
+      return cljNumber((x as CljNumber).value >>> (n as CljNumber).value)
+    }),
+    'Bitwise shift right, without sign-extension',
+    [['x', 'n']]
   ),
 }

@@ -6,9 +6,11 @@ import {
   cljMap,
   cljNil,
   cljRegex,
+  cljSet,
   cljSymbol,
   cljVector,
 } from './factories'
+import { isEqual } from './assertions'
 import { makeTokenScanner, type TokenScanner } from './scanners'
 import { getTokenValue } from './tokenizer'
 import { valueKeywords, tokenKeywords, type Token } from './types'
@@ -279,6 +281,60 @@ const collectionReader = (valueType: 'list' | 'vector', closeToken: string) => {
 const readList = collectionReader('list', tokenKeywords.RParen)
 
 const readVector = collectionReader('vector', tokenKeywords.RBracket)
+
+const readSet = (ctx: ReaderCtx) => {
+  const scanner = ctx.scanner
+  const startToken = scanner.peek()
+  if (!startToken) {
+    throw new ReaderError(
+      'Unexpected end of input while parsing set',
+      scanner.position()
+    )
+  }
+  scanner.advance() // consume the SetStart token
+
+  const values: CljValue[] = []
+  let pairMatched = false
+  let closingEnd: number | undefined
+  while (!scanner.isAtEnd()) {
+    const token = scanner.peek()
+    if (!token) break
+    if (isClosingToken(token) && token.kind !== tokenKeywords.RBrace) {
+      throw new ReaderError(
+        `Expected '}' to close set started at line ${startToken.start.line} column ${startToken.start.col}, but got '${getTokenValue(token)}' at line ${token.start.line} column ${token.start.col}`,
+        token,
+        { start: token.start.offset, end: token.end.offset }
+      )
+    }
+    if (token.kind === tokenKeywords.RBrace) {
+      closingEnd = token.end.offset
+      scanner.advance() // consume the closing brace
+      pairMatched = true
+      break
+    }
+    values.push(readForm(ctx))
+  }
+  if (!pairMatched) {
+    throw new ReaderError(
+      `Unmatched set started at line ${startToken.start.line} column ${startToken.start.col}`,
+      scanner.peek()
+    )
+  }
+
+  // Deduplicate using isEqual
+  const deduped: CljValue[] = []
+  for (const v of values) {
+    if (!deduped.some(existing => isEqual(existing, v))) {
+      deduped.push(v)
+    }
+  }
+
+  const result = cljSet(deduped)
+  if (closingEnd !== undefined) {
+    setPos(result, { start: startToken.start.offset, end: closingEnd })
+  }
+  return result
+}
 
 const readSymbol = (scanner: TokenScanner) => {
   const token = scanner.peek()
@@ -578,6 +634,8 @@ function readForm(ctx: ReaderCtx): CljValue {
       return readUnquoteSplicing(ctx)
     case tokenKeywords.AnonFnStart:
       return readAnonFn(ctx)
+    case tokenKeywords.SetStart:
+      return readSet(ctx)
     case tokenKeywords.Deref:
       return readDeref(ctx)
     case tokenKeywords.VarQuote:

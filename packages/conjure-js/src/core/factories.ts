@@ -14,6 +14,7 @@ import type {
   CljNumber,
   CljReduced,
   CljRegex,
+  CljSet,
   CljString,
   CljSymbol,
   CljValue,
@@ -39,6 +40,7 @@ export const cljSymbol = <T extends string>(name: T) =>
   ({ kind: 'symbol', name }) as const satisfies CljSymbol
 export const cljList = <T extends CljValue[]>(value: T) =>
   ({ kind: 'list', value }) as const satisfies CljList
+export const cljSet = (values: CljValue[]): CljSet => ({ kind: 'set', values })
 export const cljVector = <T extends CljValue[]>(value: T) =>
   ({ kind: 'vector', value }) as const satisfies CljVector
 export const cljMap = <T extends [CljValue, CljValue][]>(entries: T) =>

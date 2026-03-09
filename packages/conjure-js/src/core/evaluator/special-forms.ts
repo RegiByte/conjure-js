@@ -10,7 +10,7 @@ import {
   isTruthy,
   isVector,
 } from '../assertions'
-import { define, extend, getNamespaceEnv, getRootEnv, internVar, lookup, lookupVar } from '../env'
+import { define, extend, getNamespaceEnv, getRootEnv, internVar, lookup, lookupVar, makeEnv } from '../env'
 import { CljThrownSignal, EvaluationError } from '../errors'
 import {
   cljKeyword,
@@ -69,6 +69,7 @@ export const specialFormKeywords = {
   var: 'var',
   binding: 'binding',
   'set!': 'set!',
+  letfn: 'letfn',
 } as const
 
 function keywordToDispatchFn(kw: CljKeyword): CljNativeFunction {
@@ -141,7 +142,16 @@ function evaluateTry(
     discriminator: CljValue,
     thrown: CljValue
   ): boolean {
-    const disc = ctx.evaluate(discriminator, env)
+    let disc: CljValue
+    try {
+      disc = ctx.evaluate(discriminator, env)
+    } catch {
+      // Discriminator failed to evaluate (e.g. unresolvable Java class name like
+      // java.lang.Throwable). Treat as catch-all — we're not on the JVM.
+      return true
+    }
+    // A symbol that evaluated to itself (shouldn't happen, but guard anyway)
+    if (disc.kind === 'symbol') return true
     if (isKeyword(disc)) {
       if (disc.name === ':default') return true
       if (!isMap(thrown)) return false
@@ -359,17 +369,84 @@ function evaluateFn(
   env: Env,
   _ctx: EvaluationContext
 ): CljValue {
-  const arities = parseArities(list.value.slice(1), env)
+  const rest = list.value.slice(1)
+  // (fn name [...] ...) — optional name symbol before the param vector/arities
+  let fnName: string | undefined
+  let arityForms = rest
+  if (rest[0]?.kind === 'symbol') {
+    fnName = rest[0].name
+    arityForms = rest.slice(1)
+  }
+  const arities = parseArities(arityForms, env)
   for (const arity of arities) {
     assertRecurInTailPosition(arity.body)
   }
-  return cljMultiArityFunction(arities, env)
+  const fn = cljMultiArityFunction(arities, env)
+  if (fnName) {
+    fn.name = fnName
+    // Bind the name in the fn's closure env so the body can call itself by name.
+    // We wrap the captured env in a new frame containing name → fn, then point
+    // fn.env at that frame so the binding is visible during application.
+    const selfEnv = makeEnv(env)
+    selfEnv.bindings.set(fnName, fn)
+    fn.env = selfEnv
+  }
+  return fn
+}
+
+function evaluateLetfn(
+  list: CljList,
+  env: Env,
+  ctx: EvaluationContext
+): CljValue {
+  // (letfn [(f1 [x] ...) (f2 [x] ...)] body...)
+  const fnSpecs = list.value[1]
+  if (!isVector(fnSpecs)) {
+    throw new EvaluationError('letfn binding specs must be a vector', { fnSpecs, env })
+  }
+  const body = list.value.slice(2)
+
+  // Create a shared env frame for all the fns to close over
+  const sharedEnv = makeEnv(env)
+
+  // First pass: create all fn objects in the shared env
+  for (const spec of fnSpecs.value) {
+    if (!isList(spec) || spec.value.length < 2 || !isSymbol(spec.value[0])) {
+      throw new EvaluationError('letfn specs must be (name [params] body...) forms', { spec })
+    }
+    const name = spec.value[0].name
+    const arityForms = spec.value.slice(1)
+    const arities = parseArities(arityForms, sharedEnv)
+    for (const arity of arities) {
+      assertRecurInTailPosition(arity.body)
+    }
+    const fn = cljMultiArityFunction(arities, sharedEnv)
+    fn.name = name
+    sharedEnv.bindings.set(name, fn)
+  }
+
+  // Second pass: point all fn envs to the shared env so they can see each other
+  for (const spec of fnSpecs.value) {
+    const name = (spec as CljList).value[0] as { name: string }
+    const fn = sharedEnv.bindings.get(name.name) as CljFunction
+    fn.env = sharedEnv
+  }
+
+  return ctx.evaluateForms(body, sharedEnv)
+}
+
+function mergeDocIntoMeta(base: CljMap | undefined, docstring: string): CljMap {
+  const docEntry: [CljValue, CljValue] = [cljKeyword(':doc'), cljString(docstring)]
+  const existing = (base?.entries ?? []).filter(
+    ([k]) => !(k.kind === 'keyword' && k.name === ':doc')
+  )
+  return { kind: 'map', entries: [...existing, docEntry] }
 }
 
 function evaluateDefmacro(
   list: CljList,
   env: Env,
-  _ctx: EvaluationContext
+  ctx: EvaluationContext
 ): CljValue {
   const name = list.value[1]
   if (!isSymbol(name)) {
@@ -379,9 +456,15 @@ function evaluateDefmacro(
       env,
     })
   }
-  const arities = parseArities(list.value.slice(2), env)
+  const rest = list.value.slice(2)
+  const docstring = rest[0]?.kind === 'string' ? rest[0].value : undefined
+  const arityForms = docstring ? rest.slice(1) : rest
+  const arities = parseArities(arityForms, env)
   const macro = cljMultiArityMacro(arities, env)
-  internVar(name.name, macro, getNamespaceEnv(env))
+  macro.name = name.name
+  const varMeta = buildVarMeta(name.meta, ctx, name)
+  const finalMeta = docstring ? mergeDocIntoMeta(varMeta, docstring) : varMeta
+  internVar(name.name, macro, getNamespaceEnv(env), finalMeta)
   return cljNil()
 }
 
@@ -710,6 +793,7 @@ const specialFormEvaluatorEntries = {
   var: evaluateVar,
   binding: evaluateBinding,
   'set!': evaluateSet,
+  letfn: evaluateLetfn,
 } as const satisfies Record<
   keyof typeof specialFormKeywords,
   SpecialFormEvaluatorFn

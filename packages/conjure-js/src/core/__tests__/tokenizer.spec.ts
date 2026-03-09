@@ -348,8 +348,9 @@ bar"`,
       expect(() => tokenize('#"foo')).toThrow(TokenizerError)
     })
 
-    it('should throw on set dispatch #{...}', () => {
-      expect(() => tokenize('#{1 2 3}')).toThrow(TokenizerError)
+    it('should tokenize set dispatch #{...}', () => {
+      const tokens = tokenize('#{1 2 3}')
+      expect(tokens.find(t => t.kind === 'SetStart')).toBeDefined()
     })
 
     it('should throw on unknown dispatch character', () => {

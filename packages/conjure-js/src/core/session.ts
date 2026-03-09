@@ -4,9 +4,9 @@ import { define, internVar, lookup, lookupVar, makeEnv, makeNamespace, tryLookup
 import { valueToString } from './transformations'
 import { createEvaluationContext, RecurSignal } from './evaluator'
 import { CljThrownSignal, EvaluationError, ReaderError } from './errors'
-import { cljNativeFunction, cljNil } from './factories'
+import { cljBoolean, cljKeyword, cljList, cljMap, cljNativeFunction, cljNativeFunctionWithContext, cljNil, cljSet, cljString, cljSymbol } from './factories'
 import { formatErrorContext } from './positions'
-import { printString } from './printer'
+import { prettyPrintString, printString, withPrintContext } from './printer'
 import { readForms } from './reader'
 import { tokenize } from './tokenizer'
 import type { CljNamespace, CljValue, Env, Token, TokenSymbol } from './types'
@@ -342,20 +342,40 @@ function buildSessionApi(
   // Always re-wire print/println so snapshot-derived sessions get the right
   // emit target. Falls back to console.log when no output callback is provided.
   const emitFn = options?.output ?? ((text: string) => console.log(text))
+
+  function readPrintCtx(callEnv: Env) {
+    const len = tryLookup('*print-length*', callEnv)
+    const level = tryLookup('*print-level*', callEnv)
+    return {
+      printLength: len?.kind === 'number' ? len.value : null,
+      printLevel: level?.kind === 'number' ? level.value : null,
+    }
+  }
+
   internVar(
     'println',
-    cljNativeFunction('println', (...args: CljValue[]) => {
-      emitFn(args.map(valueToString).join(' ') + '\n')
-      return cljNil()
-    }),
+    cljNativeFunctionWithContext(
+      'println',
+      (_ctx, callEnv, ...args: CljValue[]) => {
+        withPrintContext(readPrintCtx(callEnv), () => {
+          emitFn(args.map(valueToString).join(' ') + '\n')
+        })
+        return cljNil()
+      }
+    ),
     coreEnv
   )
   internVar(
     'print',
-    cljNativeFunction('print', (...args: CljValue[]) => {
-      emitFn(args.map(valueToString).join(' '))
-      return cljNil()
-    }),
+    cljNativeFunctionWithContext(
+      'print',
+      (_ctx, callEnv, ...args: CljValue[]) => {
+        withPrintContext(readPrintCtx(callEnv), () => {
+          emitFn(args.map(valueToString).join(' '))
+        })
+        return cljNil()
+      }
+    ),
     coreEnv
   )
   internVar(
@@ -366,6 +386,266 @@ function buildSessionApi(
     }),
     coreEnv
   )
+  internVar(
+    'pprint',
+    cljNativeFunctionWithContext(
+      'pprint',
+      (_ctx, callEnv, form: CljValue, widthArg?: CljValue) => {
+        if (form === undefined) return cljNil()
+        const maxWidth =
+          widthArg !== undefined && widthArg.kind === 'number' ? widthArg.value : 80
+        withPrintContext(readPrintCtx(callEnv), () => {
+          emitFn(prettyPrintString(form, maxWidth) + '\n')
+        })
+        return cljNil()
+      }
+    ),
+    coreEnv
+  )
+
+  // Ensure *print-length* and *print-level* are dynamic in cloned sessions
+  const plVar = coreEnv.ns?.vars.get('*print-length*')
+  if (plVar) plVar.dynamic = true
+  const pvVar = coreEnv.ns?.vars.get('*print-level*')
+  if (pvVar) pvVar.dynamic = true
+
+  // clojure.reflect stubs — Cursive requires this namespace for class completion
+  // and calls parse-flags to decode Java modifier bitmasks. No Java reflection
+  // in this runtime; stubs return safe empty values so Cursive degrades cleanly.
+  const reflectEnv = ensureNs('clojure.reflect')
+  internVar(
+    'parse-flags',
+    cljNativeFunction('parse-flags', (_flags: CljValue, _kind: CljValue) => cljSet([])),
+    reflectEnv
+  )
+  internVar(
+    'reflect',
+    cljNativeFunction('reflect', (_obj: CljValue) => cljMap([])),
+    reflectEnv
+  )
+  internVar(
+    'type-reflect',
+    cljNativeFunction('type-reflect', (_typeobj: CljValue, ..._opts: CljValue[]) => cljMap([])),
+    reflectEnv
+  )
+
+  // Stub for cursive.repl.runtime — prevents "namespace not found" errors
+  // when Cursive IDE sends completion probes to our nREPL server.
+  const cursiveEnv = ensureNs('cursive.repl.runtime')
+  internVar(
+    'completions',
+    cljNativeFunction('completions', (..._args: CljValue[]) => cljNil()),
+    cursiveEnv
+  )
+  internVar(
+    '*compiler-options*',
+    cljMap([]),
+    coreEnv
+  )
+
+  // Namespace introspection stubs — clojure.core functions used by Cursive and
+  // other tooling. CljNamespace is not a CljValue (no { kind: 'namespace' } variant
+  // exists), so namespaces are represented as symbols here. This is sufficient for
+  // IDE probes but diverges from Clojure semantics where *ns* holds a namespace
+  // object. A proper namespace-as-value type is a future gap to address.
+  internVar('*ns*', cljSymbol(currentNs), coreEnv)
+  const nsVar = coreEnv.ns?.vars.get('*ns*')
+  if (nsVar) nsVar.dynamic = true
+
+  function syncNsVar(name: string) {
+    const v = coreEnv.ns?.vars.get('*ns*')
+    if (v) v.value = cljSymbol(name)
+  }
+
+  internVar(
+    'ns-name',
+    cljNativeFunction('ns-name', (x: CljValue) => {
+      if (x === undefined) return cljNil()
+      if (x.kind === 'symbol') return x
+      if (x.kind === 'string') return cljSymbol(x.value)
+      return cljNil()
+    }),
+    coreEnv
+  )
+
+  internVar(
+    'all-ns',
+    cljNativeFunction('all-ns', () =>
+      cljList([...registry.keys()].map(cljSymbol))
+    ),
+    coreEnv
+  )
+
+  internVar(
+    'find-ns',
+    cljNativeFunction('find-ns', (sym: CljValue) => {
+      if (sym === undefined || !isSymbol(sym)) return cljNil()
+      return registry.has(sym.name) ? sym : cljNil()
+    }),
+    coreEnv
+  )
+
+  // Helper: resolve a namespace symbol to its CljNamespace, or null.
+  function resolveNsSym(sym: CljValue): CljNamespace | null {
+    if (sym === undefined || !isSymbol(sym)) return null
+    return registry.get(sym.name)?.ns ?? null
+  }
+
+  // ns-aliases: (ns-aliases ns-sym) → map of {alias-sym → ns-sym}
+  internVar(
+    'ns-aliases',
+    cljNativeFunction('ns-aliases', (sym: CljValue) => {
+      const ns = resolveNsSym(sym)
+      if (!ns) return cljMap([])
+      const entries: [CljValue, CljValue][] = []
+      ns.aliases.forEach((targetNs, alias) => {
+        entries.push([cljSymbol(alias), cljSymbol(targetNs.name)])
+      })
+      return cljMap(entries)
+    }),
+    coreEnv
+  )
+
+  // ns-interns: (ns-interns ns-sym) → map of {sym → var} for all vars defined in ns
+  internVar(
+    'ns-interns',
+    cljNativeFunction('ns-interns', (sym: CljValue) => {
+      const ns = resolveNsSym(sym)
+      if (!ns) return cljMap([])
+      const entries: [CljValue, CljValue][] = []
+      ns.vars.forEach((v, name) => {
+        entries.push([cljSymbol(name), v])
+      })
+      return cljMap(entries)
+    }),
+    coreEnv
+  )
+
+  // ns-publics: (ns-publics ns-sym) → map of {sym → var} for non-private vars.
+  // No :private metadata concept yet — identical to ns-interns for now.
+  internVar(
+    'ns-publics',
+    cljNativeFunction('ns-publics', (sym: CljValue) => {
+      const ns = resolveNsSym(sym)
+      if (!ns) return cljMap([])
+      const entries: [CljValue, CljValue][] = []
+      ns.vars.forEach((v, name) => {
+        entries.push([cljSymbol(name), v])
+      })
+      return cljMap(entries)
+    }),
+    coreEnv
+  )
+
+  // ns-refers: (ns-refers ns-sym) → map of {sym → var} for vars referred from other namespaces.
+  // :refer bindings are live aliases in the ns env's bindings, not tracked separately.
+  // Return an empty map — Cursive degrades gracefully.
+  internVar(
+    'ns-refers',
+    cljNativeFunction('ns-refers', (_sym: CljValue) => cljMap([])),
+    coreEnv
+  )
+
+  // ns-map: (ns-map ns-sym) → union of ns-interns + ns-refers.
+  // Delegates to ns-interns since ns-refers is empty.
+  internVar(
+    'ns-map',
+    cljNativeFunction('ns-map', (sym: CljValue) => {
+      const ns = resolveNsSym(sym)
+      if (!ns) return cljMap([])
+      const entries: [CljValue, CljValue][] = []
+      ns.vars.forEach((v, name) => {
+        entries.push([cljSymbol(name), v])
+      })
+      return cljMap(entries)
+    }),
+    coreEnv
+  )
+
+  // ns-imports: (ns-imports ns-sym) → map of {ClassName → Class}.
+  // No Java interop — always returns an empty map.
+  internVar(
+    'ns-imports',
+    cljNativeFunction('ns-imports', (_sym: CljValue) => cljMap([])),
+    coreEnv
+  )
+
+  // the-ns: (the-ns sym) → coerce to namespace object.
+  // We represent namespaces as symbols, so this is identity for symbols.
+  // Returns nil for unknown namespaces.
+  internVar(
+    'the-ns',
+    cljNativeFunction('the-ns', (sym: CljValue) => {
+      if (sym === undefined || !isSymbol(sym)) return cljNil()
+      return registry.has(sym.name) ? sym : cljNil()
+    }),
+    coreEnv
+  )
+
+  // instance?: (instance? Class obj) → boolean.
+  // No Java class hierarchy — always returns false. Cursive uses this to check
+  // e.g. (instance? clojure.lang.Var x); our var? predicate is the correct test.
+  internVar(
+    'instance?',
+    cljNativeFunction('instance?', (_cls: CljValue, _obj: CljValue) => cljBoolean(false)),
+    coreEnv
+  )
+
+  // class: (class x) → returns the class of x.
+  // No Java classes — returns a keyword describing the value kind instead.
+  internVar(
+    'class',
+    cljNativeFunction('class', (x: CljValue) => {
+      if (x === undefined) return cljNil()
+      return cljString(`conjure.${x.kind}`)
+    }),
+    coreEnv
+  )
+
+  // class?: (class? x) → false — no Java Class objects in this runtime.
+  internVar(
+    'class?',
+    cljNativeFunction('class?', (_x: CljValue) => cljBoolean(false)),
+    coreEnv
+  )
+
+  // special-symbol?: (special-symbol? sym) → true for Clojure special forms.
+  internVar(
+    'special-symbol?',
+    cljNativeFunction('special-symbol?', (sym: CljValue) => {
+      if (sym === undefined || !isSymbol(sym)) return cljBoolean(false)
+      const specials = new Set([
+        'def', 'if', 'do', 'let', 'quote', 'var', 'fn', 'loop', 'recur',
+        'throw', 'try', 'catch', 'finally', 'ns', 'defmacro', 'binding',
+        'monitor-enter', 'monitor-exit', 'new', 'set!', '.', 'import',
+      ])
+      return cljBoolean(specials.has(sym.name))
+    }),
+    coreEnv
+  )
+
+  // loaded-libs: returns a set of symbols for all loaded namespace names.
+  internVar(
+    'loaded-libs',
+    cljNativeFunction('loaded-libs', () =>
+      cljSet([...registry.keys()].map(cljSymbol))
+    ),
+    coreEnv
+  )
+
+  // Java class stubs — Clojure auto-imports java.lang.* into every namespace.
+  // Cursive's completions function references these as bare symbols (e.g. Class,
+  // Var, Namespace) for type discrimination via instance?. We intern them as
+  // keyword sentinels so they resolve without error; instance? always returns
+  // false, so no branch that checks (instance? Class x) will fire.
+  for (const javaClass of [
+    'Class', 'Object', 'String', 'Number', 'Boolean', 'Integer', 'Long',
+    'Double', 'Float', 'Byte', 'Short', 'Character', 'Void',
+    'Math', 'System', 'Runtime', 'Thread', 'Throwable', 'Exception', 'Error',
+    'Iterable', 'Comparable', 'Runnable', 'Cloneable',
+  ]) {
+    internVar(javaClass, cljKeyword(`:java.lang/${javaClass}`), coreEnv)
+  }
 
   // Mutable source roots — seeded from options, growable via addSourceRoot.
   const sourceRoots = new Set<string>(options?.sourceRoots ?? [])
@@ -413,6 +693,7 @@ function buildSessionApi(
   function setNs(name: string) {
     ensureNs(name)
     currentNs = name
+    syncNsVar(name)
   }
 
   function getNs(name: string): CljNamespace | null {
@@ -509,6 +790,7 @@ function buildSessionApi(
         if (declaredNs) {
           ensureNs(declaredNs)
           currentNs = declaredNs
+          syncNsVar(declaredNs)
         }
         const env = getNsEnv(currentNs)!
         // Seed alias map from tokens (new aliases declared in this source) and

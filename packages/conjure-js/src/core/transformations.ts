@@ -1,7 +1,7 @@
-import { isList, isMap, isVector } from './assertions'
+import { isList, isMap, isSet, isVector } from './assertions'
 import { EvaluationError } from './errors'
 import { cljString, cljVector } from './factories'
-import { printString } from './printer'
+import { printString, getPrintContext } from './printer'
 import { type CljValue, valueKeywords } from './types'
 
 export function valueToString(value: CljValue): string {
@@ -16,12 +16,30 @@ export function valueToString(value: CljValue): string {
       return value.name
     case valueKeywords.symbol:
       return value.name
-    case valueKeywords.list:
-      return `(${value.value.map(valueToString).join(' ')})`
-    case valueKeywords.vector:
-      return `[${value.value.map(valueToString).join(' ')}]`
-    case valueKeywords.map:
-      return `{${value.entries.map(([key, value]) => `${valueToString(key)} ${valueToString(value)}`).join(' ')}}`
+    case valueKeywords.list: {
+      const { printLength } = getPrintContext()
+      const items = printLength !== null ? value.value.slice(0, printLength) : value.value
+      const suffix = printLength !== null && value.value.length > printLength ? ' ...' : ''
+      return `(${items.map(valueToString).join(' ')}${suffix})`
+    }
+    case valueKeywords.vector: {
+      const { printLength } = getPrintContext()
+      const items = printLength !== null ? value.value.slice(0, printLength) : value.value
+      const suffix = printLength !== null && value.value.length > printLength ? ' ...' : ''
+      return `[${items.map(valueToString).join(' ')}${suffix}]`
+    }
+    case valueKeywords.map: {
+      const { printLength } = getPrintContext()
+      const entries = printLength !== null ? value.entries.slice(0, printLength) : value.entries
+      const suffix = printLength !== null && value.entries.length > printLength ? ' ...' : ''
+      return `{${entries.map(([key, v]) => `${valueToString(key)} ${valueToString(v)}`).join(' ')}${suffix}}`
+    }
+    case valueKeywords.set: {
+      const { printLength } = getPrintContext()
+      const items = printLength !== null ? value.values.slice(0, printLength) : value.values
+      const suffix = printLength !== null && value.values.length > printLength ? ' ...' : ''
+      return `#{${items.map(valueToString).join(' ')}${suffix}}`
+    }
     case valueKeywords.function: {
       if (value.arities.length === 1) {
         const a = value.arities[0]
@@ -64,6 +82,9 @@ export const toSeq = (collection: CljValue): CljValue[] => {
   }
   if (isMap(collection)) {
     return collection.entries.map(([k, v]) => cljVector([k, v]))
+  }
+  if (isSet(collection)) {
+    return collection.values
   }
   if (collection.kind === 'string') {
     return [...collection.value].map(cljString)

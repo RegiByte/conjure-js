@@ -12,6 +12,7 @@ import {
   type CljNumber,
   type CljReduced,
   type CljRegex,
+  type CljSet,
   type CljString,
   type CljSymbol,
   type CljValue,
@@ -68,14 +69,16 @@ export const isVolatile = (value: CljValue): value is CljVolatile =>
 export const isRegex = (value: CljValue): value is CljRegex =>
   value.kind === 'regex'
 export const isVar = (value: CljValue): value is CljVar => value.kind === 'var'
+export const isSet = (value: CljValue): value is CljSet =>
+  value.kind === valueKeywords.set
 export const isCollection = (
   value: CljValue
-): value is CljList | CljVector | CljMap =>
-  isVector(value) || isMap(value) || isList(value)
+): value is CljList | CljVector | CljMap | CljSet =>
+  isVector(value) || isMap(value) || isList(value) || isSet(value)
 
 export const isSeqable = (
   value: CljValue
-): value is CljList | CljVector | CljMap | CljString =>
+): value is CljList | CljVector | CljMap | CljSet | CljString =>
   isCollection(value) || value.kind === 'string'
 
 export const isCljValue = (value: any): value is CljValue => {
@@ -126,6 +129,10 @@ const equalityHandlers = {
   // (= #"foo" #"foo") => false — each literal is a distinct object
   [valueKeywords.regex]: (a: CljRegex, b: CljRegex) => a === b,
   [valueKeywords.var]: (a: CljVar, b: CljVar) => a === b,
+  [valueKeywords.set]: (a: CljSet, b: CljSet) => {
+    if (a.values.length !== b.values.length) return false
+    return a.values.every(av => b.values.some(bv => isEqual(av, bv)))
+  },
 }
 
 export const isEqual = (a: CljValue, b: CljValue): boolean => {

@@ -17,6 +17,7 @@ export const valueKeywords = {
   volatile: 'volatile',
   regex: 'regex',
   var: 'var',
+  set: 'set',
 } as const
 export type ValueKeywords = (typeof valueKeywords)[keyof typeof valueKeywords]
 
@@ -55,6 +56,7 @@ export type CljFunction = {
   kind: 'function'
   arities: Arity[]
   env: Env
+  name?: string   // set for named fn: (fn my-name [x] x)
   meta?: CljMap
 }
 
@@ -62,12 +64,21 @@ export type CljMacro = {
   kind: 'macro'
   arities: Arity[]
   env: Env
+  name?: string   // set for named defmacro
 }
 
-export type CljAtom = { kind: 'atom'; value: CljValue; meta?: CljMap }
+export type CljAtom = {
+  kind: 'atom'
+  value: CljValue
+  meta?: CljMap
+  watches?: Map<string, { key: CljValue; fn: CljValue; ctx: EvaluationContext; callEnv: Env }>
+  validator?: CljValue
+}
 export type CljReduced = { kind: 'reduced'; value: CljValue }
 export type CljVolatile = { kind: 'volatile'; value: CljValue }
 export type CljRegex = { kind: 'regex'; pattern: string; flags: string }
+
+export type CljSet = { kind: 'set'; values: CljValue[] }
 
 export type CljVar = {
   kind: 'var'
@@ -142,6 +153,7 @@ export type CljValue =
   | CljVolatile
   | CljRegex
   | CljVar
+  | CljSet
 
 /** Tokens */
 export const tokenKeywords = {
@@ -166,6 +178,7 @@ export const tokenKeywords = {
   Regex: 'Regex',
   VarQuote: 'VarQuote',
   Meta: 'Meta',
+  SetStart: 'SetStart',
 } as const
 export const tokenSymbols = {
   Quote: 'quote',
@@ -269,6 +282,9 @@ export type TokenVarQuote = {
 export type TokenMeta = {
   kind: 'Meta'
 }
+export type TokenSetStart = {
+  kind: 'SetStart'
+}
 export type Token = (
   | TokenLParen
   | TokenRParen
@@ -291,4 +307,5 @@ export type Token = (
   | TokenRegex
   | TokenVarQuote
   | TokenMeta
+  | TokenSetStart
 ) & { start: Cursor; end: Cursor }

@@ -34,8 +34,11 @@ export function lookup(name: string, env: Env): CljValue {
   let current: Env | null = env
   while (current) {
     const raw = current.bindings.get(name)
-    if (raw !== undefined) return derefValue(raw)
+    // Local bindings are stored as plain values — do NOT auto-deref.
+    // A var stored in a local binding (e.g. from `(var foo)`) is a first-class value.
+    if (raw !== undefined) return raw
     const v = current.ns?.vars.get(name)
+    // Namespace vars are always auto-deref'd: `foo` resolves to the var's current value.
     if (v !== undefined) return derefValue(v)
     current = current.outer
   }
@@ -46,7 +49,7 @@ export function tryLookup(name: string, env: Env): CljValue | undefined {
   let current: Env | null = env
   while (current) {
     const raw = current.bindings.get(name)
-    if (raw !== undefined) return derefValue(raw)
+    if (raw !== undefined) return raw
     const v = current.ns?.vars.get(name)
     if (v !== undefined) return derefValue(v)
     current = current.outer

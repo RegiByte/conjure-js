@@ -5,6 +5,7 @@ import { BDecoderStream, BEncoderStream } from '../bin/bencode'
 import type { Session } from '../core'
 import type { WebSocketServer } from 'vite'
 import { VERSION } from '../bin/version'
+import { resolveSymbol, extractMeta } from '../bin/nrepl-symbol'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -159,6 +160,72 @@ function handleClose(
   send(encoder, { id, session: sessionId, status: ['done'] })
 }
 
+function handleInfo(
+  msg: NreplMessage,
+  session: RelaySession,
+  encoder: BEncoderStream,
+  serverSession: Session
+) {
+  const id = (msg['id'] as string) ?? ''
+  const sym = msg['sym'] as string | undefined
+  const nsOverride = msg['ns'] as string | undefined
+
+  if (!sym) {
+    done(encoder, id, session.id, { status: ['no-info', 'done'] })
+    return
+  }
+
+  const resolved = resolveSymbol(sym, serverSession, nsOverride ?? session.currentNs)
+  if (!resolved) {
+    done(encoder, id, session.id, { status: ['no-info', 'done'] })
+    return
+  }
+
+  const meta = extractMeta(resolved.value, resolved.varObj?.meta)
+  done(encoder, id, session.id, {
+    ns: resolved.resolvedNs,
+    name: resolved.localName,
+    doc: meta.doc,
+    'arglists-str': meta.arglistsStr,
+    type: meta.type,
+  })
+}
+
+function handleEldoc(
+  msg: NreplMessage,
+  session: RelaySession,
+  encoder: BEncoderStream,
+  serverSession: Session
+) {
+  const id = (msg['id'] as string) ?? ''
+  const sym = msg['sym'] as string | undefined
+  const nsOverride = msg['ns'] as string | undefined
+
+  if (!sym) {
+    done(encoder, id, session.id, { status: ['no-eldoc', 'done'] })
+    return
+  }
+
+  const resolved = resolveSymbol(sym, serverSession, nsOverride ?? session.currentNs)
+  if (!resolved) {
+    done(encoder, id, session.id, { status: ['no-eldoc', 'done'] })
+    return
+  }
+
+  const meta = extractMeta(resolved.value, resolved.varObj?.meta)
+  if (!meta.eldocArgs) {
+    done(encoder, id, session.id, { status: ['no-eldoc', 'done'] })
+    return
+  }
+
+  done(encoder, id, session.id, {
+    name: resolved.localName,
+    ns: resolved.resolvedNs,
+    type: meta.type,
+    eldoc: meta.eldocArgs,
+  })
+}
+
 function handleUnknown(msg: NreplMessage, encoder: BEncoderStream) {
   const id = (msg['id'] as string) ?? ''
   send(encoder, { id, status: ['unknown-op', 'done'] })
@@ -267,21 +334,12 @@ async function handleMessage(
     case 'close':
       handleClose(msg, sessions, encoder)
       break
-    // info/lookup/eldoc: return no-info — static analysis not critical for browser REPL
     case 'info':
     case 'lookup':
-      send(encoder, {
-        id: (msg['id'] as string) ?? '',
-        session: session.id,
-        status: ['no-info', 'done'],
-      })
+      handleInfo(msg, session, encoder, serverSession)
       break
     case 'eldoc':
-      send(encoder, {
-        id: (msg['id'] as string) ?? '',
-        session: session.id,
-        status: ['no-eldoc', 'done'],
-      })
+      handleEldoc(msg, session, encoder, serverSession)
       break
     default:
       handleUnknown(msg, encoder)

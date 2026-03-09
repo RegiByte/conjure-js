@@ -48,7 +48,7 @@ describe('docstrings and metadata', () => {
     it('attaches :doc metadata when docstring is provided', () => {
       const s = freshSession()
       s.evaluate('(defn add "Adds two numbers." [a b] (+ a b))')
-      expect(s.evaluate('(:doc (meta add))')).toMatchObject(
+      expect(s.evaluate("(:doc (meta #'add))")).toMatchObject(
         cljString('Adds two numbers.')
       )
     })
@@ -56,10 +56,10 @@ describe('docstrings and metadata', () => {
     it('meta carries :arglists even when defn has no docstring', () => {
       const s = freshSession()
       s.evaluate('(defn add [a b] (+ a b))')
-      expect(s.evaluate('(vector? (:arglists (meta add)))')).toMatchObject(
+      expect(s.evaluate("(vector? (:arglists (meta #'add)))")).toMatchObject(
         cljBoolean(true)
       )
-      expect(s.evaluate('(:doc (meta add))')).toMatchObject(cljNil())
+      expect(s.evaluate("(:doc (meta #'add))")).toMatchObject(cljNil())
     })
 
     it('defn with docstring still works as a normal function', () => {
@@ -79,7 +79,7 @@ describe('docstrings and metadata', () => {
       expect(s.evaluate('(greet "Hi" "Bob")')).toMatchObject(
         cljString('Hi Bob')
       )
-      expect(s.evaluate('(:doc (meta greet))')).toMatchObject(
+      expect(s.evaluate("(:doc (meta #'greet))")).toMatchObject(
         cljString('Returns a greeting.')
       )
     })
@@ -162,7 +162,7 @@ describe('docstrings and metadata', () => {
     it(':arglists is a vector containing the single param vector', () => {
       const s = freshSession()
       s.evaluate('(defn f [x] x)')
-      expect(s.evaluate('(:arglists (meta f))')).toMatchObject(
+      expect(s.evaluate("(:arglists (meta #'f))")).toMatchObject(
         cljVector([cljVector([cljSymbol('x')])])
       )
     })
@@ -170,7 +170,7 @@ describe('docstrings and metadata', () => {
     it(':arglists contains all param vectors for multi-arity defn', () => {
       const s = freshSession()
       s.evaluate('(defn f ([x] x) ([x y] (+ x y)))')
-      expect(s.evaluate('(:arglists (meta f))')).toMatchObject(
+      expect(s.evaluate("(:arglists (meta #'f))")).toMatchObject(
         cljVector([
           cljVector([cljSymbol('x')]),
           cljVector([cljSymbol('x'), cljSymbol('y')]),
@@ -181,7 +181,7 @@ describe('docstrings and metadata', () => {
     it(':arglists includes & for variadic params', () => {
       const s = freshSession()
       s.evaluate('(defn f [x & rest] rest)')
-      const arglists = s.evaluate('(:arglists (meta f))')
+      const arglists = s.evaluate("(:arglists (meta #'f))")
       expect(arglists).toMatchObject(
         cljVector([
           cljVector([cljSymbol('x'), cljSymbol('&'), cljSymbol('rest')]),
@@ -192,7 +192,7 @@ describe('docstrings and metadata', () => {
     it(':arglists is present on defn with docstring', () => {
       const s = freshSession()
       s.evaluate('(defn f "Docs." [a b] (+ a b))')
-      expect(s.evaluate('(:arglists (meta f))')).toMatchObject(
+      expect(s.evaluate("(:arglists (meta #'f))")).toMatchObject(
         cljVector([cljVector([cljSymbol('a'), cljSymbol('b')])])
       )
     })

@@ -14,14 +14,18 @@ import {
   withDoc,
 } from '../factories'
 import { makeGensym } from '../gensym'
-import { joinLines, printString } from '../printer'
+import { joinLines, prettyPrintString, printString } from '../printer'
+import { readForms } from '../reader'
+import { tokenize } from '../tokenizer'
 import { valueToString } from '../transformations'
 import type { CljValue, Env, EvaluationContext } from '../types'
 
 export const utilFunctions: Record<string, CljValue> = {
   str: withDoc(
     cljNativeFunction('str', function strImpl(...args: CljValue[]) {
-      return cljString(args.map(valueToString).join(''))
+      return cljString(
+        args.map((v) => (v.kind === 'nil' ? '' : valueToString(v))).join('')
+      )
     }),
     'Returns a concatenated string representation of the given values.',
     [['&', 'args']]
@@ -259,5 +263,93 @@ export const utilFunctions: Record<string, CljValue> = {
     }),
     'Coerces to boolean. Everything is true except false and nil.',
     [['x']]
+  ),
+
+  'clojure-version': withDoc(
+    cljNativeFunction('clojure-version', function clojureVersionImpl() {
+      return cljString('1.12.0')
+    }),
+    'Returns a string describing the current Clojure version.',
+    [[]]
+  ),
+
+  'pr-str': withDoc(
+    cljNativeFunction('pr-str', function prStrImpl(...args: CljValue[]) {
+      return cljString(args.map(printString).join(' '))
+    }),
+    'Returns a readable string representation of the given values (strings are quoted).',
+    [['&', 'args']]
+  ),
+
+  'pretty-print-str': withDoc(
+    cljNativeFunction('pretty-print-str', function prettyPrintStrImpl(...args: CljValue[]) {
+      if (args.length === 0) return cljString('')
+      const form = args[0]
+      const widthArg = args[1]
+      const maxWidth =
+        widthArg !== undefined && widthArg.kind === 'number' ? widthArg.value : 80
+      return cljString(prettyPrintString(form, maxWidth))
+    }),
+    'Returns a pretty-printed string representation of form.',
+    [['form'], ['form', 'max-width']]
+  ),
+
+  'read-string': withDoc(
+    cljNativeFunction('read-string', function readStringImpl(s: CljValue) {
+      if (s === undefined || s.kind !== 'string') {
+        throw EvaluationError.atArg(`read-string expects a string${s !== undefined ? `, got ${printString(s)}` : ''}`, { s }, 0)
+      }
+      const tokens = tokenize(s.value)
+      const forms = readForms(tokens)
+      if (forms.length === 0) return cljNil()
+      return forms[0]
+    }),
+    'Reads one object from the string s. Returns nil if string is empty.',
+    [['s']]
+  ),
+
+  'prn-str': withDoc(
+    cljNativeFunction('prn-str', function prnStrImpl(...args: CljValue[]) {
+      return cljString(args.map(printString).join(' ') + '\n')
+    }),
+    'pr-str to a string, followed by a newline.',
+    [['&', 'args']]
+  ),
+
+  'print-str': withDoc(
+    cljNativeFunction('print-str', function printStrImpl(...args: CljValue[]) {
+      return cljString(args.map(valueToString).join(' '))
+    }),
+    'print to a string (human-readable, no quotes on strings).',
+    [['&', 'args']]
+  ),
+
+  'println-str': withDoc(
+    cljNativeFunction('println-str', function printlnStrImpl(...args: CljValue[]) {
+      return cljString(args.map(valueToString).join(' ') + '\n')
+    }),
+    'println to a string.',
+    [['&', 'args']]
+  ),
+
+  symbol: withDoc(
+    cljNativeFunction('symbol', function symbolImpl(...args: CljValue[]) {
+      if (args.length === 0 || args.length > 2) {
+        throw new EvaluationError('symbol expects 1 or 2 string arguments', { args })
+      }
+      if (args.length === 1) {
+        if (isSymbol(args[0])) return args[0]
+        if (args[0].kind !== 'string') {
+          throw EvaluationError.atArg(`symbol expects a string, got ${printString(args[0])}`, { args }, 0)
+        }
+        return cljSymbol(args[0].value)
+      }
+      if (args[0].kind !== 'string' || args[1].kind !== 'string') {
+        throw new EvaluationError('symbol expects string arguments', { args })
+      }
+      return cljSymbol(`${args[0].value}/${args[1].value}`)
+    }),
+    'Returns a Symbol with the given namespace and name.',
+    [['name'], ['ns', 'name']]
   ),
 }

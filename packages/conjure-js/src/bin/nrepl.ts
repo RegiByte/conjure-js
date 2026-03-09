@@ -7,13 +7,14 @@ import {
   createSessionFromSnapshot,
   printString,
   snapshotSession,
-  type CljMap,
   type CljValue,
   type Session,
   type SessionSnapshot,
 } from '../core'
-import { tryLookup, lookupVar, getNamespaceEnv } from '../core/env'
+import { withPrintContext } from '../core/printer'
+import { tryLookup } from '../core/env'
 import { inferSourceRoot } from './nrepl-utils'
+import { resolveSymbol as resolveSymbolShared, extractMeta as extractMetaShared } from './nrepl-symbol'
 import { VERSION } from './version'
 import { injectNodeHostFunctions } from '../host/node'
 
@@ -153,8 +154,18 @@ function handleEval(
 
   try {
     const result = managed.session.evaluate(code, { lineOffset, colOffset })
+    const nsEnv = managed.session.registry.get(managed.session.currentNs)
+    const printLen = nsEnv ? tryLookup('*print-length*', nsEnv) : undefined
+    const printLvl = nsEnv ? tryLookup('*print-level*', nsEnv) : undefined
+    const resultStr = withPrintContext(
+      {
+        printLength: printLen?.kind === 'number' ? printLen.value : null,
+        printLevel: printLvl?.kind === 'number' ? printLvl.value : null,
+      },
+      () => printString(result)
+    )
     done(encoder, id, managed.id, {
-      value: printString(result),
+      value: resultStr,
       ns: managed.session.currentNs,
     })
   } catch (error) {
@@ -254,120 +265,12 @@ function resolveSymbol(
   sym: string,
   managed: ManagedSession,
   contextNs?: string
-): { value: CljValue; resolvedNs: string; localName: string } | null {
-  const ns = contextNs ?? managed.session.currentNs
-  const slashIdx = sym.indexOf('/')
-
-  if (slashIdx > 0) {
-    const qualifier = sym.slice(0, slashIdx)
-    const localName = sym.slice(slashIdx + 1)
-
-    // 1. Try as full namespace name (use registry Env for chain-based lookup)
-    const nsEnvFull = managed.session.registry.get(qualifier)
-    if (nsEnvFull) {
-      const value = tryLookup(localName, nsEnvFull)
-      if (value !== undefined) return { value, resolvedNs: qualifier, localName }
-    }
-
-    // 2. Try as alias (:as str → clojure.string)
-    const currentNsData = managed.session.getNs(ns)
-    const aliasedNs = currentNsData?.aliases.get(qualifier)
-    if (aliasedNs) {
-      const v = aliasedNs.vars.get(localName)
-      if (v !== undefined)
-        return { value: v.value, resolvedNs: aliasedNs.name, localName }
-    }
-
-    return null
-  }
-
-  // Unqualified symbol
-  const localName = sym
-  const nsEnvFull = managed.session.registry.get(ns)
-  if (!nsEnvFull) return null
-  const value = tryLookup(sym, nsEnvFull)
-  if (value === undefined) return null
-
-  // Determine the namespace where this symbol is defined.
-  // CljVar carries the authoritative ns; fall back to other heuristics.
-  const varObj = lookupVar(sym, nsEnvFull)
-  let resolvedNs: string
-  if (varObj) {
-    resolvedNs = varObj.ns
-  } else if (value.kind === 'function' || value.kind === 'macro') {
-    resolvedNs = getNamespaceEnv(value.env).ns?.name ?? ns
-  } else if (value.kind === 'native-function') {
-    const i = value.name.indexOf('/')
-    resolvedNs = i > 0 ? value.name.slice(0, i) : ns
-  } else {
-    resolvedNs = ns
-  }
-
-  return { value, resolvedNs, localName }
+) {
+  return resolveSymbolShared(sym, managed.session, contextNs)
 }
 
-function extractMeta(value: CljValue): {
-  doc: string
-  arglistsStr: string
-  eldocArgs: string[][] | null
-  type: string
-} {
-  const type =
-    value.kind === 'macro'
-      ? 'macro'
-      : value.kind === 'function' || value.kind === 'native-function'
-        ? 'function'
-        : 'var'
-
-  const meta: CljMap | undefined =
-    value.kind === 'function'
-      ? value.meta
-      : value.kind === 'native-function'
-        ? value.meta
-        : undefined
-
-  let doc = ''
-  let arglistsStr = ''
-  let eldocArgs: string[][] | null = null
-
-  if (meta) {
-    const docEntry = meta.entries.find(
-      ([k]) => k.kind === 'keyword' && k.name === ':doc'
-    )
-    if (docEntry && docEntry[1].kind === 'string') doc = docEntry[1].value
-
-    const argsEntry = meta.entries.find(
-      ([k]) => k.kind === 'keyword' && k.name === ':arglists'
-    )
-    if (argsEntry && argsEntry[1].kind === 'vector') {
-      const arglists = argsEntry[1]
-      arglistsStr = '(' + arglists.value.map((al) => printString(al)).join(' ') + ')'
-      eldocArgs = arglists.value.map((al) => {
-        if (al.kind !== 'vector') return [printString(al)]
-        return al.value.map((p) => (p.kind === 'symbol' ? p.name : printString(p)))
-      })
-    }
-  }
-
-  // Fallback: derive arglists from structural arities (fn/macro without meta)
-  if (
-    arglistsStr === '' &&
-    (value.kind === 'function' || value.kind === 'macro')
-  ) {
-    const arityStrs = value.arities.map((arity) => {
-      const params = arity.params.map((p) => printString(p))
-      if (arity.restParam) params.push('&', printString(arity.restParam))
-      return '[' + params.join(' ') + ']'
-    })
-    arglistsStr = '(' + arityStrs.join(' ') + ')'
-    eldocArgs = value.arities.map((arity) => {
-      const params = arity.params.map((p) => printString(p))
-      if (arity.restParam) params.push('&', printString(arity.restParam))
-      return params
-    })
-  }
-
-  return { doc, arglistsStr, eldocArgs, type }
+function extractMeta(resolved: { value: CljValue; varObj?: import('./nrepl-symbol').ResolvedSymbol['varObj'] }) {
+  return extractMetaShared(resolved.value, resolved.varObj?.meta)
 }
 
 function handleInfo(
@@ -401,20 +304,19 @@ function handleInfo(
     return
   }
 
-  const meta = extractMeta(resolved.value)
+  const meta = extractMeta(resolved)
   const file = managed.nsToFile.get(resolved.resolvedNs)
 
   // Extract :line/:column/:file from var meta if present (stamped by evaluateDef).
   let varLine: number | undefined
   let varColumn: number | undefined
   let varFile: string | undefined
-  if (resolved.value.kind === 'var' && resolved.value.meta) {
-    for (const [k, v] of resolved.value.meta.entries) {
-      if (k.kind !== 'keyword') continue
-      if (k.name === ':line'   && v.kind === 'number') varLine   = v.value
-      if (k.name === ':column' && v.kind === 'number') varColumn = v.value
-      if (k.name === ':file'   && v.kind === 'string') varFile   = v.value
-    }
+  const varMetaEntries = resolved.varObj?.meta?.entries ?? []
+  for (const [k, v] of varMetaEntries) {
+    if (k.kind !== 'keyword') continue
+    if (k.name === ':line'   && v.kind === 'number') varLine   = v.value
+    if (k.name === ':column' && v.kind === 'number') varColumn = v.value
+    if (k.name === ':file'   && v.kind === 'string') varFile   = v.value
   }
 
   done(encoder, id, managed.id, {
@@ -457,7 +359,7 @@ function handleEldoc(
     return
   }
 
-  const meta = extractMeta(resolved.value)
+  const meta = extractMeta(resolved)
   if (!meta.eldocArgs) {
     done(encoder, id, managed.id, { status: ['no-eldoc', 'done'] })
     return

@@ -48,6 +48,7 @@
     "build-cli": "node scripts/gen-version.mjs && bun build --compile src/bin/cli.ts --outfile conjure-js",
     "build-npm-bin": "node scripts/gen-version.mjs && node scripts/build-npm-bin.mjs",
     "build-vite-plugin": "node scripts/build-vite-plugin.mjs",
+    "prepublishOnly": "bun run gen:core-source && node scripts/build-vite-plugin.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "gen:core-source": "bun run scripts/gen-core-source.mjs",

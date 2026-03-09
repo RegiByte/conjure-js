@@ -20,7 +20,7 @@ describe('str', () => {
     ['(str "x:" 42)', 'x:42'],
     ['(str [1 2 3])', '[1 2 3]'],
     ['(str {:a 1})', '{:a 1}'],
-    ['(str nil)', 'nil'],
+    ['(str nil)', ''],
     ['(str true false)', 'truefalse'],
   ])(
     'str should concatenate arguments to string: %s should be %s',

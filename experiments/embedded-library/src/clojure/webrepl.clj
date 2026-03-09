@@ -8,6 +8,8 @@
 
 (+ 1 2)
 
+when
+
 
 (/ 2 3)
 (try
@@ -29,7 +31,7 @@
   (println '(+ 1 2 3 4 6 5))
   (clojure.string/join "--" ["Foo" "Bar" "Baz" "Nice!"])
 
-  ; 
+  ;
   )
 
 (defn factorial

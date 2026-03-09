@@ -111,4 +111,101 @@ describe('atoms', () => {
       cljNil()
     )
   })
+
+  // swap-vals! and reset-vals!
+  it('(swap-vals! a inc) returns [old new]', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    const result = s.evaluate('(swap-vals! a inc)')
+    expect(result).toEqual({
+      kind: 'vector',
+      value: [cljNumber(1), cljNumber(2)],
+    })
+  })
+
+  it('(reset-vals! a 99) returns [old new]', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    const result = s.evaluate('(reset-vals! a 99)')
+    expect(result).toEqual({
+      kind: 'vector',
+      value: [cljNumber(1), cljNumber(99)],
+    })
+  })
+
+  // compare-and-set!
+  it('(compare-and-set! a old new) returns true when value matches', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    expect(s.evaluate('(compare-and-set! a 1 2)')).toEqual(cljBoolean(true))
+    expect(s.evaluate('@a')).toEqual(cljNumber(2))
+  })
+
+  it('(compare-and-set! a old new) returns false when value does not match', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    expect(s.evaluate('(compare-and-set! a 999 2)')).toEqual(cljBoolean(false))
+    expect(s.evaluate('@a')).toEqual(cljNumber(1))
+  })
+
+  // add-watch / remove-watch
+  it('add-watch calls the watcher on swap!', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 0))')
+    s.evaluate('(def log (atom []))')
+    s.evaluate('(add-watch a :log (fn [k ref old new] (swap! log conj [old new])))')
+    s.evaluate('(swap! a inc)')
+    s.evaluate('(swap! a inc)')
+    expect(s.evaluate('@log')).toEqual({
+      kind: 'vector',
+      value: [
+        { kind: 'vector', value: [cljNumber(0), cljNumber(1)] },
+        { kind: 'vector', value: [cljNumber(1), cljNumber(2)] },
+      ],
+    })
+  })
+
+  it('remove-watch stops notifications', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 0))')
+    s.evaluate('(def log (atom []))')
+    s.evaluate('(add-watch a :log (fn [k ref old new] (swap! log conj new)))')
+    s.evaluate('(swap! a inc)')
+    s.evaluate('(remove-watch a :log)')
+    s.evaluate('(swap! a inc)')
+    // log should only have 1 entry (from before remove-watch)
+    expect(s.evaluate('(count @log)')).toEqual(cljNumber(1))
+  })
+
+  // set-validator!
+  it('set-validator! rejects invalid values', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    s.evaluate('(set-validator! a pos?)')
+    expect(() => s.evaluate('(reset! a -1)')).toThrow('Invalid reference state')
+  })
+
+  it('set-validator! allows valid values', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    s.evaluate('(set-validator! a pos?)')
+    s.evaluate('(reset! a 5)')
+    expect(s.evaluate('@a')).toEqual(cljNumber(5))
+  })
+
+  it('set-validator! can be cleared with nil', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    s.evaluate('(set-validator! a pos?)')
+    s.evaluate('(set-validator! a nil)')
+    s.evaluate('(reset! a -1)')
+    expect(s.evaluate('@a')).toEqual(cljNumber(-1))
+  })
+
+  it('swap! also respects validators', () => {
+    const s = freshSession()
+    s.evaluate('(def a (atom 1))')
+    s.evaluate('(set-validator! a pos?)')
+    expect(() => s.evaluate('(swap! a (fn [x] -1))')).toThrow('Invalid reference state')
+  })
 })

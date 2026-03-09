@@ -73,4 +73,25 @@ describe('findFormBeforeCursor', () => {
       '(map #(* % 2) (filter #(even? %) (range 10)))',
     )
   })
+
+  // ── SetStart (#{...}) ───────────────────────────────────────────────────────
+  describe('set literals', () => {
+    it('finds a standalone #{...} form', () => {
+      expect(slice('#{1 2 3}|')).toBe('#{1 2 3}')
+    })
+
+    it('correctly matches RBrace to SetStart when scanning backwards', () => {
+      expect(slice('(conj #{1 2} 3)|')).toBe('(conj #{1 2} 3)')
+    })
+
+    it('handles #{...} nested inside a let binding', () => {
+      expect(slice('(let [s #{:a :b}] (contains? s :a))|')).toBe(
+        '(let [s #{:a :b}] (contains? s :a))',
+      )
+    })
+
+    it('handles #{...} with cursor inside the set', () => {
+      expect(slice('#{1 2| 3}')).toBe('2')
+    })
+  })
 })

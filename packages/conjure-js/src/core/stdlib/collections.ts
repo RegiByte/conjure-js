@@ -9,6 +9,7 @@ import {
   isMap,
   isNil,
   isSeqable,
+  isSet,
   isVector,
 } from '../assertions'
 import { EvaluationError } from '../errors'
@@ -19,6 +20,7 @@ import {
   cljNativeFunction,
   cljNil,
   cljNumber,
+  cljSet,
   cljVector,
   withDoc,
 } from '../factories'
@@ -29,6 +31,7 @@ import {
   type CljList,
   type CljMap,
   type CljNumber,
+  type CljSet,
   type CljString,
   type CljValue,
   type CljVector,
@@ -190,12 +193,22 @@ export const collectionFunctions: Record<string, CljValue> = {
         return cljMap([...newEntries])
       }
 
+      if (isSet(collection)) {
+        const newValues = [...collection.values]
+        for (const v of args) {
+          if (!newValues.some(existing => isEqual(existing, v))) {
+            newValues.push(v)
+          }
+        }
+        return cljSet(newValues)
+      }
+
       throw new EvaluationError(
         `unhandled collection type, got ${printString(collection)}`,
         { collection }
       )
     }),
-    'Appends args to the given collection. Lists append in reverse order to the head, vectors append to the tail.',
+    'Appends args to the given collection. Lists append in reverse order to the head, vectors append to the tail, sets add unique elements.',
     [['collection', '&', 'args']]
   ),
   cons: withDoc(
@@ -203,8 +216,8 @@ export const collectionFunctions: Record<string, CljValue> = {
       if (!isCollection(xs)) {
         throw EvaluationError.atArg(`cons expects a collection as second argument, got ${printString(xs)}`, { xs }, 1)
       }
-      if (isMap(xs)) {
-        throw EvaluationError.atArg('cons on maps is not supported, use vectors instead', { xs }, 1)
+      if (isMap(xs) || isSet(xs)) {
+        throw EvaluationError.atArg('cons on maps and sets is not supported, use vectors instead', { xs }, 1)
       }
 
       const wrap = isList(xs) ? cljList : cljVector
@@ -540,7 +553,10 @@ export const collectionFunctions: Record<string, CljValue> = {
         if (key.kind !== 'number') return cljBoolean(false)
         return cljBoolean(key.value >= 0 && key.value < coll.value.length)
       }
-      throw EvaluationError.atArg(`contains? expects a map, vector, or nil, got ${printString(coll)}`, { coll }, 0)
+      if (isSet(coll)) {
+        return cljBoolean(coll.values.some(v => isEqual(v, key)))
+      }
+      throw EvaluationError.atArg(`contains? expects a map, set, vector, or nil, got ${printString(coll)}`, { coll }, 0)
     }),
     'Returns true if key is present in coll. For maps checks key existence (including keys with nil values). For vectors checks index bounds.',
     [['coll', 'key']]
@@ -642,6 +658,7 @@ export const collectionFunctions: Record<string, CljValue> = {
             valueKeywords.list,
             valueKeywords.vector,
             valueKeywords.map,
+            valueKeywords.set,
             valueKeywords.string,
           ] as string[]
         ).includes(countable.kind)
@@ -656,6 +673,8 @@ export const collectionFunctions: Record<string, CljValue> = {
           return cljNumber((countable as CljVector).value.length)
         case valueKeywords.map:
           return cljNumber((countable as CljMap).entries.length)
+        case valueKeywords.set:
+          return cljNumber((countable as CljSet).values.length)
         case valueKeywords.string:
           return cljNumber((countable as CljString).value.length)
         default:
@@ -667,5 +686,137 @@ export const collectionFunctions: Record<string, CljValue> = {
     }),
     'Returns the number of elements in the given countable value.',
     [['countable']]
+  ),
+
+  'hash-set': withDoc(
+    cljNativeFunction('hash-set', function hashSetImpl(...args: CljValue[]) {
+      const deduped: CljValue[] = []
+      for (const v of args) {
+        if (!deduped.some(existing => isEqual(existing, v))) {
+          deduped.push(v)
+        }
+      }
+      return cljSet(deduped)
+    }),
+    'Returns a set containing the given values.',
+    [['&', 'xs']]
+  ),
+
+  set: withDoc(
+    cljNativeFunction('set', function setImpl(coll: CljValue) {
+      if (coll === undefined || coll.kind === 'nil') return cljSet([])
+      const items = toSeq(coll)
+      const deduped: CljValue[] = []
+      for (const v of items) {
+        if (!deduped.some(existing => isEqual(existing, v))) {
+          deduped.push(v)
+        }
+      }
+      return cljSet(deduped)
+    }),
+    'Returns a set of the distinct elements of the given collection.',
+    [['coll']]
+  ),
+
+  'set?': withDoc(
+    cljNativeFunction('set?', function setPredicateImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && x.kind === 'set')
+    }),
+    'Returns true if x is a set.',
+    [['x']]
+  ),
+
+  disj: withDoc(
+    cljNativeFunction('disj', function disjImpl(s: CljValue, ...items: CljValue[]) {
+      if (s === undefined || s.kind === 'nil') return cljSet([])
+      if (s.kind !== 'set') {
+        throw EvaluationError.atArg(`disj expects a set, got ${printString(s)}`, { s }, 0)
+      }
+      const newValues = s.values.filter(v => !items.some(item => isEqual(item, v)))
+      return cljSet(newValues)
+    }),
+    'Returns a set with the given items removed.',
+    [['s', '&', 'items']]
+  ),
+
+  vec: withDoc(
+    cljNativeFunction('vec', function vecImpl(coll: CljValue) {
+      if (coll === undefined || coll.kind === 'nil') return cljVector([])
+      if (isVector(coll)) return coll
+      if (!isSeqable(coll)) {
+        throw EvaluationError.atArg(`vec expects a collection or string, got ${printString(coll)}`, { coll }, 0)
+      }
+      return cljVector(toSeq(coll))
+    }),
+    'Creates a new vector containing the contents of coll.',
+    [['coll']]
+  ),
+
+  subvec: withDoc(
+    cljNativeFunction('subvec', function subvecImpl(v: CljValue, start: CljValue, end?: CljValue) {
+      if (v === undefined || !isVector(v)) {
+        throw EvaluationError.atArg(`subvec expects a vector, got ${printString(v)}`, { v }, 0)
+      }
+      if (start === undefined || start.kind !== 'number') {
+        throw EvaluationError.atArg(`subvec expects a number start index`, { start }, 1)
+      }
+      const s = start.value
+      const e = end !== undefined && end.kind === 'number' ? end.value : v.value.length
+      if (s < 0 || e > v.value.length || s > e) {
+        throw new EvaluationError(`subvec index out of bounds: start=${s}, end=${e}, length=${v.value.length}`, { v, start, end })
+      }
+      return cljVector(v.value.slice(s, e))
+    }),
+    'Returns a persistent vector of the items in vector from start (inclusive) to end (exclusive).',
+    [['v', 'start'], ['v', 'start', 'end']]
+  ),
+
+  peek: withDoc(
+    cljNativeFunction('peek', function peekImpl(coll: CljValue) {
+      if (coll === undefined || coll.kind === 'nil') return cljNil()
+      if (isVector(coll)) {
+        return coll.value.length === 0 ? cljNil() : coll.value[coll.value.length - 1]
+      }
+      if (isList(coll)) {
+        return coll.value.length === 0 ? cljNil() : coll.value[0]
+      }
+      throw EvaluationError.atArg(`peek expects a list or vector, got ${printString(coll)}`, { coll }, 0)
+    }),
+    'For a list, same as first. For a vector, same as last.',
+    [['coll']]
+  ),
+
+  pop: withDoc(
+    cljNativeFunction('pop', function popImpl(coll: CljValue) {
+      if (coll === undefined || coll.kind === 'nil') {
+        throw EvaluationError.atArg("Can't pop empty list", { coll }, 0)
+      }
+      if (isVector(coll)) {
+        if (coll.value.length === 0) throw new EvaluationError("Can't pop empty vector", { coll })
+        return cljVector(coll.value.slice(0, -1))
+      }
+      if (isList(coll)) {
+        if (coll.value.length === 0) throw new EvaluationError("Can't pop empty list", { coll })
+        return cljList(coll.value.slice(1))
+      }
+      throw EvaluationError.atArg(`pop expects a list or vector, got ${printString(coll)}`, { coll }, 0)
+    }),
+    'For a list, returns a new list without the first item. For a vector, returns a new vector without the last item.',
+    [['coll']]
+  ),
+
+  empty: withDoc(
+    cljNativeFunction('empty', function emptyImpl(coll: CljValue) {
+      if (coll === undefined || coll.kind === 'nil') return cljNil()
+      switch (coll.kind) {
+        case 'list': return cljList([])
+        case 'vector': return cljVector([])
+        case 'map': return cljMap([])
+        case 'set': return cljSet([])
+        default: return cljNil()
+      }
+    }),
+    'Returns an empty collection of the same category as coll, or nil.',
+    [['coll']]
   ),
 }

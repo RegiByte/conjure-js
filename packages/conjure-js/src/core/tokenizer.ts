@@ -294,8 +294,8 @@ function parseDispatch(ctx: TokenizationContext): Token {
     return { kind: tokenKeywords.VarQuote, start, end: scanner.position() }
   }
   if (next === '{') {
-    // TODO: set literals — #{1 2 3}
-    throw new TokenizerError('Set literals are not yet supported', start)
+    scanner.advance() // consume '{'
+    return { kind: tokenKeywords.SetStart, start, end: scanner.position() }
   }
   throw new TokenizerError(
     `Unknown dispatch character: #${next ?? 'EOF'}`,

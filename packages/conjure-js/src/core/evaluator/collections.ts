@@ -1,5 +1,6 @@
-import { cljMap, cljVector } from '../factories'
-import type { CljMap, CljValue, CljVector, EvaluationContext } from '../types'
+import { cljMap, cljSet, cljVector } from '../factories'
+import { isEqual } from '../assertions'
+import type { CljMap, CljSet, CljValue, CljVector, EvaluationContext } from '../types'
 import type { Env } from '../types'
 
 export function evaluateVector(
@@ -10,6 +11,21 @@ export function evaluateVector(
   const evaluated = vector.value.map((v) => ctx.evaluate(v, env))
   if (vector.meta) return { kind: 'vector' as const, value: evaluated, meta: vector.meta }
   return cljVector(evaluated)
+}
+
+export function evaluateSet(
+  set: CljSet,
+  env: Env,
+  ctx: EvaluationContext
+): CljValue {
+  const evaluated: CljValue[] = []
+  for (const v of set.values) {
+    const ev = ctx.evaluate(v, env)
+    if (!evaluated.some(existing => isEqual(existing, ev))) {
+      evaluated.push(ev)
+    }
+  }
+  return cljSet(evaluated)
 }
 
 export function evaluateMap(

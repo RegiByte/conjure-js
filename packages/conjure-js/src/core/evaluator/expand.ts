@@ -1,5 +1,5 @@
 import { isList, isMap, isMacro, isSymbol, isVector } from '../assertions'
-import { tryLookup } from '../env'
+import { getRootEnv, tryLookup } from '../env'
 import { cljList, cljMap, cljVector } from '../factories'
 import type { CljValue, Env, EvaluationContext } from '../types'
 
@@ -66,7 +66,18 @@ export function macroExpandAllWithContext(
   // Check whether the head resolves to a macro in the current env.
   // tryLookup returns undefined for unknown symbols (forward refs, fn params, etc.)
   // avoiding the try/catch exception path entirely.
-  const macroOrUnknown = tryLookup(name, env)
+  // For qualified symbols like clojure.core/when-let, split on '/' and resolve
+  // through the namespace registry — mirrors the same pattern in evaluate.ts.
+  let macroOrUnknown: CljValue | undefined
+  const slashIdx = name.indexOf('/')
+  if (slashIdx > 0 && slashIdx < name.length - 1) {
+    const nsPrefix = name.slice(0, slashIdx)
+    const localName = name.slice(slashIdx + 1)
+    const targetEnv = getRootEnv(env).resolveNs?.(nsPrefix) ?? null
+    if (targetEnv) macroOrUnknown = tryLookup(localName, targetEnv)
+  } else {
+    macroOrUnknown = tryLookup(name, env)
+  }
   if (macroOrUnknown !== undefined && isMacro(macroOrUnknown)) {
     const expanded = ctx.applyMacro(macroOrUnknown, form.value.slice(1))
     // Keep expanding until no more macros at the top level

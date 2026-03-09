@@ -8,7 +8,8 @@ export type FormRange = {
 }
 
 // AnonFnStart (#() consumes both # and (, so it opens a RParen-closed scope
-const OPEN = new Set(['LParen', 'LBracket', 'LBrace', 'AnonFnStart'])
+// SetStart (#{) consumes both # and {, so it opens a RBrace-closed scope
+const OPEN = new Set(['LParen', 'LBracket', 'LBrace', 'AnonFnStart', 'SetStart'])
 const CLOSE = new Set(['RParen', 'RBracket', 'RBrace'])
 const PREFIX = new Set(['Quote', 'Quasiquote', 'Unquote', 'UnquoteSplicing'])
 const SKIP = new Set(['Whitespace', 'Comment'])
@@ -110,7 +111,9 @@ function findMatchingOpen(relevant: Token[], closeIdx: number): number {
     else if (
       k === openKind ||
       // AnonFnStart opens a RParen-closed scope just like LParen
-      (openKind === 'LParen' && k === 'AnonFnStart')
+      (openKind === 'LParen' && k === 'AnonFnStart') ||
+      // SetStart opens a RBrace-closed scope just like LBrace
+      (openKind === 'LBrace' && k === 'SetStart')
     ) {
       depth--
       if (depth === 0) return i

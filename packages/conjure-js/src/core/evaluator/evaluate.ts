@@ -5,7 +5,7 @@ import { getPos } from '../positions'
 import { valueKeywords } from '../types'
 
 import type { CljValue, Env, EvaluationContext } from '../types'
-import { evaluateMap, evaluateVector } from './collections'
+import { evaluateMap, evaluateSet, evaluateVector } from './collections'
 import { evaluateList } from './dispatch'
 
 export type EvaluationMeasurement = {
@@ -69,6 +69,8 @@ export function evaluateWithContext(
         return evaluateVector(expr, env, ctx)
       case valueKeywords.map:
         return evaluateMap(expr, env, ctx)
+      case valueKeywords.set:
+        return evaluateSet(expr, env, ctx)
       case valueKeywords.list:
         return evaluateList(expr, env, ctx)
       default:

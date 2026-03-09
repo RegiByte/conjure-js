@@ -41,6 +41,10 @@ jobs:
         working-directory: packages/conjure-js
         run: bun run build-npm-bin
 
+      - name: Build Vite plugin (Node.js pre-built bundle)
+        working-directory: packages/conjure-js
+        run: node scripts/build-vite-plugin.mjs
+
       - name: Publish to npm
         working-directory: packages/conjure-js
         run: npm publish --provenance
