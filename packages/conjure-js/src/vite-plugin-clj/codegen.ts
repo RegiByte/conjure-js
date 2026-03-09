@@ -71,6 +71,10 @@ export function generateModuleCode(
     `const __ns = __session.getNs(${JSON.stringify(nsName)});`,
     ``,
     ...exportLines,
+    ``,
+    `// Self-accept HMR: re-execute this module on save (updates browser session)`,
+    `// without propagating to parent modules — prevents full page reload.`,
+    `if (import.meta.hot) { import.meta.hot.accept() }`,
   ].join('\n')
 }
 

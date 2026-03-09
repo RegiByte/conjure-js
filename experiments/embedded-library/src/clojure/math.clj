@@ -9,3 +9,7 @@
 (add 1 2)
 
 (println (add 1 2))
+
+(doc +)
+
+(doc macroexpand)

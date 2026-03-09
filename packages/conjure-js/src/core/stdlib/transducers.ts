@@ -29,7 +29,7 @@ import type {
 export const transducerFunctions: Record<string, CljValue> = {
   // ── Reduced sentinel ────────────────────────────────────────────────────
   reduced: withDoc(
-    cljNativeFunction('reduced', (value: CljValue) => {
+    cljNativeFunction('reduced', function reducedImpl(value: CljValue) {
       if (value === undefined) {
         throw new EvaluationError('reduced expects one argument', {})
       }
@@ -39,7 +39,7 @@ export const transducerFunctions: Record<string, CljValue> = {
     [['value']]
   ),
   'reduced?': withDoc(
-    cljNativeFunction('reduced?', (value: CljValue) => {
+    cljNativeFunction('reduced?', function isReducedImpl(value: CljValue) {
       if (value === undefined) {
         throw new EvaluationError('reduced? expects one argument', {})
       }
@@ -49,7 +49,7 @@ export const transducerFunctions: Record<string, CljValue> = {
     [['value']]
   ),
   unreduced: withDoc(
-    cljNativeFunction('unreduced', (value: CljValue) => {
+    cljNativeFunction('unreduced', function unreducedImpl(value: CljValue) {
       if (value === undefined) {
         throw new EvaluationError('unreduced expects one argument', {})
       }
@@ -59,7 +59,7 @@ export const transducerFunctions: Record<string, CljValue> = {
     [['value']]
   ),
   'ensure-reduced': withDoc(
-    cljNativeFunction('ensure-reduced', (value: CljValue) => {
+    cljNativeFunction('ensure-reduced', function ensureReducedImpl(value: CljValue) {
       if (value === undefined) {
         throw new EvaluationError('ensure-reduced expects one argument', {})
       }
@@ -71,7 +71,7 @@ export const transducerFunctions: Record<string, CljValue> = {
 
   // ── Volatile ─────────────────────────────────────────────────────────────
   'volatile!': withDoc(
-    cljNativeFunction('volatile!', (value: CljValue) => {
+    cljNativeFunction('volatile!', function volatileImpl(value: CljValue) {
       if (value === undefined) {
         throw new EvaluationError('volatile! expects one argument', {})
       }
@@ -81,7 +81,7 @@ export const transducerFunctions: Record<string, CljValue> = {
     [['value']]
   ),
   'volatile?': withDoc(
-    cljNativeFunction('volatile?', (value: CljValue) => {
+    cljNativeFunction('volatile?', function isVolatileImpl(value: CljValue) {
       if (value === undefined) {
         throw new EvaluationError('volatile? expects one argument', {})
       }
@@ -91,7 +91,7 @@ export const transducerFunctions: Record<string, CljValue> = {
     [['value']]
   ),
   'vreset!': withDoc(
-    cljNativeFunction('vreset!', (vol: CljValue, newVal: CljValue) => {
+    cljNativeFunction('vreset!', function vresetImpl(vol: CljValue, newVal: CljValue) {
       if (!isVolatile(vol)) {
         throw new EvaluationError(
           `vreset! expects a volatile as its first argument, got ${printString(vol)}`,
@@ -110,13 +110,13 @@ export const transducerFunctions: Record<string, CljValue> = {
   'vswap!': withDoc(
     cljNativeFunctionWithContext(
       'vswap!',
-      (
+      function vswapImpl(
         ctx: EvaluationContext,
         callEnv: Env,
         vol: CljValue,
         fn: CljValue,
         ...extraArgs: CljValue[]
-      ) => {
+      ) {
         if (!isVolatile(vol)) {
           throw new EvaluationError(
             `vswap! expects a volatile as its first argument, got ${printString(vol)}`,
@@ -156,14 +156,14 @@ export const transducerFunctions: Record<string, CljValue> = {
   transduce: withDoc(
     cljNativeFunctionWithContext(
       'transduce',
-      (
+      function transduceImpl(
         ctx: EvaluationContext,
         callEnv: Env,
         xform: CljValue,
         f: CljValue,
         init: CljValue,
         coll: CljValue
-      ) => {
+      ) {
         if (!isAFunction(xform)) {
           throw new EvaluationError(
             `transduce expects a transducer (function) as first argument, got ${printString(xform)}`,

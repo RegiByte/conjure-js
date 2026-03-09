@@ -7,7 +7,7 @@ import type { CljAtom, CljMap, CljValue, Env, EvaluationContext } from '../types
 
 export const metaFunctions: Record<string, CljValue> = {
   meta: withDoc(
-    cljNativeFunction('meta', (val: CljValue) => {
+    cljNativeFunction('meta', function metaImpl(val: CljValue) {
       if (val === undefined) {
         throw EvaluationError.atArg('meta expects one argument', {}, 0)
       }
@@ -30,7 +30,7 @@ export const metaFunctions: Record<string, CljValue> = {
   ),
 
   'with-meta': withDoc(
-    cljNativeFunction('with-meta', (val: CljValue, m: CljValue) => {
+    cljNativeFunction('with-meta', function withMetaImpl(val: CljValue, m: CljValue) {
       if (val === undefined) {
         throw EvaluationError.atArg('with-meta expects two arguments', {}, 0)
       }
@@ -60,7 +60,7 @@ export const metaFunctions: Record<string, CljValue> = {
   'alter-meta!': withDoc(
     cljNativeFunctionWithContext(
       'alter-meta!',
-      (ctx: EvaluationContext, callEnv: Env, ref: CljValue, f: CljValue, ...args: CljValue[]) => {
+      function alterMetaImpl(ctx: EvaluationContext, callEnv: Env, ref: CljValue, f: CljValue, ...args: CljValue[]) {
         if (ref === undefined) {
           throw EvaluationError.atArg('alter-meta! expects at least two arguments', {}, 0)
         }

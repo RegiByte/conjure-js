@@ -73,7 +73,9 @@ function buildMatchValue(whole: string, args: unknown[]): CljValue {
   if (groups.length === 0) return cljString(whole)
   return cljVector([
     cljString(whole),
-    ...groups.map((g) => (g == null ? cljNil() : cljString(String(g)))),
+    ...groups.map(function mapGroupToClj(g) {
+      return g == null ? cljNil() : cljString(String(g))
+    }),
   ])
 }
 
@@ -120,7 +122,7 @@ function doReplace(
     // regex / function
     if (isAFunction(replVal)) {
       const fn = replVal as CljFunction | CljNativeFunction
-      const result = s.replace(jsRe, (whole: string, ...args: unknown[]) => {
+      const result = s.replace(jsRe, function replaceCallback(whole: string, ...args: unknown[]) {
         const matchClj = buildMatchValue(whole, args)
         const replResult = ctx.applyFunction(fn, [matchClj], callEnv)
         return valueToString(replResult)
@@ -146,7 +148,7 @@ function doReplace(
 
 export const stringFunctions: Record<string, CljValue> = {
   'str-upper-case*': withDoc(
-    cljNativeFunction('str-upper-case*', (sVal: CljValue) => {
+    cljNativeFunction('str-upper-case*', function strUpperCaseImpl(sVal: CljValue) {
       return cljString(assertStr(sVal, 'str-upper-case*').toUpperCase())
     }),
     'Internal helper. Converts s to upper-case.',
@@ -154,7 +156,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-lower-case*': withDoc(
-    cljNativeFunction('str-lower-case*', (sVal: CljValue) => {
+    cljNativeFunction('str-lower-case*', function strLowerCaseImpl(sVal: CljValue) {
       return cljString(assertStr(sVal, 'str-lower-case*').toLowerCase())
     }),
     'Internal helper. Converts s to lower-case.',
@@ -162,7 +164,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-trim*': withDoc(
-    cljNativeFunction('str-trim*', (sVal: CljValue) => {
+    cljNativeFunction('str-trim*', function strTrimImpl(sVal: CljValue) {
       return cljString(assertStr(sVal, 'str-trim*').trim())
     }),
     'Internal helper. Removes whitespace from both ends of s.',
@@ -170,7 +172,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-triml*': withDoc(
-    cljNativeFunction('str-triml*', (sVal: CljValue) => {
+    cljNativeFunction('str-triml*', function strTrimlImpl(sVal: CljValue) {
       return cljString(assertStr(sVal, 'str-triml*').trimStart())
     }),
     'Internal helper. Removes whitespace from the left of s.',
@@ -178,7 +180,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-trimr*': withDoc(
-    cljNativeFunction('str-trimr*', (sVal: CljValue) => {
+    cljNativeFunction('str-trimr*', function strTrimrImpl(sVal: CljValue) {
       return cljString(assertStr(sVal, 'str-trimr*').trimEnd())
     }),
     'Internal helper. Removes whitespace from the right of s.',
@@ -186,7 +188,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-reverse*': withDoc(
-    cljNativeFunction('str-reverse*', (sVal: CljValue) => {
+    cljNativeFunction('str-reverse*', function strReverseImpl(sVal: CljValue) {
       return cljString([...assertStr(sVal, 'str-reverse*')].reverse().join(''))
     }),
     'Internal helper. Returns s with its characters reversed (Unicode-safe).',
@@ -194,7 +196,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-starts-with*': withDoc(
-    cljNativeFunction('str-starts-with*', (sVal: CljValue, substrVal: CljValue) => {
+    cljNativeFunction('str-starts-with*', function strStartsWithImpl(sVal: CljValue, substrVal: CljValue) {
       const s = assertStr(sVal, 'str-starts-with*')
       const substr = assertStrArg(substrVal, 'second', 'str-starts-with*')
       return cljBoolean(s.startsWith(substr))
@@ -204,7 +206,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-ends-with*': withDoc(
-    cljNativeFunction('str-ends-with*', (sVal: CljValue, substrVal: CljValue) => {
+    cljNativeFunction('str-ends-with*', function strEndsWithImpl(sVal: CljValue, substrVal: CljValue) {
       const s = assertStr(sVal, 'str-ends-with*')
       const substr = assertStrArg(substrVal, 'second', 'str-ends-with*')
       return cljBoolean(s.endsWith(substr))
@@ -214,7 +216,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-includes*': withDoc(
-    cljNativeFunction('str-includes*', (sVal: CljValue, substrVal: CljValue) => {
+    cljNativeFunction('str-includes*', function strIncludesImpl(sVal: CljValue, substrVal: CljValue) {
       const s = assertStr(sVal, 'str-includes*')
       const substr = assertStrArg(substrVal, 'second', 'str-includes*')
       return cljBoolean(s.includes(substr))
@@ -224,7 +226,7 @@ export const stringFunctions: Record<string, CljValue> = {
   ),
 
   'str-index-of*': withDoc(
-    cljNativeFunction('str-index-of*', (sVal: CljValue, valVal: CljValue, fromVal?: CljValue) => {
+    cljNativeFunction('str-index-of*', function strIndexOfImpl(sVal: CljValue, valVal: CljValue, fromVal?: CljValue) {
       const s = assertStr(sVal, 'str-index-of*')
       const needle = assertStrArg(valVal, 'second', 'str-index-of*')
       let idx: number
@@ -248,7 +250,7 @@ export const stringFunctions: Record<string, CljValue> = {
   'str-last-index-of*': withDoc(
     cljNativeFunction(
       'str-last-index-of*',
-      (sVal: CljValue, valVal: CljValue, fromVal?: CljValue) => {
+      function strLastIndexOfImpl(sVal: CljValue, valVal: CljValue, fromVal?: CljValue) {
         const s = assertStr(sVal, 'str-last-index-of*')
         const needle = assertStrArg(valVal, 'second', 'str-last-index-of*')
         let idx: number
@@ -273,13 +275,15 @@ export const stringFunctions: Record<string, CljValue> = {
   'str-replace*': withDoc(
     cljNativeFunctionWithContext(
       'str-replace*',
-      (
+      function strReplaceImpl(
         ctx: EvaluationContext,
         callEnv: Env,
         sVal: CljValue,
         matchVal: CljValue,
         replVal: CljValue
-      ) => doReplace(ctx, callEnv, 'str-replace*', sVal, matchVal, replVal, true)
+      ) {
+        return doReplace(ctx, callEnv, 'str-replace*', sVal, matchVal, replVal, true)
+      }
     ),
     'Internal helper. Replaces all occurrences of match with replacement in s.',
     [['s', 'match', 'replacement']]
@@ -288,14 +292,14 @@ export const stringFunctions: Record<string, CljValue> = {
   'str-replace-first*': withDoc(
     cljNativeFunctionWithContext(
       'str-replace-first*',
-      (
+      function strReplaceFirstImpl(
         ctx: EvaluationContext,
         callEnv: Env,
         sVal: CljValue,
         matchVal: CljValue,
         replVal: CljValue
-      ) =>
-        doReplace(
+      ) {
+        return doReplace(
           ctx,
           callEnv,
           'str-replace-first*',
@@ -304,6 +308,7 @@ export const stringFunctions: Record<string, CljValue> = {
           replVal,
           false
         )
+      }
     ),
     'Internal helper. Replaces the first occurrence of match with replacement in s.',
     [['s', 'match', 'replacement']]

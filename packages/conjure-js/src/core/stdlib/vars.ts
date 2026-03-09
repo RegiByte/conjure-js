@@ -10,13 +10,15 @@ import type { CljValue } from '../types'
 
 export const varFunctions: Record<string, CljValue> = {
   'var?': withDoc(
-    cljNativeFunction('var?', (x: CljValue) => cljBoolean(isVar(x))),
+    cljNativeFunction('var?', function isVarImpl(x: CljValue) {
+      return cljBoolean(isVar(x))
+    }),
     'Returns true if x is a Var.',
     [['x']]
   ),
 
   'var-get': withDoc(
-    cljNativeFunction('var-get', (x: CljValue) => {
+    cljNativeFunction('var-get', function varGetImpl(x: CljValue) {
       if (!isVar(x)) {
         throw new EvaluationError(`var-get expects a Var, got ${x.kind}`, { x })
       }
@@ -29,7 +31,7 @@ export const varFunctions: Record<string, CljValue> = {
   'alter-var-root': withDoc(
     cljNativeFunctionWithContext(
       'alter-var-root',
-      (ctx, callEnv, varVal: CljValue, f: CljValue, ...args: CljValue[]) => {
+      function alterVarRootImpl(ctx, callEnv, varVal: CljValue, f: CljValue, ...args: CljValue[]) {
         if (!isVar(varVal)) {
           throw new EvaluationError(
             `alter-var-root expects a Var as its first argument, got ${varVal.kind}`,

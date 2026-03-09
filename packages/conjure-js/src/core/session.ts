@@ -345,7 +345,7 @@ function buildSessionApi(
   internVar(
     'println',
     cljNativeFunction('println', (...args: CljValue[]) => {
-      emitFn(args.map(valueToString).join(' '))
+      emitFn(args.map(valueToString).join(' ') + '\n')
       return cljNil()
     }),
     coreEnv
@@ -354,6 +354,14 @@ function buildSessionApi(
     'print',
     cljNativeFunction('print', (...args: CljValue[]) => {
       emitFn(args.map(valueToString).join(' '))
+      return cljNil()
+    }),
+    coreEnv
+  )
+  internVar(
+    'newline',
+    cljNativeFunction('newline', () => {
+      emitFn('\n')
       return cljNil()
     }),
     coreEnv

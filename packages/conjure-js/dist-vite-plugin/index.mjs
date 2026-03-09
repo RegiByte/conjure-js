@@ -1373,55 +1373,63 @@ function joinLines(lines) {
 
 // src/core/stdlib/arithmetic.ts
 var arithmeticFunctions = {
-  "+": withDoc(cljNativeFunction("+", (...nums) => {
+  "+": withDoc(cljNativeFunction("+", function add(...nums) {
     if (nums.length === 0) {
       return cljNumber(0);
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("+ expects all arguments to be numbers", { args: nums }, badIdx);
     }
-    return nums.reduce((acc, arg) => {
+    return nums.reduce(function sumNumbers(acc, arg) {
       return cljNumber(acc.value + arg.value);
     }, cljNumber(0));
   }), "Returns the sum of the arguments. Throws on non-number arguments.", [["&", "nums"]]),
-  "-": withDoc(cljNativeFunction("-", (...nums) => {
+  "-": withDoc(cljNativeFunction("-", function subtract(...nums) {
     if (nums.length === 0) {
       throw new EvaluationError("- expects at least one argument", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("- expects all arguments to be numbers", { args: nums }, badIdx);
     }
-    return nums.slice(1).reduce((acc, arg) => {
+    return nums.slice(1).reduce(function subtractNumbers(acc, arg) {
       return cljNumber(acc.value - arg.value);
     }, nums[0]);
   }), "Returns the difference of the arguments. Throws on non-number arguments.", [["&", "nums"]]),
-  "*": withDoc(cljNativeFunction("*", (...nums) => {
+  "*": withDoc(cljNativeFunction("*", function multiply(...nums) {
     if (nums.length === 0) {
       return cljNumber(1);
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("* expects all arguments to be numbers", { args: nums }, badIdx);
     }
-    return nums.slice(1).reduce((acc, arg) => {
+    return nums.slice(1).reduce(function multiplyNumbers(acc, arg) {
       return cljNumber(acc.value * arg.value);
     }, nums[0]);
   }), "Returns the product of the arguments. Throws on non-number arguments.", [["&", "nums"]]),
-  "/": withDoc(cljNativeFunction("/", (...nums) => {
+  "/": withDoc(cljNativeFunction("/", function divide(...nums) {
     if (nums.length === 0) {
       throw new EvaluationError("/ expects at least one argument", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("/ expects all arguments to be numbers", { args: nums }, badIdx);
     }
-    return nums.slice(1).reduce((acc, arg, reduceIdx) => {
+    return nums.slice(1).reduce(function divideNumbers(acc, arg, reduceIdx) {
       if (arg.value === 0) {
         const err = new EvaluationError("division by zero", { args: nums });
         err.data = { argIndex: reduceIdx + 1 };
@@ -1430,13 +1438,15 @@ var arithmeticFunctions = {
       return cljNumber(acc.value / arg.value);
     }, nums[0]);
   }), "Returns the quotient of the arguments. Throws on non-number arguments or division by zero.", [["&", "nums"]]),
-  ">": withDoc(cljNativeFunction(">", (...nums) => {
+  ">": withDoc(cljNativeFunction(">", function greaterThan(...nums) {
     if (nums.length < 2) {
       throw new EvaluationError("> expects at least two arguments", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("> expects all arguments to be numbers", { args: nums }, badIdx);
     }
@@ -1447,13 +1457,15 @@ var arithmeticFunctions = {
     }
     return cljBoolean(true);
   }), "Compares adjacent arguments left to right, returns true if all values are in ascending order, false otherwise.", [["&", "nums"]]),
-  "<": withDoc(cljNativeFunction("<", (...nums) => {
+  "<": withDoc(cljNativeFunction("<", function lessThan(...nums) {
     if (nums.length < 2) {
       throw new EvaluationError("< expects at least two arguments", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("< expects all arguments to be numbers", { args: nums }, badIdx);
     }
@@ -1464,13 +1476,15 @@ var arithmeticFunctions = {
     }
     return cljBoolean(true);
   }), "Compares adjacent arguments left to right, returns true if all values are in descending order, false otherwise.", [["&", "nums"]]),
-  ">=": withDoc(cljNativeFunction(">=", (...nums) => {
+  ">=": withDoc(cljNativeFunction(">=", function greaterThanOrEqual(...nums) {
     if (nums.length < 2) {
       throw new EvaluationError(">= expects at least two arguments", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg(">= expects all arguments to be numbers", { args: nums }, badIdx);
     }
@@ -1481,13 +1495,15 @@ var arithmeticFunctions = {
     }
     return cljBoolean(true);
   }), "Compares adjacent arguments left to right, returns true if all comparisons returns true for greater than or equal to checks, false otherwise.", [["&", "nums"]]),
-  "<=": withDoc(cljNativeFunction("<=", (...nums) => {
+  "<=": withDoc(cljNativeFunction("<=", function lessThanOrEqual(...nums) {
     if (nums.length < 2) {
       throw new EvaluationError("<= expects at least two arguments", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("<= expects all arguments to be numbers", { args: nums }, badIdx);
     }
@@ -1498,7 +1514,7 @@ var arithmeticFunctions = {
     }
     return cljBoolean(true);
   }), "Compares adjacent arguments left to right, returns true if all comparisons returns true for less than or equal to checks, false otherwise.", [["&", "nums"]]),
-  "=": withDoc(cljNativeFunction("=", (...vals) => {
+  "=": withDoc(cljNativeFunction("=", function equals(...vals) {
     if (vals.length < 2) {
       throw new EvaluationError("= expects at least two arguments", {
         args: vals
@@ -1511,43 +1527,51 @@ var arithmeticFunctions = {
     }
     return cljBoolean(true);
   }), "Compares adjacent arguments left to right, returns true if all values are structurally equal, false otherwise.", [["&", "vals"]]),
-  inc: withDoc(cljNativeFunction("inc", (x) => {
+  inc: withDoc(cljNativeFunction("inc", function increment(x) {
     if (x === undefined || x.kind !== "number") {
       throw EvaluationError.atArg(`inc expects a number${x !== undefined ? `, got ${printString(x)}` : ""}`, { x }, 0);
     }
     return cljNumber(x.value + 1);
   }), "Returns the argument incremented by 1. Throws on non-number arguments.", [["x"]]),
-  dec: withDoc(cljNativeFunction("dec", (x) => {
+  dec: withDoc(cljNativeFunction("dec", function decrement(x) {
     if (x === undefined || x.kind !== "number") {
       throw EvaluationError.atArg(`dec expects a number${x !== undefined ? `, got ${printString(x)}` : ""}`, { x }, 0);
     }
     return cljNumber(x.value - 1);
   }), "Returns the argument decremented by 1. Throws on non-number arguments.", [["x"]]),
-  max: withDoc(cljNativeFunction("max", (...nums) => {
+  max: withDoc(cljNativeFunction("max", function maximum(...nums) {
     if (nums.length === 0) {
       throw new EvaluationError("max expects at least one argument", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("max expects all arguments to be numbers", { args: nums }, badIdx);
     }
-    return nums.reduce((best, arg) => arg.value > best.value ? arg : best);
+    return nums.reduce(function findMax(best, arg) {
+      return arg.value > best.value ? arg : best;
+    });
   }), "Returns the largest of the arguments. Throws on non-number arguments.", [["&", "nums"]]),
-  min: withDoc(cljNativeFunction("min", (...nums) => {
+  min: withDoc(cljNativeFunction("min", function minimum(...nums) {
     if (nums.length === 0) {
       throw new EvaluationError("min expects at least one argument", {
         args: nums
       });
     }
-    const badIdx = nums.findIndex((a) => a.kind !== "number");
+    const badIdx = nums.findIndex(function isNotNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("min expects all arguments to be numbers", { args: nums }, badIdx);
     }
-    return nums.reduce((best, arg) => arg.value < best.value ? arg : best);
+    return nums.reduce(function findMin(best, arg) {
+      return arg.value < best.value ? arg : best;
+    });
   }), "Returns the smallest of the arguments. Throws on non-number arguments.", [["&", "nums"]]),
-  mod: withDoc(cljNativeFunction("mod", (n, d) => {
+  mod: withDoc(cljNativeFunction("mod", function modulo(n, d) {
     if (n === undefined || n.kind !== "number") {
       throw EvaluationError.atArg(`mod expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ""}`, { n }, 0);
     }
@@ -1562,31 +1586,31 @@ var arithmeticFunctions = {
     const result = n.value % d.value;
     return cljNumber(result < 0 ? result + Math.abs(d.value) : result);
   }), "Returns the remainder of the first argument divided by the second argument. Throws on non-number arguments or division by zero.", [["n", "d"]]),
-  "even?": withDoc(cljNativeFunction("even?", (n) => {
+  "even?": withDoc(cljNativeFunction("even?", function isEven(n) {
     if (n === undefined || n.kind !== "number") {
       throw EvaluationError.atArg(`even? expects a number${n !== undefined ? `, got ${printString(n)}` : ""}`, { n }, 0);
     }
     return cljBoolean(n.value % 2 === 0);
   }), "Returns true if the argument is an even number, false otherwise.", [["n"]]),
-  "odd?": withDoc(cljNativeFunction("odd?", (n) => {
+  "odd?": withDoc(cljNativeFunction("odd?", function isOdd(n) {
     if (n === undefined || n.kind !== "number") {
       throw EvaluationError.atArg(`odd? expects a number${n !== undefined ? `, got ${printString(n)}` : ""}`, { n }, 0);
     }
     return cljBoolean(Math.abs(n.value) % 2 !== 0);
   }), "Returns true if the argument is an odd number, false otherwise.", [["n"]]),
-  "pos?": withDoc(cljNativeFunction("pos?", (n) => {
+  "pos?": withDoc(cljNativeFunction("pos?", function isPositive(n) {
     if (n === undefined || n.kind !== "number") {
       throw EvaluationError.atArg(`pos? expects a number${n !== undefined ? `, got ${printString(n)}` : ""}`, { n }, 0);
     }
     return cljBoolean(n.value > 0);
   }), "Returns true if the argument is a positive number, false otherwise.", [["n"]]),
-  "neg?": withDoc(cljNativeFunction("neg?", (n) => {
+  "neg?": withDoc(cljNativeFunction("neg?", function isNegative(n) {
     if (n === undefined || n.kind !== "number") {
       throw EvaluationError.atArg(`neg? expects a number${n !== undefined ? `, got ${printString(n)}` : ""}`, { n }, 0);
     }
     return cljBoolean(n.value < 0);
   }), "Returns true if the argument is a negative number, false otherwise.", [["n"]]),
-  "zero?": withDoc(cljNativeFunction("zero?", (n) => {
+  "zero?": withDoc(cljNativeFunction("zero?", function isZero(n) {
     if (n === undefined || n.kind !== "number") {
       throw EvaluationError.atArg(`zero? expects a number${n !== undefined ? `, got ${printString(n)}` : ""}`, { n }, 0);
     }
@@ -1596,10 +1620,10 @@ var arithmeticFunctions = {
 
 // src/core/stdlib/atoms.ts
 var atomFunctions = {
-  atom: withDoc(cljNativeFunction("atom", (value) => {
+  atom: withDoc(cljNativeFunction("atom", function atom(value) {
     return cljAtom(value);
   }), "Returns a new atom holding the given value.", [["value"]]),
-  deref: withDoc(cljNativeFunction("deref", (value) => {
+  deref: withDoc(cljNativeFunction("deref", function deref(value) {
     if (isAtom(value))
       return value.value;
     if (isVolatile(value))
@@ -1608,7 +1632,7 @@ var atomFunctions = {
       return value.value;
     throw EvaluationError.atArg(`deref expects an atom, volatile, or reduced value, got ${value.kind}`, { value }, 0);
   }), "Returns the wrapped value from an atom, volatile, or reduced value.", [["value"]]),
-  "swap!": withDoc(cljNativeFunctionWithContext("swap!", (ctx, callEnv, atomVal, fn, ...extraArgs) => {
+  "swap!": withDoc(cljNativeFunctionWithContext("swap!", function swap(ctx, callEnv, atomVal, fn, ...extraArgs) {
     if (!isAtom(atomVal)) {
       throw EvaluationError.atArg(`swap! expects an atom as its first argument, got ${atomVal.kind}`, { atomVal }, 0);
     }
@@ -1619,14 +1643,14 @@ var atomFunctions = {
     atomVal.value = newVal;
     return newVal;
   }), "Applies fn to the current value of the atom, replacing the current value with the result. Returns the new value.", [["atomVal", "fn", "&", "extraArgs"]]),
-  "reset!": withDoc(cljNativeFunction("reset!", (atomVal, newVal) => {
+  "reset!": withDoc(cljNativeFunction("reset!", function reset(atomVal, newVal) {
     if (!isAtom(atomVal)) {
       throw EvaluationError.atArg(`reset! expects an atom as its first argument, got ${atomVal.kind}`, { atomVal }, 0);
     }
     atomVal.value = newVal;
     return newVal;
   }), "Sets the value of the atom to newVal and returns the new value.", [["atomVal", "newVal"]]),
-  "atom?": withDoc(cljNativeFunction("atom?", (value) => {
+  "atom?": withDoc(cljNativeFunction("atom?", function isAtomPredicate(value) {
     return cljBoolean(isAtom(value));
   }), "Returns true if the value is an atom, false otherwise.", [["value"]])
 };
@@ -1694,19 +1718,19 @@ var toSeq = (collection) => {
 
 // src/core/stdlib/collections.ts
 var collectionFunctions = {
-  list: withDoc(cljNativeFunction("list", (...args) => {
+  list: withDoc(cljNativeFunction("list", function listImpl(...args) {
     if (args.length === 0) {
       return cljList([]);
     }
     return cljList(args);
   }), "Returns a new list containing the given values.", [["&", "args"]]),
-  vector: withDoc(cljNativeFunction("vector", (...args) => {
+  vector: withDoc(cljNativeFunction("vector", function vectorImpl(...args) {
     if (args.length === 0) {
       return cljVector([]);
     }
     return cljVector(args);
   }), "Returns a new vector containing the given values.", [["&", "args"]]),
-  "hash-map": withDoc(cljNativeFunction("hash-map", (...kvals) => {
+  "hash-map": withDoc(cljNativeFunction("hash-map", function hashMapImpl(...kvals) {
     if (kvals.length === 0) {
       return cljMap([]);
     }
@@ -1721,7 +1745,7 @@ var collectionFunctions = {
     }
     return cljMap(entries);
   }), "Returns a new hash-map containing the given key-value pairs.", [["&", "kvals"]]),
-  seq: withDoc(cljNativeFunction("seq", (coll) => {
+  seq: withDoc(cljNativeFunction("seq", function seqImpl(coll) {
     if (coll.kind === "nil")
       return cljNil();
     if (!isSeqable(coll)) {
@@ -1730,7 +1754,7 @@ var collectionFunctions = {
     const items = toSeq(coll);
     return items.length === 0 ? cljNil() : cljList(items);
   }), "Returns a sequence of the given collection or string. Strings yield a sequence of single-character strings.", [["coll"]]),
-  first: withDoc(cljNativeFunction("first", (collection) => {
+  first: withDoc(cljNativeFunction("first", function firstImpl(collection) {
     if (collection.kind === "nil")
       return cljNil();
     if (!isSeqable(collection)) {
@@ -1739,7 +1763,7 @@ var collectionFunctions = {
     const entries = toSeq(collection);
     return entries.length === 0 ? cljNil() : entries[0];
   }), "Returns the first element of the given collection or string.", [["coll"]]),
-  rest: withDoc(cljNativeFunction("rest", (collection) => {
+  rest: withDoc(cljNativeFunction("rest", function restImpl(collection) {
     if (collection.kind === "nil")
       return cljList([]);
     if (!isSeqable(collection)) {
@@ -1766,7 +1790,7 @@ var collectionFunctions = {
     }
     throw EvaluationError.atArg(`rest expects a collection or string, got ${printString(collection)}`, { collection }, 0);
   }), "Returns a sequence of the given collection or string excluding the first element.", [["coll"]]),
-  conj: withDoc(cljNativeFunction("conj", (collection, ...args) => {
+  conj: withDoc(cljNativeFunction("conj", function conjImpl(collection, ...args) {
     if (!collection) {
       throw new EvaluationError("conj expects a collection as first argument", { collection });
     }
@@ -1798,7 +1822,9 @@ var collectionFunctions = {
           throw EvaluationError.atArg(`conj on maps expects each argument to be a vector key-pair for maps, got ${printString(pair)}`, { pair }, pairArgIndex);
         }
         const key = pair.value[0];
-        const keyIdx = newEntries.findIndex((entry) => isEqual(entry[0], key));
+        const keyIdx = newEntries.findIndex(function findKeyEntry(entry) {
+          return isEqual(entry[0], key);
+        });
         if (keyIdx === -1) {
           newEntries.push([key, pair.value[1]]);
         } else {
@@ -1809,7 +1835,7 @@ var collectionFunctions = {
     }
     throw new EvaluationError(`unhandled collection type, got ${printString(collection)}`, { collection });
   }), "Appends args to the given collection. Lists append in reverse order to the head, vectors append to the tail.", [["collection", "&", "args"]]),
-  cons: withDoc(cljNativeFunction("cons", (x, xs) => {
+  cons: withDoc(cljNativeFunction("cons", function consImpl(x, xs) {
     if (!isCollection(xs)) {
       throw EvaluationError.atArg(`cons expects a collection as second argument, got ${printString(xs)}`, { xs }, 1);
     }
@@ -1820,7 +1846,7 @@ var collectionFunctions = {
     const newItems = [x, ...xs.value];
     return wrap(newItems);
   }), "Returns a new collection with x prepended to the head of xs.", [["x", "xs"]]),
-  assoc: withDoc(cljNativeFunction("assoc", (collection, ...args) => {
+  assoc: withDoc(cljNativeFunction("assoc", function assocImpl(collection, ...args) {
     if (!collection) {
       throw new EvaluationError("assoc expects a collection as first argument", { collection });
     }
@@ -1862,7 +1888,9 @@ var collectionFunctions = {
       for (let i = 0;i < args.length; i += 2) {
         const key = args[i];
         const value = args[i + 1];
-        const entryIdx = newEntries.findIndex((entry) => isEqual(entry[0], key));
+        const entryIdx = newEntries.findIndex(function findEntryByKey(entry) {
+          return isEqual(entry[0], key);
+        });
         if (entryIdx === -1) {
           newEntries.push([key, value]);
         } else {
@@ -1873,7 +1901,7 @@ var collectionFunctions = {
     }
     throw new EvaluationError(`unhandled collection type, got ${printString(collection)}`, { collection });
   }), "Associates the value val with the key k in collection. If collection is a map, returns a new map with the same mappings, otherwise returns a vector with the new value at index k.", [["collection", "&", "kvals"]]),
-  dissoc: withDoc(cljNativeFunction("dissoc", (collection, ...args) => {
+  dissoc: withDoc(cljNativeFunction("dissoc", function dissocImpl(collection, ...args) {
     if (!collection) {
       throw new EvaluationError("dissoc expects a collection as first argument", { collection });
     }
@@ -1907,7 +1935,9 @@ var collectionFunctions = {
       const newEntries = [...collection.entries];
       for (let i = 0;i < args.length; i += 1) {
         const key = args[i];
-        const entryIdx = newEntries.findIndex((entry) => isEqual(entry[0], key));
+        const entryIdx = newEntries.findIndex(function findEntryByKey(entry) {
+          return isEqual(entry[0], key);
+        });
         if (entryIdx === -1) {
           return collection;
         }
@@ -1917,7 +1947,7 @@ var collectionFunctions = {
     }
     throw new EvaluationError(`unhandled collection type, got ${printString(collection)}`, { collection });
   }), "Dissociates the key k from collection. If collection is a map, returns a new map with the same mappings, otherwise returns a vector with the value at index k removed.", [["collection", "&", "keys"]]),
-  get: withDoc(cljNativeFunction("get", (target, key, notFound) => {
+  get: withDoc(cljNativeFunction("get", function getImpl(target, key, notFound) {
     const defaultValue = notFound ?? cljNil();
     switch (target.kind) {
       case valueKeywords.map: {
@@ -1946,7 +1976,7 @@ var collectionFunctions = {
     ["target", "key"],
     ["target", "key", "not-found"]
   ]),
-  nth: withDoc(cljNativeFunction("nth", (coll, n, notFound) => {
+  nth: withDoc(cljNativeFunction("nth", function nthImpl(coll, n, notFound) {
     if (coll === undefined || !isList(coll) && !isVector(coll)) {
       throw new EvaluationError(`nth expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ""}`, { coll });
     }
@@ -1964,7 +1994,7 @@ var collectionFunctions = {
     }
     return items[index];
   }), "Returns the nth element of the given collection. If not-found is provided, it is returned if the index is out of bounds, otherwise an error is thrown.", [["coll", "n", "not-found"]]),
-  concat: withDoc(cljNativeFunction("concat", (...colls) => {
+  concat: withDoc(cljNativeFunction("concat", function concatImpl(...colls) {
     const result = [];
     for (const coll of colls) {
       if (!isSeqable(coll)) {
@@ -1974,7 +2004,7 @@ var collectionFunctions = {
     }
     return cljList(result);
   }), "Returns a new sequence that is the concatenation of the given sequences or strings.", [["&", "colls"]]),
-  zipmap: withDoc(cljNativeFunction("zipmap", (ks, vs) => {
+  zipmap: withDoc(cljNativeFunction("zipmap", function zipmapImpl(ks, vs) {
     if (ks === undefined || !isSeqable(ks)) {
       throw new EvaluationError(`zipmap expects a collection or string as first argument${ks !== undefined ? `, got ${printString(ks)}` : ""}`, { ks });
     }
@@ -1990,20 +2020,20 @@ var collectionFunctions = {
     }
     return cljMap(entries);
   }), "Returns a new map with the keys and values of the given collections.", [["ks", "vs"]]),
-  last: withDoc(cljNativeFunction("last", (coll) => {
+  last: withDoc(cljNativeFunction("last", function lastImpl(coll) {
     if (coll === undefined || !isList(coll) && !isVector(coll)) {
       throw new EvaluationError(`last expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ""}`, { coll });
     }
     const items = coll.value;
     return items.length === 0 ? cljNil() : items[items.length - 1];
   }), "Returns the last element of the given collection.", [["coll"]]),
-  reverse: withDoc(cljNativeFunction("reverse", (coll) => {
+  reverse: withDoc(cljNativeFunction("reverse", function reverseImpl(coll) {
     if (coll === undefined || !isList(coll) && !isVector(coll)) {
       throw EvaluationError.atArg(`reverse expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ""}`, { coll }, 0);
     }
     return cljList([...coll.value].reverse());
   }), "Returns a new sequence with the elements of the given collection in reverse order.", [["coll"]]),
-  "empty?": withDoc(cljNativeFunction("empty?", (coll) => {
+  "empty?": withDoc(cljNativeFunction("empty?", function emptyPredImpl(coll) {
     if (coll === undefined) {
       throw EvaluationError.atArg("empty? expects one argument", {}, 0);
     }
@@ -2014,7 +2044,7 @@ var collectionFunctions = {
     }
     return cljBoolean(toSeq(coll).length === 0);
   }), "Returns true if coll has no items. Accepts collections, strings, and nil.", [["coll"]]),
-  "contains?": withDoc(cljNativeFunction("contains?", (coll, key) => {
+  "contains?": withDoc(cljNativeFunction("contains?", function containsPredImpl(coll, key) {
     if (coll === undefined) {
       throw EvaluationError.atArg("contains? expects a collection as first argument", {}, 0);
     }
@@ -2024,7 +2054,9 @@ var collectionFunctions = {
     if (coll.kind === "nil")
       return cljBoolean(false);
     if (isMap(coll)) {
-      return cljBoolean(coll.entries.some(([k]) => isEqual(k, key)));
+      return cljBoolean(coll.entries.some(function checkKeyMatch([k]) {
+        return isEqual(k, key);
+      }));
     }
     if (isVector(coll)) {
       if (key.kind !== "number")
@@ -2033,17 +2065,19 @@ var collectionFunctions = {
     }
     throw EvaluationError.atArg(`contains? expects a map, vector, or nil, got ${printString(coll)}`, { coll }, 0);
   }), "Returns true if key is present in coll. For maps checks key existence (including keys with nil values). For vectors checks index bounds.", [["coll", "key"]]),
-  repeat: withDoc(cljNativeFunction("repeat", (n, x) => {
+  repeat: withDoc(cljNativeFunction("repeat", function repeatImpl(n, x) {
     if (n === undefined || n.kind !== "number") {
       throw EvaluationError.atArg(`repeat expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ""}`, { n }, 0);
     }
     return cljList(Array(n.value).fill(x));
   }), "Returns a sequence of n copies of x.", [["n", "x"]]),
-  range: withDoc(cljNativeFunction("range", (...args) => {
+  range: withDoc(cljNativeFunction("range", function rangeImpl(...args) {
     if (args.length === 0 || args.length > 3) {
       throw new EvaluationError("range expects 1, 2, or 3 arguments: (range n), (range start end), or (range start end step)", { args });
     }
-    const badIdx = args.findIndex((a) => a.kind !== "number");
+    const badIdx = args.findIndex(function checkIsNumber(a) {
+      return a.kind !== "number";
+    });
     if (badIdx !== -1) {
       throw EvaluationError.atArg("range expects number arguments", { args }, badIdx);
     }
@@ -2078,19 +2112,23 @@ var collectionFunctions = {
     }
     return cljList(result);
   }), "Returns a sequence of numbers from start (inclusive) to end (exclusive), incrementing by step. If step is positive, the sequence is generated from start to end, otherwise it is generated from end to start.", [["n"], ["start", "end"], ["start", "end", "step"]]),
-  keys: withDoc(cljNativeFunction("keys", (m) => {
+  keys: withDoc(cljNativeFunction("keys", function keysImpl(m) {
     if (m === undefined || !isMap(m)) {
       throw EvaluationError.atArg(`keys expects a map${m !== undefined ? `, got ${printString(m)}` : ""}`, { m }, 0);
     }
-    return cljVector(m.entries.map(([k]) => k));
+    return cljVector(m.entries.map(function extractKey([k]) {
+      return k;
+    }));
   }), "Returns a vector of the keys of the given map.", [["m"]]),
-  vals: withDoc(cljNativeFunction("vals", (m) => {
+  vals: withDoc(cljNativeFunction("vals", function valsImpl(m) {
     if (m === undefined || !isMap(m)) {
       throw EvaluationError.atArg(`vals expects a map${m !== undefined ? `, got ${printString(m)}` : ""}`, { m }, 0);
     }
-    return cljVector(m.entries.map(([, v]) => v));
+    return cljVector(m.entries.map(function extractVal([, v]) {
+      return v;
+    }));
   }), "Returns a vector of the values of the given map.", [["m"]]),
-  count: withDoc(cljNativeFunction("count", (countable) => {
+  count: withDoc(cljNativeFunction("count", function countImpl(countable) {
     if (![
       valueKeywords.list,
       valueKeywords.vector,
@@ -2116,13 +2154,13 @@ var collectionFunctions = {
 
 // src/core/stdlib/errors.ts
 var errorFunctions = {
-  throw: withDoc(cljNativeFunction("throw", (...args) => {
+  throw: withDoc(cljNativeFunction("throw", function throwImpl(...args) {
     if (args.length !== 1) {
       throw new EvaluationError(`throw requires exactly 1 argument, got ${args.length}`, { args });
     }
     throw new CljThrownSignal(args[0]);
   }), "Throws a value as an exception. The value may be any CljValue; maps are idiomatic.", [["value"]]),
-  "ex-info": withDoc(cljNativeFunction("ex-info", (...args) => {
+  "ex-info": withDoc(cljNativeFunction("ex-info", function exInfoImpl(...args) {
     if (args.length < 2) {
       throw new EvaluationError(`ex-info requires at least 2 arguments, got ${args.length}`, { args });
     }
@@ -2139,32 +2177,38 @@ var errorFunctions = {
     }
     return cljMap(entries);
   }), "Creates an error map with :message and :data keys. Optionally accepts a :cause.", [["msg", "data"], ["msg", "data", "cause"]]),
-  "ex-message": withDoc(cljNativeFunction("ex-message", (...args) => {
+  "ex-message": withDoc(cljNativeFunction("ex-message", function exMessageImpl(...args) {
     const [e] = args;
     if (!isMap(e))
       return cljNil();
-    const entry = e.entries.find(([k]) => isKeyword(k) && k.name === ":message");
+    const entry = e.entries.find(function findMessageKey([k]) {
+      return isKeyword(k) && k.name === ":message";
+    });
     return entry ? entry[1] : cljNil();
   }), "Returns the :message of an error map, or nil.", [["e"]]),
-  "ex-data": withDoc(cljNativeFunction("ex-data", (...args) => {
+  "ex-data": withDoc(cljNativeFunction("ex-data", function exDataImpl(...args) {
     const [e] = args;
     if (!isMap(e))
       return cljNil();
-    const entry = e.entries.find(([k]) => isKeyword(k) && k.name === ":data");
+    const entry = e.entries.find(function findDataKey([k]) {
+      return isKeyword(k) && k.name === ":data";
+    });
     return entry ? entry[1] : cljNil();
   }), "Returns the :data map of an error map, or nil.", [["e"]]),
-  "ex-cause": withDoc(cljNativeFunction("ex-cause", (...args) => {
+  "ex-cause": withDoc(cljNativeFunction("ex-cause", function exCauseImpl(...args) {
     const [e] = args;
     if (!isMap(e))
       return cljNil();
-    const entry = e.entries.find(([k]) => isKeyword(k) && k.name === ":cause");
+    const entry = e.entries.find(function findCauseKey([k]) {
+      return isKeyword(k) && k.name === ":cause";
+    });
     return entry ? entry[1] : cljNil();
   }), "Returns the :cause of an error map, or nil.", [["e"]])
 };
 
 // src/core/stdlib/hof.ts
 var hofFunctions = {
-  reduce: withDoc(cljNativeFunctionWithContext("reduce", (ctx, callEnv, fn, ...rest) => {
+  reduce: withDoc(cljNativeFunctionWithContext("reduce", function reduce(ctx, callEnv, fn, ...rest) {
     if (fn === undefined || !isAFunction(fn)) {
       throw EvaluationError.atArg(`reduce expects a function as first argument${fn !== undefined ? `, got ${printString(fn)}` : ""}`, { fn }, 0);
     }
@@ -2269,7 +2313,7 @@ var hofFunctions = {
 
 // src/core/stdlib/meta.ts
 var metaFunctions = {
-  meta: withDoc(cljNativeFunction("meta", (val) => {
+  meta: withDoc(cljNativeFunction("meta", function metaImpl(val) {
     if (val === undefined) {
       throw EvaluationError.atArg("meta expects one argument", {}, 0);
     }
@@ -2278,7 +2322,7 @@ var metaFunctions = {
     }
     return cljNil();
   }), "Returns the metadata map of a value, or nil if the value has no metadata.", [["val"]]),
-  "with-meta": withDoc(cljNativeFunction("with-meta", (val, m) => {
+  "with-meta": withDoc(cljNativeFunction("with-meta", function withMetaImpl(val, m) {
     if (val === undefined) {
       throw EvaluationError.atArg("with-meta expects two arguments", {}, 0);
     }
@@ -2295,7 +2339,7 @@ var metaFunctions = {
     const meta = m.kind === "nil" ? undefined : m;
     return { ...val, meta };
   }), "Returns a new value with the metadata map m applied to val.", [["val", "m"]]),
-  "alter-meta!": withDoc(cljNativeFunctionWithContext("alter-meta!", (ctx, callEnv, ref, f, ...args) => {
+  "alter-meta!": withDoc(cljNativeFunctionWithContext("alter-meta!", function alterMetaImpl(ctx, callEnv, ref, f, ...args) {
     if (ref === undefined) {
       throw EvaluationError.atArg("alter-meta! expects at least two arguments", {}, 0);
     }
@@ -2561,28 +2605,28 @@ function applyFunction(fn, args, callEnv = makeEnv()) {
 
 // src/core/stdlib/predicates.ts
 var predicateFunctions = {
-  "nil?": withDoc(cljNativeFunction("nil?", (arg) => {
+  "nil?": withDoc(cljNativeFunction("nil?", function nilPredImpl(arg) {
     return cljBoolean(arg.kind === "nil");
   }), "Returns true if the value is nil, false otherwise.", [["arg"]]),
-  "true?": withDoc(cljNativeFunction("true?", (arg) => {
+  "true?": withDoc(cljNativeFunction("true?", function truePredImpl(arg) {
     if (arg.kind !== "boolean") {
       return cljBoolean(false);
     }
     return cljBoolean(arg.value === true);
   }), "Returns true if the value is a boolean and true, false otherwise.", [["arg"]]),
-  "false?": withDoc(cljNativeFunction("false?", (arg) => {
+  "false?": withDoc(cljNativeFunction("false?", function falsePredImpl(arg) {
     if (arg.kind !== "boolean") {
       return cljBoolean(false);
     }
     return cljBoolean(arg.value === false);
   }), "Returns true if the value is a boolean and false, false otherwise.", [["arg"]]),
-  "truthy?": withDoc(cljNativeFunction("truthy?", (arg) => {
+  "truthy?": withDoc(cljNativeFunction("truthy?", function truthyPredImpl(arg) {
     return cljBoolean(isTruthy(arg));
   }), "Returns true if the value is not nil or false, false otherwise.", [["arg"]]),
-  "falsy?": withDoc(cljNativeFunction("falsy?", (arg) => {
+  "falsy?": withDoc(cljNativeFunction("falsy?", function falsyPredImpl(arg) {
     return cljBoolean(isFalsy(arg));
   }), "Returns true if the value is nil or false, false otherwise.", [["arg"]]),
-  "not=": withDoc(cljNativeFunction("not=", (...vals) => {
+  "not=": withDoc(cljNativeFunction("not=", function notEqualImpl(...vals) {
     if (vals.length < 2) {
       throw new EvaluationError("not= expects at least two arguments", {
         args: vals
@@ -2595,19 +2639,43 @@ var predicateFunctions = {
     }
     return cljBoolean(false);
   }), "Returns true if any two adjacent arguments are not equal, false otherwise.", [["&", "vals"]]),
-  "number?": withDoc(cljNativeFunction("number?", (x) => cljBoolean(x !== undefined && x.kind === "number")), "Returns true if the value is a number, false otherwise.", [["x"]]),
-  "string?": withDoc(cljNativeFunction("string?", (x) => cljBoolean(x !== undefined && x.kind === "string")), "Returns true if the value is a string, false otherwise.", [["x"]]),
-  "boolean?": withDoc(cljNativeFunction("boolean?", (x) => cljBoolean(x !== undefined && x.kind === "boolean")), "Returns true if the value is a boolean, false otherwise.", [["x"]]),
-  "vector?": withDoc(cljNativeFunction("vector?", (x) => cljBoolean(x !== undefined && isVector(x))), "Returns true if the value is a vector, false otherwise.", [["x"]]),
-  "list?": withDoc(cljNativeFunction("list?", (x) => cljBoolean(x !== undefined && isList(x))), "Returns true if the value is a list, false otherwise.", [["x"]]),
-  "map?": withDoc(cljNativeFunction("map?", (x) => cljBoolean(x !== undefined && isMap(x))), "Returns true if the value is a map, false otherwise.", [["x"]]),
-  "keyword?": withDoc(cljNativeFunction("keyword?", (x) => cljBoolean(x !== undefined && isKeyword(x))), "Returns true if the value is a keyword, false otherwise.", [["x"]]),
-  "qualified-keyword?": withDoc(cljNativeFunction("qualified-keyword?", (x) => cljBoolean(x !== undefined && isKeyword(x) && x.name.includes("/"))), "Returns true if the value is a qualified keyword, false otherwise.", [["x"]]),
-  "symbol?": withDoc(cljNativeFunction("symbol?", (x) => cljBoolean(x !== undefined && isSymbol(x))), "Returns true if the value is a symbol, false otherwise.", [["x"]]),
-  "qualified-symbol?": withDoc(cljNativeFunction("qualified-symbol?", (x) => cljBoolean(x !== undefined && isSymbol(x) && x.name.includes("/"))), "Returns true if the value is a qualified symbol, false otherwise.", [["x"]]),
-  "fn?": withDoc(cljNativeFunction("fn?", (x) => cljBoolean(x !== undefined && isAFunction(x))), "Returns true if the value is a function, false otherwise.", [["x"]]),
-  "coll?": withDoc(cljNativeFunction("coll?", (x) => cljBoolean(x !== undefined && isCollection(x))), "Returns true if the value is a collection, false otherwise.", [["x"]]),
-  some: withDoc(cljNativeFunction("some", (pred, coll) => {
+  "number?": withDoc(cljNativeFunction("number?", function numberPredImpl(x) {
+    return cljBoolean(x !== undefined && x.kind === "number");
+  }), "Returns true if the value is a number, false otherwise.", [["x"]]),
+  "string?": withDoc(cljNativeFunction("string?", function stringPredImpl(x) {
+    return cljBoolean(x !== undefined && x.kind === "string");
+  }), "Returns true if the value is a string, false otherwise.", [["x"]]),
+  "boolean?": withDoc(cljNativeFunction("boolean?", function booleanPredImpl(x) {
+    return cljBoolean(x !== undefined && x.kind === "boolean");
+  }), "Returns true if the value is a boolean, false otherwise.", [["x"]]),
+  "vector?": withDoc(cljNativeFunction("vector?", function vectorPredImpl(x) {
+    return cljBoolean(x !== undefined && isVector(x));
+  }), "Returns true if the value is a vector, false otherwise.", [["x"]]),
+  "list?": withDoc(cljNativeFunction("list?", function listPredImpl(x) {
+    return cljBoolean(x !== undefined && isList(x));
+  }), "Returns true if the value is a list, false otherwise.", [["x"]]),
+  "map?": withDoc(cljNativeFunction("map?", function mapPredImpl(x) {
+    return cljBoolean(x !== undefined && isMap(x));
+  }), "Returns true if the value is a map, false otherwise.", [["x"]]),
+  "keyword?": withDoc(cljNativeFunction("keyword?", function keywordPredImpl(x) {
+    return cljBoolean(x !== undefined && isKeyword(x));
+  }), "Returns true if the value is a keyword, false otherwise.", [["x"]]),
+  "qualified-keyword?": withDoc(cljNativeFunction("qualified-keyword?", function qualifiedKeywordPredImpl(x) {
+    return cljBoolean(x !== undefined && isKeyword(x) && x.name.includes("/"));
+  }), "Returns true if the value is a qualified keyword, false otherwise.", [["x"]]),
+  "symbol?": withDoc(cljNativeFunction("symbol?", function symbolPredImpl(x) {
+    return cljBoolean(x !== undefined && isSymbol(x));
+  }), "Returns true if the value is a symbol, false otherwise.", [["x"]]),
+  "qualified-symbol?": withDoc(cljNativeFunction("qualified-symbol?", function qualifiedSymbolPredImpl(x) {
+    return cljBoolean(x !== undefined && isSymbol(x) && x.name.includes("/"));
+  }), "Returns true if the value is a qualified symbol, false otherwise.", [["x"]]),
+  "fn?": withDoc(cljNativeFunction("fn?", function fnPredImpl(x) {
+    return cljBoolean(x !== undefined && isAFunction(x));
+  }), "Returns true if the value is a function, false otherwise.", [["x"]]),
+  "coll?": withDoc(cljNativeFunction("coll?", function collPredImpl(x) {
+    return cljBoolean(x !== undefined && isCollection(x));
+  }), "Returns true if the value is a collection, false otherwise.", [["x"]]),
+  some: withDoc(cljNativeFunction("some", function someImpl(pred, coll) {
     if (pred === undefined || !isAFunction(pred)) {
       throw EvaluationError.atArg(`some expects a function as first argument${pred !== undefined ? `, got ${printString(pred)}` : ""}`, { pred }, 0);
     }
@@ -2625,7 +2693,7 @@ var predicateFunctions = {
     }
     return cljNil();
   }), "Returns the first truthy result of applying pred to each item in coll, or nil if no item satisfies pred.", [["pred", "coll"]]),
-  "every?": withDoc(cljNativeFunction("every?", (pred, coll) => {
+  "every?": withDoc(cljNativeFunction("every?", function everyPredImpl(pred, coll) {
     if (pred === undefined || !isAFunction(pred)) {
       throw EvaluationError.atArg(`every? expects a function as first argument${pred !== undefined ? `, got ${printString(pred)}` : ""}`, { pred }, 0);
     }
@@ -2674,11 +2742,15 @@ function assertStringArg(val, fnName) {
 function matchToClj(match) {
   if (match.length === 1)
     return cljString(match[0]);
-  return cljVector(match.map((m) => m == null ? cljNil() : cljString(m)));
+  return cljVector(match.map(function mapMatchToClj(m) {
+    return m == null ? cljNil() : cljString(m);
+  }));
 }
 var regexFunctions = {
-  "regexp?": withDoc(cljNativeFunction("regexp?", (x) => cljBoolean(x !== undefined && isRegex(x))), "Returns true if x is a regular expression pattern.", [["x"]]),
-  "re-pattern": withDoc(cljNativeFunction("re-pattern", (s) => {
+  "regexp?": withDoc(cljNativeFunction("regexp?", function regexpPredImpl(x) {
+    return cljBoolean(x !== undefined && isRegex(x));
+  }), "Returns true if x is a regular expression pattern.", [["x"]]),
+  "re-pattern": withDoc(cljNativeFunction("re-pattern", function rePatternImpl(s) {
     if (s === undefined || s.kind !== "string") {
       throw new EvaluationError(`re-pattern expects a string argument${s !== undefined ? `, got ${printString(s)}` : ""}`, { s });
     }
@@ -2686,7 +2758,7 @@ var regexFunctions = {
     return cljRegex(pattern, flags);
   }), `Returns an instance of java.util.regex.Pattern, for use, e.g. in re-matcher.
   (re-pattern "\\\\d+") produces the same pattern as #"\\d+".`, [["s"]]),
-  "re-find": withDoc(cljNativeFunction("re-find", (reVal, sVal) => {
+  "re-find": withDoc(cljNativeFunction("re-find", function reFindImpl(reVal, sVal) {
     const re = assertRegex(reVal, "re-find");
     const s = assertStringArg(sVal, "re-find");
     const jsRe = new RegExp(re.pattern, re.flags);
@@ -2698,7 +2770,7 @@ var regexFunctions = {
   java.util.regex.Matcher.find(). Returns the match or nil. When there
   are groups, returns a vector of the whole match and groups (nil for
   unmatched optional groups).`, [["re", "s"]]),
-  "re-matches": withDoc(cljNativeFunction("re-matches", (reVal, sVal) => {
+  "re-matches": withDoc(cljNativeFunction("re-matches", function reMatchesImpl(reVal, sVal) {
     const re = assertRegex(reVal, "re-matches");
     const s = assertStringArg(sVal, "re-matches");
     const jsRe = new RegExp(re.pattern, re.flags);
@@ -2711,7 +2783,7 @@ var regexFunctions = {
   java.util.regex.Matcher.matches(). The entire string must match.
   Returns the match or nil. When there are groups, returns a vector
   of the whole match and groups (nil for unmatched optional groups).`, [["re", "s"]]),
-  "re-seq": withDoc(cljNativeFunction("re-seq", (reVal, sVal) => {
+  "re-seq": withDoc(cljNativeFunction("re-seq", function reSeqImpl(reVal, sVal) {
     const re = assertRegex(reVal, "re-seq");
     const s = assertStringArg(sVal, "re-seq");
     const jsRe = new RegExp(re.pattern, re.flags + "g");
@@ -2730,7 +2802,7 @@ var regexFunctions = {
   }), `Returns a lazy sequence of successive matches of pattern in string,
   using java.util.regex.Matcher.find(), each such match processed with
   re-groups.`, [["re", "s"]]),
-  "str-split*": withDoc(cljNativeFunction("str-split*", (sVal, sepVal, limitVal) => {
+  "str-split*": withDoc(cljNativeFunction("str-split*", function strSplitImpl(sVal, sepVal, limitVal) {
     if (sVal === undefined || sVal.kind !== "string") {
       throw new EvaluationError(`str-split* expects a string as first argument${sVal !== undefined ? `, got ${printString(sVal)}` : ""}`, { sVal });
     }
@@ -2748,13 +2820,17 @@ var regexFunctions = {
         return cljVector(chars.map(cljString));
       }
       const parts = [...chars.slice(0, limit - 1), chars.slice(limit - 1).join("")];
-      return cljVector(parts.map(cljString));
+      return cljVector(parts.map(function mapPartToString(p) {
+        return cljString(p);
+      }));
     }
     jsPattern = sepVal.pattern;
     jsFlags = sepVal.flags;
     const re = new RegExp(jsPattern, jsFlags + "g");
     const rawParts = splitWithRegex(s, re, limit);
-    return cljVector(rawParts.map((p) => cljString(p)));
+    return cljVector(rawParts.map(function mapRawPartToString(p) {
+      return cljString(p);
+    }));
   }), `Internal helper for clojure.string/split. Splits string s by a regex or
   string separator. Optional limit keeps all parts when provided.`, [["s", "sep"], ["s", "sep", "limit"]])
 };
@@ -2815,7 +2891,9 @@ function buildMatchValue(whole, args) {
     return cljString(whole);
   return cljVector([
     cljString(whole),
-    ...groups.map((g) => g == null ? cljNil() : cljString(String(g)))
+    ...groups.map(function mapGroupToClj(g) {
+      return g == null ? cljNil() : cljString(String(g));
+    })
   ]);
 }
 function doReplace(ctx, callEnv, fnName, sVal, matchVal, replVal, global) {
@@ -2839,7 +2917,7 @@ function doReplace(ctx, callEnv, fnName, sVal, matchVal, replVal, global) {
     }
     if (isAFunction(replVal)) {
       const fn = replVal;
-      const result = s.replace(jsRe, (whole, ...args) => {
+      const result = s.replace(jsRe, function replaceCallback(whole, ...args) {
         const matchClj = buildMatchValue(whole, args);
         const replResult = ctx.applyFunction(fn, [matchClj], callEnv);
         return valueToString(replResult);
@@ -2851,40 +2929,40 @@ function doReplace(ctx, callEnv, fnName, sVal, matchVal, replVal, global) {
   throw new EvaluationError(`${fnName}: match must be a string or regex, got ${printString(matchVal)}`, { matchVal });
 }
 var stringFunctions = {
-  "str-upper-case*": withDoc(cljNativeFunction("str-upper-case*", (sVal) => {
+  "str-upper-case*": withDoc(cljNativeFunction("str-upper-case*", function strUpperCaseImpl(sVal) {
     return cljString(assertStr(sVal, "str-upper-case*").toUpperCase());
   }), "Internal helper. Converts s to upper-case.", [["s"]]),
-  "str-lower-case*": withDoc(cljNativeFunction("str-lower-case*", (sVal) => {
+  "str-lower-case*": withDoc(cljNativeFunction("str-lower-case*", function strLowerCaseImpl(sVal) {
     return cljString(assertStr(sVal, "str-lower-case*").toLowerCase());
   }), "Internal helper. Converts s to lower-case.", [["s"]]),
-  "str-trim*": withDoc(cljNativeFunction("str-trim*", (sVal) => {
+  "str-trim*": withDoc(cljNativeFunction("str-trim*", function strTrimImpl(sVal) {
     return cljString(assertStr(sVal, "str-trim*").trim());
   }), "Internal helper. Removes whitespace from both ends of s.", [["s"]]),
-  "str-triml*": withDoc(cljNativeFunction("str-triml*", (sVal) => {
+  "str-triml*": withDoc(cljNativeFunction("str-triml*", function strTrimlImpl(sVal) {
     return cljString(assertStr(sVal, "str-triml*").trimStart());
   }), "Internal helper. Removes whitespace from the left of s.", [["s"]]),
-  "str-trimr*": withDoc(cljNativeFunction("str-trimr*", (sVal) => {
+  "str-trimr*": withDoc(cljNativeFunction("str-trimr*", function strTrimrImpl(sVal) {
     return cljString(assertStr(sVal, "str-trimr*").trimEnd());
   }), "Internal helper. Removes whitespace from the right of s.", [["s"]]),
-  "str-reverse*": withDoc(cljNativeFunction("str-reverse*", (sVal) => {
+  "str-reverse*": withDoc(cljNativeFunction("str-reverse*", function strReverseImpl(sVal) {
     return cljString([...assertStr(sVal, "str-reverse*")].reverse().join(""));
   }), "Internal helper. Returns s with its characters reversed (Unicode-safe).", [["s"]]),
-  "str-starts-with*": withDoc(cljNativeFunction("str-starts-with*", (sVal, substrVal) => {
+  "str-starts-with*": withDoc(cljNativeFunction("str-starts-with*", function strStartsWithImpl(sVal, substrVal) {
     const s = assertStr(sVal, "str-starts-with*");
     const substr = assertStrArg(substrVal, "second", "str-starts-with*");
     return cljBoolean(s.startsWith(substr));
   }), "Internal helper. Returns true if s starts with substr.", [["s", "substr"]]),
-  "str-ends-with*": withDoc(cljNativeFunction("str-ends-with*", (sVal, substrVal) => {
+  "str-ends-with*": withDoc(cljNativeFunction("str-ends-with*", function strEndsWithImpl(sVal, substrVal) {
     const s = assertStr(sVal, "str-ends-with*");
     const substr = assertStrArg(substrVal, "second", "str-ends-with*");
     return cljBoolean(s.endsWith(substr));
   }), "Internal helper. Returns true if s ends with substr.", [["s", "substr"]]),
-  "str-includes*": withDoc(cljNativeFunction("str-includes*", (sVal, substrVal) => {
+  "str-includes*": withDoc(cljNativeFunction("str-includes*", function strIncludesImpl(sVal, substrVal) {
     const s = assertStr(sVal, "str-includes*");
     const substr = assertStrArg(substrVal, "second", "str-includes*");
     return cljBoolean(s.includes(substr));
   }), "Internal helper. Returns true if s contains substr.", [["s", "substr"]]),
-  "str-index-of*": withDoc(cljNativeFunction("str-index-of*", (sVal, valVal, fromVal) => {
+  "str-index-of*": withDoc(cljNativeFunction("str-index-of*", function strIndexOfImpl(sVal, valVal, fromVal) {
     const s = assertStr(sVal, "str-index-of*");
     const needle = assertStrArg(valVal, "second", "str-index-of*");
     let idx;
@@ -2898,7 +2976,7 @@ var stringFunctions = {
     }
     return idx === -1 ? cljNil() : cljNumber(idx);
   }), "Internal helper. Returns index of value in s, or nil if not found.", [["s", "value"], ["s", "value", "from-index"]]),
-  "str-last-index-of*": withDoc(cljNativeFunction("str-last-index-of*", (sVal, valVal, fromVal) => {
+  "str-last-index-of*": withDoc(cljNativeFunction("str-last-index-of*", function strLastIndexOfImpl(sVal, valVal, fromVal) {
     const s = assertStr(sVal, "str-last-index-of*");
     const needle = assertStrArg(valVal, "second", "str-last-index-of*");
     let idx;
@@ -2912,49 +2990,53 @@ var stringFunctions = {
     }
     return idx === -1 ? cljNil() : cljNumber(idx);
   }), "Internal helper. Returns last index of value in s, or nil if not found.", [["s", "value"], ["s", "value", "from-index"]]),
-  "str-replace*": withDoc(cljNativeFunctionWithContext("str-replace*", (ctx, callEnv, sVal, matchVal, replVal) => doReplace(ctx, callEnv, "str-replace*", sVal, matchVal, replVal, true)), "Internal helper. Replaces all occurrences of match with replacement in s.", [["s", "match", "replacement"]]),
-  "str-replace-first*": withDoc(cljNativeFunctionWithContext("str-replace-first*", (ctx, callEnv, sVal, matchVal, replVal) => doReplace(ctx, callEnv, "str-replace-first*", sVal, matchVal, replVal, false)), "Internal helper. Replaces the first occurrence of match with replacement in s.", [["s", "match", "replacement"]])
+  "str-replace*": withDoc(cljNativeFunctionWithContext("str-replace*", function strReplaceImpl(ctx, callEnv, sVal, matchVal, replVal) {
+    return doReplace(ctx, callEnv, "str-replace*", sVal, matchVal, replVal, true);
+  }), "Internal helper. Replaces all occurrences of match with replacement in s.", [["s", "match", "replacement"]]),
+  "str-replace-first*": withDoc(cljNativeFunctionWithContext("str-replace-first*", function strReplaceFirstImpl(ctx, callEnv, sVal, matchVal, replVal) {
+    return doReplace(ctx, callEnv, "str-replace-first*", sVal, matchVal, replVal, false);
+  }), "Internal helper. Replaces the first occurrence of match with replacement in s.", [["s", "match", "replacement"]])
 };
 
 // src/core/stdlib/transducers.ts
 var transducerFunctions = {
-  reduced: withDoc(cljNativeFunction("reduced", (value) => {
+  reduced: withDoc(cljNativeFunction("reduced", function reducedImpl(value) {
     if (value === undefined) {
       throw new EvaluationError("reduced expects one argument", {});
     }
     return cljReduced(value);
   }), "Returns a reduced value, indicating termination of the reduction process.", [["value"]]),
-  "reduced?": withDoc(cljNativeFunction("reduced?", (value) => {
+  "reduced?": withDoc(cljNativeFunction("reduced?", function isReducedImpl(value) {
     if (value === undefined) {
       throw new EvaluationError("reduced? expects one argument", {});
     }
     return cljBoolean(isReduced(value));
   }), "Returns true if the given value is a reduced value, false otherwise.", [["value"]]),
-  unreduced: withDoc(cljNativeFunction("unreduced", (value) => {
+  unreduced: withDoc(cljNativeFunction("unreduced", function unreducedImpl(value) {
     if (value === undefined) {
       throw new EvaluationError("unreduced expects one argument", {});
     }
     return isReduced(value) ? value.value : value;
   }), "Returns the unreduced value of the given value. If the value is not a reduced value, it is returned unchanged.", [["value"]]),
-  "ensure-reduced": withDoc(cljNativeFunction("ensure-reduced", (value) => {
+  "ensure-reduced": withDoc(cljNativeFunction("ensure-reduced", function ensureReducedImpl(value) {
     if (value === undefined) {
       throw new EvaluationError("ensure-reduced expects one argument", {});
     }
     return isReduced(value) ? value : cljReduced(value);
   }), "Returns the given value if it is a reduced value, otherwise returns a reduced value with the given value as its value.", [["value"]]),
-  "volatile!": withDoc(cljNativeFunction("volatile!", (value) => {
+  "volatile!": withDoc(cljNativeFunction("volatile!", function volatileImpl(value) {
     if (value === undefined) {
       throw new EvaluationError("volatile! expects one argument", {});
     }
     return cljVolatile(value);
   }), "Returns a volatile value with the given value as its value.", [["value"]]),
-  "volatile?": withDoc(cljNativeFunction("volatile?", (value) => {
+  "volatile?": withDoc(cljNativeFunction("volatile?", function isVolatileImpl(value) {
     if (value === undefined) {
       throw new EvaluationError("volatile? expects one argument", {});
     }
     return cljBoolean(isVolatile(value));
   }), "Returns true if the given value is a volatile value, false otherwise.", [["value"]]),
-  "vreset!": withDoc(cljNativeFunction("vreset!", (vol, newVal) => {
+  "vreset!": withDoc(cljNativeFunction("vreset!", function vresetImpl(vol, newVal) {
     if (!isVolatile(vol)) {
       throw new EvaluationError(`vreset! expects a volatile as its first argument, got ${printString(vol)}`, { vol });
     }
@@ -2964,7 +3046,7 @@ var transducerFunctions = {
     vol.value = newVal;
     return newVal;
   }), "Resets the value of the given volatile to the given new value and returns the new value.", [["vol", "newVal"]]),
-  "vswap!": withDoc(cljNativeFunctionWithContext("vswap!", (ctx, callEnv, vol, fn, ...extraArgs) => {
+  "vswap!": withDoc(cljNativeFunctionWithContext("vswap!", function vswapImpl(ctx, callEnv, vol, fn, ...extraArgs) {
     if (!isVolatile(vol)) {
       throw new EvaluationError(`vswap! expects a volatile as its first argument, got ${printString(vol)}`, { vol });
     }
@@ -2978,7 +3060,7 @@ var transducerFunctions = {
     ["vol", "fn"],
     ["vol", "fn", "&", "extraArgs"]
   ]),
-  transduce: withDoc(cljNativeFunctionWithContext("transduce", (ctx, callEnv, xform, f, init, coll) => {
+  transduce: withDoc(cljNativeFunctionWithContext("transduce", function transduceImpl(ctx, callEnv, xform, f, init, coll) {
     if (!isAFunction(xform)) {
       throw new EvaluationError(`transduce expects a transducer (function) as first argument, got ${printString(xform)}`, { xf: xform });
     }
@@ -3032,10 +3114,10 @@ var transducerFunctions = {
 
 // src/core/stdlib/utils.ts
 var utilFunctions = {
-  str: withDoc(cljNativeFunction("str", (...args) => {
+  str: withDoc(cljNativeFunction("str", function strImpl(...args) {
     return cljString(args.map(valueToString).join(""));
   }), "Returns a concatenated string representation of the given values.", [["&", "args"]]),
-  subs: withDoc(cljNativeFunction("subs", (s, start, end) => {
+  subs: withDoc(cljNativeFunction("subs", function subsImpl(s, start, end) {
     if (s === undefined || s.kind !== "string") {
       throw EvaluationError.atArg(`subs expects a string as first argument${s !== undefined ? `, got ${printString(s)}` : ""}`, { s }, 0);
     }
@@ -3052,7 +3134,7 @@ var utilFunctions = {
     ["s", "start"],
     ["s", "start", "end"]
   ]),
-  type: withDoc(cljNativeFunction("type", (x) => {
+  type: withDoc(cljNativeFunction("type", function typeImpl(x) {
     if (x === undefined) {
       throw new EvaluationError("type expects an argument", { x });
     }
@@ -3077,7 +3159,7 @@ var utilFunctions = {
     }
     return cljKeyword(name);
   }), "Returns a keyword representing the type of the given value.", [["x"]]),
-  gensym: withDoc(cljNativeFunction("gensym", (...args) => {
+  gensym: withDoc(cljNativeFunction("gensym", function gensymImpl(...args) {
     if (args.length > 1) {
       throw new EvaluationError("gensym takes 0 or 1 arguments", { args });
     }
@@ -3088,7 +3170,7 @@ var utilFunctions = {
     const p = prefix?.kind === "string" ? prefix.value : "G";
     return cljSymbol(makeGensym(p));
   }), 'Returns a unique symbol with the given prefix. Defaults to "G" if no prefix is provided.', [[], ["prefix"]]),
-  eval: withDoc(cljNativeFunctionWithContext("eval", (ctx, callEnv, form) => {
+  eval: withDoc(cljNativeFunctionWithContext("eval", function evalImpl(ctx, callEnv, form) {
     if (form === undefined) {
       throw new EvaluationError("eval expects a form as argument", {
         form
@@ -3097,7 +3179,7 @@ var utilFunctions = {
     const expanded = ctx.expandAll(form, callEnv);
     return ctx.evaluate(expanded, callEnv);
   }), "Evaluates the given form in the global environment and returns the result.", [["form"]]),
-  "macroexpand-1": withDoc(cljNativeFunctionWithContext("macroexpand-1", (ctx, callEnv, form) => {
+  "macroexpand-1": withDoc(cljNativeFunctionWithContext("macroexpand-1", function macroexpand1Impl(ctx, callEnv, form) {
     if (!isList(form) || form.value.length === 0)
       return form;
     const head = form.value[0];
@@ -3110,7 +3192,7 @@ var utilFunctions = {
       return form;
     return ctx.applyMacro(macroValue, form.value.slice(1));
   }), "If the head of the form is a macro, expands it and returns the resulting forms. Otherwise, returns the form unchanged.", [["form"]]),
-  macroexpand: withDoc(cljNativeFunctionWithContext("macroexpand", (ctx, callEnv, form) => {
+  macroexpand: withDoc(cljNativeFunctionWithContext("macroexpand", function macroexpandImpl(ctx, callEnv, form) {
     let current = form;
     while (true) {
       if (!isList(current) || current.value.length === 0)
@@ -3130,13 +3212,15 @@ var utilFunctions = {
     "",
     "Note neither macroexpand-1 nor macroexpand will expand macros in sub-forms"
   ]), [["form"]]),
-  "macroexpand-all": withDoc(cljNativeFunctionWithContext("macroexpand-all", (ctx, callEnv, form) => ctx.expandAll(form, callEnv)), joinLines([
+  "macroexpand-all": withDoc(cljNativeFunctionWithContext("macroexpand-all", function macroexpandAllImpl(ctx, callEnv, form) {
+    return ctx.expandAll(form, callEnv);
+  }), joinLines([
     "Fully expands all macros in a form recursively — including in sub-forms.",
     "",
     "Unlike macroexpand, this descends into every sub-expression.",
     "Expansion stops at quote/quasiquote boundaries and fn/loop bodies."
   ]), [["form"]]),
-  namespace: withDoc(cljNativeFunction("namespace", (x) => {
+  namespace: withDoc(cljNativeFunction("namespace", function namespaceImpl(x) {
     if (x === undefined) {
       throw EvaluationError.atArg("namespace expects an argument", { x }, 0);
     }
@@ -3153,7 +3237,7 @@ var utilFunctions = {
       return cljNil();
     return cljString(raw.slice(0, slashIdx));
   }), "Returns the namespace string of a qualified keyword or symbol, or nil if the argument is not qualified.", [["x"]]),
-  name: withDoc(cljNativeFunction("name", (x) => {
+  name: withDoc(cljNativeFunction("name", function nameImpl(x) {
     if (x === undefined) {
       throw EvaluationError.atArg("name expects an argument", { x }, 0);
     }
@@ -3170,7 +3254,7 @@ var utilFunctions = {
     const slashIdx = raw.indexOf("/");
     return cljString(slashIdx >= 0 ? raw.slice(slashIdx + 1) : raw);
   }), "Returns the local name of a qualified keyword or symbol, or the string value if the argument is a string.", [["x"]]),
-  keyword: withDoc(cljNativeFunction("keyword", (...args) => {
+  keyword: withDoc(cljNativeFunction("keyword", function keywordImpl(...args) {
     if (args.length === 0 || args.length > 2) {
       throw new EvaluationError("keyword expects 1 or 2 string arguments", {
         args
@@ -3192,7 +3276,7 @@ var utilFunctions = {
     "Note: do not use : in the keyword strings, it will be added automatically.",
     'e.g. (keyword "foo") => :foo'
   ]), [["name"], ["ns", "name"]]),
-  boolean: withDoc(cljNativeFunction("boolean", (x) => {
+  boolean: withDoc(cljNativeFunction("boolean", function booleanImpl(x) {
     if (x === undefined)
       return cljBoolean(false);
     return cljBoolean(isTruthy(x));
@@ -3201,14 +3285,16 @@ var utilFunctions = {
 
 // src/core/stdlib/vars.ts
 var varFunctions = {
-  "var?": withDoc(cljNativeFunction("var?", (x) => cljBoolean(isVar(x))), "Returns true if x is a Var.", [["x"]]),
-  "var-get": withDoc(cljNativeFunction("var-get", (x) => {
+  "var?": withDoc(cljNativeFunction("var?", function isVarImpl(x) {
+    return cljBoolean(isVar(x));
+  }), "Returns true if x is a Var.", [["x"]]),
+  "var-get": withDoc(cljNativeFunction("var-get", function varGetImpl(x) {
     if (!isVar(x)) {
       throw new EvaluationError(`var-get expects a Var, got ${x.kind}`, { x });
     }
     return x.value;
   }), "Returns the value in the Var object.", [["x"]]),
-  "alter-var-root": withDoc(cljNativeFunctionWithContext("alter-var-root", (ctx, callEnv, varVal, f, ...args) => {
+  "alter-var-root": withDoc(cljNativeFunctionWithContext("alter-var-root", function alterVarRootImpl(ctx, callEnv, varVal, f, ...args) {
     if (!isVar(varVal)) {
       throw new EvaluationError(`alter-var-root expects a Var as its first argument, got ${varVal.kind}`, { varVal });
     }
@@ -3242,11 +3328,17 @@ function loadCoreFunctions(env, output) {
   }
   const emit = output ?? ((text) => console.log(text));
   internVar("println", cljNativeFunction("println", (...args) => {
-    emit(args.map(valueToString).join(" "));
+    emit(args.map(valueToString).join(" ") + `
+`);
     return cljNil();
   }), env);
   internVar("print", cljNativeFunction("print", (...args) => {
     emit(args.map(valueToString).join(" "));
+    return cljNil();
+  }), env);
+  internVar("newline", cljNativeFunction("newline", () => {
+    emit(`
+`);
     return cljNil();
   }), env);
 }
@@ -4778,15 +4870,19 @@ var clojure_coreSource = `(ns clojure.core)
          d#        (:doc m#)
          args#     (:arglists m#)
          args-str# (when args#
-                     (reduce
-                      (fn [acc# a#]
-                        (if (= acc# "")
-                          (str "(" a# ")")
-                          (str acc# "\\n" "(" a# ")")))
-                      ""
-                      args#))]
-     (println (str (if args-str# (str args-str# "\\n\\n") "")
-                   (or d# "No documentation available.")))))
+                     (str "("
+                          (reduce
+                           (fn [acc# a#]
+                             (if (= acc# "")
+                               (str a#)
+                               (str acc# " " a#)))
+                           ""
+                           args#)
+                          ")"))]
+     (println (str "-------------------------\\n"
+                   ~(str sym) "\\n"
+                   (if args-str# (str args-str# "\\n") "")
+                   "  " (or d# "No documentation available.")))))
 
 (defn err
   "Creates an error map with type, message, data and optionally cause"
@@ -5172,11 +5268,17 @@ function buildSessionApi(state, options) {
   coreEnv.resolveNs = (name) => registry.get(name) ?? null;
   const emitFn = options?.output ?? ((text) => console.log(text));
   internVar("println", cljNativeFunction("println", (...args) => {
-    emitFn(args.map(valueToString).join(" "));
+    emitFn(args.map(valueToString).join(" ") + `
+`);
     return cljNil();
   }), coreEnv);
   internVar("print", cljNativeFunction("print", (...args) => {
     emitFn(args.map(valueToString).join(" "));
+    return cljNil();
+  }), coreEnv);
+  internVar("newline", cljNativeFunction("newline", () => {
+    emitFn(`
+`);
     return cljNil();
   }), coreEnv);
   const sourceRoots = new Set(options?.sourceRoots ?? []);
@@ -5461,11 +5563,11 @@ function generateModuleCode(ctx, nsNameFromPath, source) {
     if (isMacro(value))
       continue;
     const safeName = safeJsIdentifier(name);
-    const deref = `__ns.vars.get(${JSON.stringify(name)}).value`;
+    const deref2 = `__ns.vars.get(${JSON.stringify(name)}).value`;
     if (isAFunction2(value)) {
-      exportLines.push(`export function ${safeName}(...args) {` + `  const fn = ${deref};` + `  const cljArgs = args.map(jsToClj);` + `  const result = applyFunction(fn, cljArgs);` + `  return cljToJs(result);` + `}`);
+      exportLines.push(`export function ${safeName}(...args) {` + `  const fn = ${deref2};` + `  const cljArgs = args.map(jsToClj);` + `  const result = applyFunction(fn, cljArgs);` + `  return cljToJs(result);` + `}`);
     } else {
-      exportLines.push(`export const ${safeName} = cljToJs(${deref});`);
+      exportLines.push(`export const ${safeName} = cljToJs(${deref2});`);
     }
   }
   const escapedSource = JSON.stringify(source);
@@ -5478,7 +5580,11 @@ function generateModuleCode(ctx, nsNameFromPath, source) {
     `__session.loadFile(${escapedSource}, ${JSON.stringify(nsName)});`,
     `const __ns = __session.getNs(${JSON.stringify(nsName)});`,
     ``,
-    ...exportLines
+    ...exportLines,
+    ``,
+    `// Self-accept HMR: re-execute this module on save (updates browser session)`,
+    `// without propagating to parent modules — prevents full page reload.`,
+    `if (import.meta.hot) { import.meta.hot.accept() }`
   ].join(`
 `);
 }
@@ -5849,6 +5955,8 @@ async function handleEval(msg, session, encoder, ws, pending) {
   const result = await forwardToB("conjure:eval", { code, ns: session.currentNs }, ws, pending);
   if (result.ns)
     session.currentNs = result.ns;
+  if (result.out)
+    send(encoder, { id, session: session.id, out: result.out });
   if (result.error) {
     done(encoder, id, session.id, {
       ex: result.error,
@@ -5870,6 +5978,8 @@ async function handleLoadFile(msg, session, encoder, ws, pending) {
   const result = await forwardToB("conjure:load-file", { source, nsHint, filePath }, ws, pending);
   if (result.ns)
     session.currentNs = result.ns;
+  if (result.out)
+    send(encoder, { id, session: session.id, out: result.out });
   if (result.error) {
     done(encoder, id, session.id, {
       ex: result.error,
@@ -6127,15 +6237,16 @@ function cljPlugin(options) {
           `import { createSession, printString } from ${JSON.stringify(coreIndexPath)};`,
           ``,
           `let _session = null;`,
+          `let _outputLines = [];`,
           `export function getSession() {`,
           `  if (!_session) {`,
-          `    _session = createSession();`,
+          `    _session = createSession({ output: (text) => { _outputLines.push(text); console.log(text.replace(/\\n$/, '')); } });`,
           `  }`,
           `  return _session;`,
           `}`
         ];
         if (serveMode) {
-          lines.push(``, `// Browser nREPL relay — active only in Vite dev server`, `if (import.meta.hot) {`, `  import.meta.hot.on('conjure:eval', ({ id, code, ns }) => {`, `    const session = getSession();`, `    try {`, `      if (ns && ns !== session.currentNs) session.setNs(ns);`, `      const result = session.evaluate(code);`, `      import.meta.hot.send('conjure:eval-result', { id, value: printString(result), ns: session.currentNs });`, `    } catch (err) {`, `      import.meta.hot.send('conjure:eval-result', { id, error: err instanceof Error ? err.message : String(err), ns: session.currentNs });`, `    }`, `  });`, ``, `  import.meta.hot.on('conjure:load-file', ({ id, source, nsHint, filePath }) => {`, `    const session = getSession();`, `    try {`, `      const loadedNs = session.loadFile(source, nsHint, filePath || undefined);`, `      if (loadedNs) session.setNs(loadedNs);`, `      import.meta.hot.send('conjure:load-file-result', { id, value: 'nil', ns: session.currentNs });`, `    } catch (err) {`, `      import.meta.hot.send('conjure:load-file-result', { id, error: err instanceof Error ? err.message : String(err), ns: session.currentNs });`, `    }`, `  });`, `}`);
+          lines.push(``, `// Browser nREPL relay — active only in Vite dev server`, `if (import.meta.hot) {`, `  import.meta.hot.on('conjure:eval', ({ id, code, ns }) => {`, `    const session = getSession();`, `    _outputLines = [];`, `    try {`, `      if (ns && ns !== session.currentNs) session.setNs(ns);`, `      const result = session.evaluate(code);`, `      const out = _outputLines.join('');`, `      import.meta.hot.send('conjure:eval-result', { id, value: printString(result), ns: session.currentNs, ...(out ? { out } : {}) });`, `    } catch (err) {`, `      console.error(err);`, `      const out = _outputLines.join('');`, `      import.meta.hot.send('conjure:eval-result', { id, error: err instanceof Error ? err.message : String(err), ns: session.currentNs, ...(out ? { out } : {}) });`, `    }`, `  });`, ``, `  import.meta.hot.on('conjure:load-file', ({ id, source, nsHint, filePath }) => {`, `    const session = getSession();`, `    _outputLines = [];`, `    try {`, `      const loadedNs = session.loadFile(source, nsHint, filePath || undefined);`, `      if (loadedNs) session.setNs(loadedNs);`, `      const out = _outputLines.join('');`, `      import.meta.hot.send('conjure:load-file-result', { id, value: 'nil', ns: session.currentNs, ...(out ? { out } : {}) });`, `    } catch (err) {`, `      console.error(err);`, `      const out = _outputLines.join('');`, `      import.meta.hot.send('conjure:load-file-result', { id, error: err instanceof Error ? err.message : String(err), ns: session.currentNs, ...(out ? { out } : {}) });`, `    }`, `  });`, `}`);
         }
         return lines.join(`
 `);

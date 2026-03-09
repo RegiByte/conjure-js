@@ -38,7 +38,7 @@ export function loadCoreFunctions(env: Env, output?: (text: string) => void) {
   internVar(
     'println',
     cljNativeFunction('println', (...args: CljValue[]) => {
-      emit(args.map(valueToString).join(' '))
+      emit(args.map(valueToString).join(' ') + '\n')
       return cljNil()
     }),
     env
@@ -47,6 +47,14 @@ export function loadCoreFunctions(env: Env, output?: (text: string) => void) {
     'print',
     cljNativeFunction('print', (...args: CljValue[]) => {
       emit(args.map(valueToString).join(' '))
+      return cljNil()
+    }),
+    env
+  )
+  internVar(
+    'newline',
+    cljNativeFunction('newline', () => {
+      emit('\n')
       return cljNil()
     }),
     env

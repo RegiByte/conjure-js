@@ -36,7 +36,7 @@ import {
 
 export const collectionFunctions: Record<string, CljValue> = {
   list: withDoc(
-    cljNativeFunction('list', (...args: CljValue[]) => {
+    cljNativeFunction('list', function listImpl(...args: CljValue[]) {
       if (args.length === 0) {
         return cljList([])
       }
@@ -46,7 +46,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['&', 'args']]
   ),
   vector: withDoc(
-    cljNativeFunction('vector', (...args: CljValue[]) => {
+    cljNativeFunction('vector', function vectorImpl(...args: CljValue[]) {
       if (args.length === 0) {
         return cljVector([])
       }
@@ -56,7 +56,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['&', 'args']]
   ),
   'hash-map': withDoc(
-    cljNativeFunction('hash-map', (...kvals: CljValue[]) => {
+    cljNativeFunction('hash-map', function hashMapImpl(...kvals: CljValue[]) {
       if (kvals.length === 0) {
         return cljMap([])
       }
@@ -78,7 +78,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['&', 'kvals']]
   ),
   seq: withDoc(
-    cljNativeFunction('seq', (coll: CljValue) => {
+    cljNativeFunction('seq', function seqImpl(coll: CljValue) {
       if (coll.kind === 'nil') return cljNil()
       if (!isSeqable(coll)) {
         throw EvaluationError.atArg(`seq expects a collection, string, or nil, got ${printString(coll)}`, { collection: coll }, 0)
@@ -90,7 +90,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['coll']]
   ),
   first: withDoc(
-    cljNativeFunction('first', (collection: CljValue) => {
+    cljNativeFunction('first', function firstImpl(collection: CljValue) {
       if (collection.kind === 'nil') return cljNil()
       if (!isSeqable(collection)) {
         throw EvaluationError.atArg('first expects a collection or string', { collection }, 0)
@@ -102,7 +102,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['coll']]
   ),
   rest: withDoc(
-    cljNativeFunction('rest', (collection: CljValue) => {
+    cljNativeFunction('rest', function restImpl(collection: CljValue) {
       if (collection.kind === 'nil') return cljList([])
       if (!isSeqable(collection)) {
         throw EvaluationError.atArg('rest expects a collection or string', { collection }, 0)
@@ -132,7 +132,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['coll']]
   ),
   conj: withDoc(
-    cljNativeFunction('conj', (collection: CljValue, ...args: CljValue[]) => {
+    cljNativeFunction('conj', function conjImpl(collection: CljValue, ...args: CljValue[]) {
       if (!collection) {
         throw new EvaluationError(
           'conj expects a collection as first argument',
@@ -178,7 +178,9 @@ export const collectionFunctions: Record<string, CljValue> = {
             )
           }
           const key = pair.value[0]
-          const keyIdx = newEntries.findIndex((entry) => isEqual(entry[0], key))
+          const keyIdx = newEntries.findIndex(function findKeyEntry(entry) {
+            return isEqual(entry[0], key)
+          })
           if (keyIdx === -1) {
             newEntries.push([key, pair.value[1]])
           } else {
@@ -197,7 +199,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['collection', '&', 'args']]
   ),
   cons: withDoc(
-    cljNativeFunction('cons', (x: CljValue, xs: CljValue) => {
+    cljNativeFunction('cons', function consImpl(x: CljValue, xs: CljValue) {
       if (!isCollection(xs)) {
         throw EvaluationError.atArg(`cons expects a collection as second argument, got ${printString(xs)}`, { xs }, 1)
       }
@@ -214,7 +216,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['x', 'xs']]
   ),
   assoc: withDoc(
-    cljNativeFunction('assoc', (collection: CljValue, ...args: CljValue[]) => {
+    cljNativeFunction('assoc', function assocImpl(collection: CljValue, ...args: CljValue[]) {
       if (!collection) {
         throw new EvaluationError(
           'assoc expects a collection as first argument',
@@ -275,9 +277,9 @@ export const collectionFunctions: Record<string, CljValue> = {
         for (let i = 0; i < args.length; i += 2) {
           const key = args[i]
           const value = args[i + 1]
-          const entryIdx = newEntries.findIndex((entry) =>
-            isEqual(entry[0], key)
-          )
+          const entryIdx = newEntries.findIndex(function findEntryByKey(entry) {
+            return isEqual(entry[0], key)
+          })
           if (entryIdx === -1) {
             newEntries.push([key, value])
           } else {
@@ -295,7 +297,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['collection', '&', 'kvals']]
   ),
   dissoc: withDoc(
-    cljNativeFunction('dissoc', (collection: CljValue, ...args: CljValue[]) => {
+    cljNativeFunction('dissoc', function dissocImpl(collection: CljValue, ...args: CljValue[]) {
       if (!collection) {
         throw new EvaluationError(
           'dissoc expects a collection as first argument',
@@ -340,9 +342,9 @@ export const collectionFunctions: Record<string, CljValue> = {
         const newEntries: [CljValue, CljValue][] = [...collection.entries]
         for (let i = 0; i < args.length; i += 1) {
           const key = args[i]
-          const entryIdx = newEntries.findIndex((entry) =>
-            isEqual(entry[0], key)
-          )
+          const entryIdx = newEntries.findIndex(function findEntryByKey(entry) {
+            return isEqual(entry[0], key)
+          })
           if (entryIdx === -1) {
             return collection // not found, unchanged
           }
@@ -361,7 +363,7 @@ export const collectionFunctions: Record<string, CljValue> = {
   get: withDoc(
     cljNativeFunction(
       'get',
-      (target: CljValue, key: CljValue, notFound?: CljValue) => {
+      function getImpl(target: CljValue, key: CljValue, notFound?: CljValue) {
         const defaultValue = notFound ?? cljNil()
 
         switch (target.kind) {
@@ -401,7 +403,7 @@ export const collectionFunctions: Record<string, CljValue> = {
   nth: withDoc(
     cljNativeFunction(
       'nth',
-      (coll: CljValue, n: CljValue, notFound?: CljValue) => {
+      function nthImpl(coll: CljValue, n: CljValue, notFound?: CljValue) {
         if (coll === undefined || (!isList(coll) && !isVector(coll))) {
           throw new EvaluationError(
             `nth expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
@@ -432,46 +434,9 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['coll', 'n', 'not-found']]
   ),
 
-  // take: cljNativeFunction('take', (n: CljValue, coll: CljValue) => {
-  //   if (n === undefined || n.kind !== 'number') {
-  //     throw new EvaluationError(
-  //       `take expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`,
-  //       { n }
-  //     )
-  //   }
-  //   if (coll === undefined || !isCollection(coll)) {
-  //     throw new EvaluationError(
-  //       `take expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
-  //       { coll }
-  //     )
-  //   }
-  //   const count = (n as CljNumber).value
-  //   if (count <= 0) return cljList([])
-  //   return cljList(toSeq(coll).slice(0, count))
-  // }),
-
-  // drop: cljNativeFunction('drop', (n: CljValue, coll: CljValue) => {
-  //   if (n === undefined || n.kind !== 'number') {
-  //     throw new EvaluationError(
-  //       `drop expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`,
-  //       { n }
-  //     )
-  //   }
-  //   if (coll === undefined || !isCollection(coll)) {
-  //     throw new EvaluationError(
-  //       `drop expects a collection as second argument${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
-  //       { coll }
-  //     )
-  //   }
-  //   const count = (n as CljNumber).value
-  //   if (count <= 0) return cljList(toSeq(coll))
-  //   return cljList(toSeq(coll).slice(count))
-  // }),
-
-  // ── Collection building ──────────────────────────────────────────────────
-
+ 
   concat: withDoc(
-    cljNativeFunction('concat', (...colls: CljValue[]) => {
+    cljNativeFunction('concat', function concatImpl(...colls: CljValue[]) {
       const result: CljValue[] = []
       for (const coll of colls) {
         if (!isSeqable(coll)) {
@@ -488,50 +453,9 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['&', 'colls']]
   ),
 
-  // into: cljNativeFunction('into', (to: CljValue, from: CljValue) => {
-  //   if (to === undefined || !isCollection(to)) {
-  //     throw new EvaluationError(
-  //       `into expects a collection as first argument${to !== undefined ? `, got ${printString(to)}` : ''}`,
-  //       { to }
-  //     )
-  //   }
-  //   if (from === undefined || !isCollection(from)) {
-  //     throw new EvaluationError(
-  //       `into expects a collection as second argument${from !== undefined ? `, got ${printString(from)}` : ''}`,
-  //       { from }
-  //     )
-  //   }
-  //   // reduce conj semantics: destination type drives insertion order
-  //   let acc = to
-  //   for (const item of toSeq(from)) {
-  //     if (isList(acc)) {
-  //       acc = cljList([item, ...acc.value])
-  //     } else if (isVector(acc)) {
-  //       acc = cljVector([...acc.value, item])
-  //     } else if (isMap(acc)) {
-  //       const pair = item
-  //       if (pair.kind !== 'vector' || pair.value.length !== 2) {
-  //         throw new EvaluationError(
-  //           `into on a map expects each source element to be a [k v] vector, got ${printString(pair)}`,
-  //           { pair }
-  //         )
-  //       }
-  //       const [k, v] = pair.value
-  //       const newEntries: [CljValue, CljValue][] = [...acc.entries]
-  //       const idx = newEntries.findIndex((entry) => isEqual(entry[0], k))
-  //       if (idx === -1) {
-  //         newEntries.push([k, v])
-  //       } else {
-  //         newEntries[idx] = [k, v]
-  //       }
-  //       acc = cljMap(newEntries)
-  //     }
-  //   }
-  //   return acc
-  // }),
 
   zipmap: withDoc(
-    cljNativeFunction('zipmap', (ks: CljValue, vs: CljValue) => {
+    cljNativeFunction('zipmap', function zipmapImpl(ks: CljValue, vs: CljValue) {
       if (ks === undefined || !isSeqable(ks)) {
         throw new EvaluationError(
           `zipmap expects a collection or string as first argument${ks !== undefined ? `, got ${printString(ks)}` : ''}`,
@@ -557,7 +481,7 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['ks', 'vs']]
   ),
   last: withDoc(
-    cljNativeFunction('last', (coll: CljValue) => {
+    cljNativeFunction('last', function lastImpl(coll: CljValue) {
       if (coll === undefined || (!isList(coll) && !isVector(coll))) {
         throw new EvaluationError(
           `last expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
@@ -572,7 +496,7 @@ export const collectionFunctions: Record<string, CljValue> = {
   ),
 
   reverse: withDoc(
-    cljNativeFunction('reverse', (coll: CljValue) => {
+    cljNativeFunction('reverse', function reverseImpl(coll: CljValue) {
       if (coll === undefined || (!isList(coll) && !isVector(coll))) {
         throw EvaluationError.atArg(`reverse expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ''}`, { coll }, 0)
       }
@@ -583,7 +507,7 @@ export const collectionFunctions: Record<string, CljValue> = {
   ),
 
   'empty?': withDoc(
-    cljNativeFunction('empty?', (coll: CljValue) => {
+    cljNativeFunction('empty?', function emptyPredImpl(coll: CljValue) {
       if (coll === undefined) {
         throw EvaluationError.atArg('empty? expects one argument', {}, 0)
       }
@@ -599,7 +523,7 @@ export const collectionFunctions: Record<string, CljValue> = {
   ),
 
   'contains?': withDoc(
-    cljNativeFunction('contains?', (coll: CljValue, key: CljValue) => {
+    cljNativeFunction('contains?', function containsPredImpl(coll: CljValue, key: CljValue) {
       if (coll === undefined) {
         throw EvaluationError.atArg('contains? expects a collection as first argument', {}, 0)
       }
@@ -608,7 +532,9 @@ export const collectionFunctions: Record<string, CljValue> = {
       }
       if (coll.kind === 'nil') return cljBoolean(false)
       if (isMap(coll)) {
-        return cljBoolean(coll.entries.some(([k]) => isEqual(k, key)))
+        return cljBoolean(coll.entries.some(function checkKeyMatch([k]) {
+          return isEqual(k, key)
+        }))
       }
       if (isVector(coll)) {
         if (key.kind !== 'number') return cljBoolean(false)
@@ -621,7 +547,7 @@ export const collectionFunctions: Record<string, CljValue> = {
   ),
 
   repeat: withDoc(
-    cljNativeFunction('repeat', (n: CljValue, x: CljValue) => {
+    cljNativeFunction('repeat', function repeatImpl(n: CljValue, x: CljValue) {
       if (n === undefined || n.kind !== 'number') {
         // In real clojure, repeat with a single argument creates an infinite seq
         // since we don't support infinite seqs, we throw an error for now
@@ -636,14 +562,16 @@ export const collectionFunctions: Record<string, CljValue> = {
   // ── Range ────────────────────────────────────────────────────────────────
 
   range: withDoc(
-    cljNativeFunction('range', (...args: CljValue[]) => {
+    cljNativeFunction('range', function rangeImpl(...args: CljValue[]) {
       if (args.length === 0 || args.length > 3) {
         throw new EvaluationError(
           'range expects 1, 2, or 3 arguments: (range n), (range start end), or (range start end step)',
           { args }
         )
       }
-      const badIdx = args.findIndex((a) => a.kind !== 'number')
+      const badIdx = args.findIndex(function checkIsNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('range expects number arguments', { args }, badIdx)
       }
@@ -683,27 +611,31 @@ export const collectionFunctions: Record<string, CljValue> = {
     [['n'], ['start', 'end'], ['start', 'end', 'step']]
   ),
   keys: withDoc(
-    cljNativeFunction('keys', (m: CljValue) => {
+    cljNativeFunction('keys', function keysImpl(m: CljValue) {
       if (m === undefined || !isMap(m)) {
         throw EvaluationError.atArg(`keys expects a map${m !== undefined ? `, got ${printString(m)}` : ''}`, { m }, 0)
       }
-      return cljVector(m.entries.map(([k]) => k))
+      return cljVector(m.entries.map(function extractKey([k]) {
+        return k
+      }))
     }),
     'Returns a vector of the keys of the given map.',
     [['m']]
   ),
   vals: withDoc(
-    cljNativeFunction('vals', (m: CljValue) => {
+    cljNativeFunction('vals', function valsImpl(m: CljValue) {
       if (m === undefined || !isMap(m)) {
         throw EvaluationError.atArg(`vals expects a map${m !== undefined ? `, got ${printString(m)}` : ''}`, { m }, 0)
       }
-      return cljVector(m.entries.map(([, v]) => v))
+      return cljVector(m.entries.map(function extractVal([, v]) {
+        return v
+      }))
     }),
     'Returns a vector of the values of the given map.',
     [['m']]
   ),
   count: withDoc(
-    cljNativeFunction('count', (countable: CljValue) => {
+    cljNativeFunction('count', function countImpl(countable: CljValue) {
       if (
         !(
           [

@@ -40,16 +40,16 @@ describe('println', () => {
     expect(session.evaluate('(println "Hello" "world")')).toMatchObject(
       cljNil()
     )
-    expect(outputs).toEqual(['Hello world'])
+    expect(outputs).toEqual(['Hello world\n'])
 
     expect(session.evaluate('(println 1 2 3)')).toMatchObject(cljNil())
-    expect(outputs).toEqual(['Hello world', '1 2 3'])
+    expect(outputs).toEqual(['Hello world\n', '1 2 3\n'])
   })
 
   it('println falls back to console.log when no output callback provided', () => {
     const spy = vi.spyOn(console, 'log').mockImplementation(() => {})
     expect(freshSession().evaluate('(println "test")')).toMatchObject(cljNil())
-    expect(spy).toHaveBeenCalledWith('test')
+    expect(spy).toHaveBeenCalledWith('test\n')
     spy.mockRestore()
   })
 })

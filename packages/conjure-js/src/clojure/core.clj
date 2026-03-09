@@ -610,15 +610,19 @@
          d#        (:doc m#)
          args#     (:arglists m#)
          args-str# (when args#
-                     (reduce
-                      (fn [acc# a#]
-                        (if (= acc# "")
-                          (str "(" a# ")")
-                          (str acc# "\n" "(" a# ")")))
-                      ""
-                      args#))]
-     (println (str (if args-str# (str args-str# "\n\n") "")
-                   (or d# "No documentation available.")))))
+                     (str "("
+                          (reduce
+                           (fn [acc# a#]
+                             (if (= acc# "")
+                               (str a#)
+                               (str acc# " \n " a#)))
+                           ""
+                           args#)
+                          ")"))]
+     (println (str "-------------------------\n"
+                   ~(str sym) "\n"
+                   (if args-str# (str args-str# "\n") "")
+                   "  " (or d# "No documentation available.")))))
 
 (defn err
   "Creates an error map with type, message, data and optionally cause"

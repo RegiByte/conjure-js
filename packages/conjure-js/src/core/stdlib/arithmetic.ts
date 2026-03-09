@@ -6,15 +6,17 @@ import type { CljNumber, CljValue } from '../types'
 
 export const arithmeticFunctions: Record<string, CljValue> = {
   '+': withDoc(
-    cljNativeFunction('+', (...nums: CljValue[]) => {
+    cljNativeFunction('+', function add(...nums: CljValue[]) {
       if (nums.length === 0) {
         return cljNumber(0)
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('+ expects all arguments to be numbers', { args: nums }, badIdx)
       }
-      return nums.reduce((acc, arg) => {
+      return nums.reduce(function sumNumbers(acc, arg) {
         return cljNumber((acc as CljNumber).value + (arg as CljNumber).value)
       }, cljNumber(0))
     }),
@@ -23,17 +25,19 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '-': withDoc(
-    cljNativeFunction('-', (...nums: CljValue[]) => {
+    cljNativeFunction('-', function subtract(...nums: CljValue[]) {
       if (nums.length === 0) {
         throw new EvaluationError('- expects at least one argument', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('- expects all arguments to be numbers', { args: nums }, badIdx)
       }
-      return nums.slice(1).reduce((acc, arg) => {
+      return nums.slice(1).reduce(function subtractNumbers(acc, arg) {
         return cljNumber((acc as CljNumber).value - (arg as CljNumber).value)
       }, nums[0] as CljNumber)
     }),
@@ -42,15 +46,17 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '*': withDoc(
-    cljNativeFunction('*', (...nums: CljValue[]) => {
+    cljNativeFunction('*', function multiply(...nums: CljValue[]) {
       if (nums.length === 0) {
         return cljNumber(1)
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('* expects all arguments to be numbers', { args: nums }, badIdx)
       }
-      return nums.slice(1).reduce((acc, arg) => {
+      return nums.slice(1).reduce(function multiplyNumbers(acc, arg) {
         return cljNumber((acc as CljNumber).value * (arg as CljNumber).value)
       }, nums[0] as CljNumber)
     }),
@@ -59,17 +65,19 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '/': withDoc(
-    cljNativeFunction('/', (...nums: CljValue[]) => {
+    cljNativeFunction('/', function divide(...nums: CljValue[]) {
       if (nums.length === 0) {
         throw new EvaluationError('/ expects at least one argument', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('/ expects all arguments to be numbers', { args: nums }, badIdx)
       }
-      return nums.slice(1).reduce((acc, arg, reduceIdx) => {
+      return nums.slice(1).reduce(function divideNumbers(acc, arg, reduceIdx) {
         if ((arg as CljNumber).value === 0) {
           const err = new EvaluationError('division by zero', { args: nums })
           err.data = { argIndex: reduceIdx + 1 }
@@ -83,13 +91,15 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '>': withDoc(
-    cljNativeFunction('>', (...nums: CljValue[]) => {
+    cljNativeFunction('>', function greaterThan(...nums: CljValue[]) {
       if (nums.length < 2) {
         throw new EvaluationError('> expects at least two arguments', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('> expects all arguments to be numbers', { args: nums }, badIdx)
       }
@@ -105,13 +115,15 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '<': withDoc(
-    cljNativeFunction('<', (...nums: CljValue[]) => {
+    cljNativeFunction('<', function lessThan(...nums: CljValue[]) {
       if (nums.length < 2) {
         throw new EvaluationError('< expects at least two arguments', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('< expects all arguments to be numbers', { args: nums }, badIdx)
       }
@@ -127,13 +139,15 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '>=': withDoc(
-    cljNativeFunction('>=', (...nums: CljValue[]) => {
+    cljNativeFunction('>=', function greaterThanOrEqual(...nums: CljValue[]) {
       if (nums.length < 2) {
         throw new EvaluationError('>= expects at least two arguments', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('>= expects all arguments to be numbers', { args: nums }, badIdx)
       }
@@ -149,13 +163,15 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '<=': withDoc(
-    cljNativeFunction('<=', (...nums: CljValue[]) => {
+    cljNativeFunction('<=', function lessThanOrEqual(...nums: CljValue[]) {
       if (nums.length < 2) {
         throw new EvaluationError('<= expects at least two arguments', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('<= expects all arguments to be numbers', { args: nums }, badIdx)
       }
@@ -171,7 +187,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   '=': withDoc(
-    cljNativeFunction('=', (...vals: CljValue[]) => {
+    cljNativeFunction('=', function equals(...vals: CljValue[]) {
       if (vals.length < 2) {
         throw new EvaluationError('= expects at least two arguments', {
           args: vals,
@@ -189,7 +205,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   inc: withDoc(
-    cljNativeFunction('inc', (x: CljValue) => {
+    cljNativeFunction('inc', function increment(x: CljValue) {
       if (x === undefined || x.kind !== 'number') {
         throw EvaluationError.atArg(`inc expects a number${x !== undefined ? `, got ${printString(x)}` : ''}`, { x }, 0)
       }
@@ -200,7 +216,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   dec: withDoc(
-    cljNativeFunction('dec', (x: CljValue) => {
+    cljNativeFunction('dec', function decrement(x: CljValue) {
       if (x === undefined || x.kind !== 'number') {
         throw EvaluationError.atArg(`dec expects a number${x !== undefined ? `, got ${printString(x)}` : ''}`, { x }, 0)
       }
@@ -211,45 +227,49 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   max: withDoc(
-    cljNativeFunction('max', (...nums: CljValue[]) => {
+    cljNativeFunction('max', function maximum(...nums: CljValue[]) {
       if (nums.length === 0) {
         throw new EvaluationError('max expects at least one argument', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('max expects all arguments to be numbers', { args: nums }, badIdx)
       }
-      return nums.reduce((best, arg) =>
-        (arg as CljNumber).value > (best as CljNumber).value ? arg : best
-      )
+      return nums.reduce(function findMax(best, arg) {
+        return (arg as CljNumber).value > (best as CljNumber).value ? arg : best
+      })
     }),
     'Returns the largest of the arguments. Throws on non-number arguments.',
     [['&', 'nums']]
   ),
 
   min: withDoc(
-    cljNativeFunction('min', (...nums: CljValue[]) => {
+    cljNativeFunction('min', function minimum(...nums: CljValue[]) {
       if (nums.length === 0) {
         throw new EvaluationError('min expects at least one argument', {
           args: nums,
         })
       }
-      const badIdx = nums.findIndex((a) => a.kind !== 'number')
+      const badIdx = nums.findIndex(function isNotNumber(a) {
+        return a.kind !== 'number'
+      })
       if (badIdx !== -1) {
         throw EvaluationError.atArg('min expects all arguments to be numbers', { args: nums }, badIdx)
       }
-      return nums.reduce((best, arg) =>
-        (arg as CljNumber).value < (best as CljNumber).value ? arg : best
-      )
+      return nums.reduce(function findMin(best, arg) {
+        return (arg as CljNumber).value < (best as CljNumber).value ? arg : best
+      })
     }),
     'Returns the smallest of the arguments. Throws on non-number arguments.',
     [['&', 'nums']]
   ),
 
   mod: withDoc(
-    cljNativeFunction('mod', (n: CljValue, d: CljValue) => {
+    cljNativeFunction('mod', function modulo(n: CljValue, d: CljValue) {
       if (n === undefined || n.kind !== 'number') {
         throw EvaluationError.atArg(`mod expects a number as first argument${n !== undefined ? `, got ${printString(n)}` : ''}`, { n }, 0)
       }
@@ -272,7 +292,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   'even?': withDoc(
-    cljNativeFunction('even?', (n: CljValue) => {
+    cljNativeFunction('even?', function isEven(n: CljValue) {
       if (n === undefined || n.kind !== 'number') {
         throw EvaluationError.atArg(`even? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`, { n }, 0)
       }
@@ -283,7 +303,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   'odd?': withDoc(
-    cljNativeFunction('odd?', (n: CljValue) => {
+    cljNativeFunction('odd?', function isOdd(n: CljValue) {
       if (n === undefined || n.kind !== 'number') {
         throw EvaluationError.atArg(`odd? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`, { n }, 0)
       }
@@ -294,7 +314,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   'pos?': withDoc(
-    cljNativeFunction('pos?', (n: CljValue) => {
+    cljNativeFunction('pos?', function isPositive(n: CljValue) {
       if (n === undefined || n.kind !== 'number') {
         throw EvaluationError.atArg(`pos? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`, { n }, 0)
       }
@@ -305,7 +325,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   'neg?': withDoc(
-    cljNativeFunction('neg?', (n: CljValue) => {
+    cljNativeFunction('neg?', function isNegative(n: CljValue) {
       if (n === undefined || n.kind !== 'number') {
         throw EvaluationError.atArg(`neg? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`, { n }, 0)
       }
@@ -316,7 +336,7 @@ export const arithmeticFunctions: Record<string, CljValue> = {
   ),
 
   'zero?': withDoc(
-    cljNativeFunction('zero?', (n: CljValue) => {
+    cljNativeFunction('zero?', function isZero(n: CljValue) {
       if (n === undefined || n.kind !== 'number') {
         throw EvaluationError.atArg(`zero? expects a number${n !== undefined ? `, got ${printString(n)}` : ''}`, { n }, 0)
       }

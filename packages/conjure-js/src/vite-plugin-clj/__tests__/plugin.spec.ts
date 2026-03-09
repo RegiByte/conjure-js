@@ -155,7 +155,7 @@ describe('cljPlugin', () => {
       const code = load('\0virtual:clj-session', {})
       expect(code).toContain('import { createSession, printString }')
       expect(code).toContain('export function getSession()')
-      expect(code).toContain('createSession()')
+      expect(code).toContain('createSession({ output:')
     })
 
     it('returns undefined for non-clj files', () => {

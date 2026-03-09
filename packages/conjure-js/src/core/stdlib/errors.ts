@@ -5,7 +5,7 @@ import type { CljValue } from '../types'
 
 export const errorFunctions = {
   throw: withDoc(
-    cljNativeFunction('throw', (...args: CljValue[]) => {
+    cljNativeFunction('throw', function throwImpl(...args: CljValue[]) {
       if (args.length !== 1) {
         throw new EvaluationError(
           `throw requires exactly 1 argument, got ${args.length}`,
@@ -19,7 +19,7 @@ export const errorFunctions = {
   ),
 
   'ex-info': withDoc(
-    cljNativeFunction('ex-info', (...args: CljValue[]) => {
+    cljNativeFunction('ex-info', function exInfoImpl(...args: CljValue[]) {
       if (args.length < 2) {
         throw new EvaluationError(
           `ex-info requires at least 2 arguments, got ${args.length}`,
@@ -47,10 +47,12 @@ export const errorFunctions = {
   ),
 
   'ex-message': withDoc(
-    cljNativeFunction('ex-message', (...args: CljValue[]) => {
+    cljNativeFunction('ex-message', function exMessageImpl(...args: CljValue[]) {
       const [e] = args
       if (!isMap(e)) return cljNil()
-      const entry = e.entries.find(([k]) => isKeyword(k) && k.name === ':message')
+      const entry = e.entries.find(function findMessageKey([k]) {
+        return isKeyword(k) && k.name === ':message'
+      })
       return entry ? entry[1] : cljNil()
     }),
     'Returns the :message of an error map, or nil.',
@@ -58,10 +60,12 @@ export const errorFunctions = {
   ),
 
   'ex-data': withDoc(
-    cljNativeFunction('ex-data', (...args: CljValue[]) => {
+    cljNativeFunction('ex-data', function exDataImpl(...args: CljValue[]) {
       const [e] = args
       if (!isMap(e)) return cljNil()
-      const entry = e.entries.find(([k]) => isKeyword(k) && k.name === ':data')
+      const entry = e.entries.find(function findDataKey([k]) {
+        return isKeyword(k) && k.name === ':data'
+      })
       return entry ? entry[1] : cljNil()
     }),
     'Returns the :data map of an error map, or nil.',
@@ -69,10 +73,12 @@ export const errorFunctions = {
   ),
 
   'ex-cause': withDoc(
-    cljNativeFunction('ex-cause', (...args: CljValue[]) => {
+    cljNativeFunction('ex-cause', function exCauseImpl(...args: CljValue[]) {
       const [e] = args
       if (!isMap(e)) return cljNil()
-      const entry = e.entries.find(([k]) => isKeyword(k) && k.name === ':cause')
+      const entry = e.entries.find(function findCauseKey([k]) {
+        return isKeyword(k) && k.name === ':cause'
+      })
       return entry ? entry[1] : cljNil()
     }),
     'Returns the :cause of an error map, or nil.',

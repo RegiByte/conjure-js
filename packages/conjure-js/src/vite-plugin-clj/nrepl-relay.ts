@@ -23,6 +23,7 @@ type BrowserResult = {
   value?: string
   error?: string
   ns?: string
+  out?: string
 }
 
 type PendingResolver = (result: BrowserResult) => void
@@ -181,6 +182,7 @@ async function handleEval(
   )
 
   if (result.ns) session.currentNs = result.ns
+  if (result.out) send(encoder, { id, session: session.id, out: result.out })
 
   if (result.error) {
     done(encoder, id, session.id, {
@@ -215,6 +217,7 @@ async function handleLoadFile(
   )
 
   if (result.ns) session.currentNs = result.ns
+  if (result.out) send(encoder, { id, session: session.id, out: result.out })
 
   if (result.error) {
     done(encoder, id, session.id, {

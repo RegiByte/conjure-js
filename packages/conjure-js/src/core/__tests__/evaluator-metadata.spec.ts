@@ -130,7 +130,7 @@ describe('docstrings and metadata', () => {
         '(defn inc-all "Increments every element." [coll] (map inc coll))'
       )
       s.evaluate('(doc inc-all)')
-      expect(outputs).toEqual(['([coll])\n\nIncrements every element.'])
+      expect(outputs).toEqual(['-------------------------\ninc-all\n([coll])\n  Increments every element.\n'])
     })
 
     it('prints arglists then docstring for a native function', () => {
@@ -138,7 +138,7 @@ describe('docstrings and metadata', () => {
       const s = createSession({ output: (t) => outputs.push(t) })
       s.evaluate('(doc reduce)')
       expect(outputs).toHaveLength(1)
-      expect(outputs[0]).toMatch(/^\(\[f coll\]\)\n\(\[f val coll\]\)\n/)
+      expect(outputs[0]).toMatch(/^-------------------------\nreduce\n\(\[f coll\] \n \[f val coll\]\)\n/)
       expect(outputs[0]).toContain('Reduces a collection')
     })
 
@@ -147,7 +147,7 @@ describe('docstrings and metadata', () => {
       const s = createSession({ output: (t) => outputs.push(t) })
       s.evaluate('(def f (fn [x] x))')
       s.evaluate('(doc f)')
-      expect(outputs).toEqual(['No documentation available.'])
+      expect(outputs).toEqual(['-------------------------\nf\n  No documentation available.\n'])
     })
 
     it('doc returns nil', () => {
@@ -211,12 +211,12 @@ describe('docstrings and metadata', () => {
       )
     })
 
-    it('doc prints each arity on its own line for multi-arity', () => {
+    it('doc prints all arities, one per line, for multi-arity', () => {
       const outputs: string[] = []
       const s = createSession({ output: (t) => outputs.push(t) })
       s.evaluate('(defn f "Multi." ([x] x) ([x y] x))')
       s.evaluate('(doc f)')
-      expect(outputs).toEqual(['([x])\n([x y])\n\nMulti.'])
+      expect(outputs).toEqual(['-------------------------\nf\n([x] \n [x y])\n  Multi.\n'])
     })
 
     it('doc prints arglists for defn without docstring', () => {
@@ -224,7 +224,7 @@ describe('docstrings and metadata', () => {
       const s = createSession({ output: (t) => outputs.push(t) })
       s.evaluate('(defn f [x] x)')
       s.evaluate('(doc f)')
-      expect(outputs).toEqual(['([x])\n\nNo documentation available.'])
+      expect(outputs).toEqual(['-------------------------\nf\n([x])\n  No documentation available.\n'])
     })
 
     it('doc prints arglists for identity (native)', () => {
@@ -232,7 +232,7 @@ describe('docstrings and metadata', () => {
       const s = createSession({ output: (t) => outputs.push(t) })
       s.evaluate('(doc identity)')
       expect(outputs).toHaveLength(1)
-      expect(outputs[0]).toMatch(/^\(\[x\]\)\n/)
+      expect(outputs[0]).toMatch(/^-------------------------\nidentity\n\(\[x\]\)\n/)
     })
   })
 })

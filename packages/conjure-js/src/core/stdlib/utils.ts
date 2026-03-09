@@ -20,7 +20,7 @@ import type { CljValue, Env, EvaluationContext } from '../types'
 
 export const utilFunctions: Record<string, CljValue> = {
   str: withDoc(
-    cljNativeFunction('str', (...args: CljValue[]) => {
+    cljNativeFunction('str', function strImpl(...args: CljValue[]) {
       return cljString(args.map(valueToString).join(''))
     }),
     'Returns a concatenated string representation of the given values.',
@@ -29,7 +29,7 @@ export const utilFunctions: Record<string, CljValue> = {
   subs: withDoc(
     cljNativeFunction(
       'subs',
-      (s: CljValue, start: CljValue, end?: CljValue) => {
+      function subsImpl(s: CljValue, start: CljValue, end?: CljValue) {
         if (s === undefined || s.kind !== 'string') {
           throw EvaluationError.atArg(`subs expects a string as first argument${s !== undefined ? `, got ${printString(s)}` : ''}`, { s }, 0)
         }
@@ -53,7 +53,7 @@ export const utilFunctions: Record<string, CljValue> = {
     ]
   ),
   type: withDoc(
-    cljNativeFunction('type', (x: CljValue) => {
+    cljNativeFunction('type', function typeImpl(x: CljValue) {
       if (x === undefined) {
         throw new EvaluationError('type expects an argument', { x })
       }
@@ -82,7 +82,7 @@ export const utilFunctions: Record<string, CljValue> = {
     [['x']]
   ),
   gensym: withDoc(
-    cljNativeFunction('gensym', (...args: CljValue[]) => {
+    cljNativeFunction('gensym', function gensymImpl(...args: CljValue[]) {
       if (args.length > 1) {
         throw new EvaluationError('gensym takes 0 or 1 arguments', { args })
       }
@@ -99,7 +99,7 @@ export const utilFunctions: Record<string, CljValue> = {
   eval: withDoc(
     cljNativeFunctionWithContext(
       'eval',
-      (ctx: EvaluationContext, callEnv: Env, form: CljValue | undefined) => {
+      function evalImpl(ctx: EvaluationContext, callEnv: Env, form: CljValue | undefined) {
         if (form === undefined) {
           throw new EvaluationError('eval expects a form as argument', {
             form,
@@ -116,7 +116,7 @@ export const utilFunctions: Record<string, CljValue> = {
   'macroexpand-1': withDoc(
     cljNativeFunctionWithContext(
       'macroexpand-1',
-      (ctx: EvaluationContext, callEnv: Env, form: CljValue) => {
+      function macroexpand1Impl(ctx: EvaluationContext, callEnv: Env, form: CljValue) {
         if (!isList(form) || form.value.length === 0) return form
         const head = form.value[0]
         if (!isSymbol(head)) return form
@@ -133,7 +133,7 @@ export const utilFunctions: Record<string, CljValue> = {
   macroexpand: withDoc(
     cljNativeFunctionWithContext(
       'macroexpand',
-      (ctx: EvaluationContext, callEnv: Env, form: CljValue) => {
+      function macroexpandImpl(ctx: EvaluationContext, callEnv: Env, form: CljValue) {
         let current = form
         while (true) {
           if (!isList(current) || current.value.length === 0) return current
@@ -157,8 +157,9 @@ export const utilFunctions: Record<string, CljValue> = {
   'macroexpand-all': withDoc(
     cljNativeFunctionWithContext(
       'macroexpand-all',
-      (ctx: EvaluationContext, callEnv: Env, form: CljValue) =>
-        ctx.expandAll(form, callEnv)
+      function macroexpandAllImpl(ctx: EvaluationContext, callEnv: Env, form: CljValue) {
+        return ctx.expandAll(form, callEnv)
+      }
     ),
     joinLines([
       'Fully expands all macros in a form recursively — including in sub-forms.',
@@ -174,7 +175,7 @@ export const utilFunctions: Record<string, CljValue> = {
   // (namespace :foo)      => nil
   // (namespace 'user/foo) => "user"
   namespace: withDoc(
-    cljNativeFunction('namespace', (x: CljValue) => {
+    cljNativeFunction('namespace', function namespaceImpl(x: CljValue) {
       if (x === undefined) {
         throw EvaluationError.atArg('namespace expects an argument', { x }, 0)
       }
@@ -200,7 +201,7 @@ export const utilFunctions: Record<string, CljValue> = {
   // (name :foo)      => "foo"
   // (name 'user/foo) => "foo"
   name: withDoc(
-    cljNativeFunction('name', (x: CljValue) => {
+    cljNativeFunction('name', function nameImpl(x: CljValue) {
       if (x === undefined) {
         throw EvaluationError.atArg('name expects an argument', { x }, 0)
       }
@@ -225,7 +226,7 @@ export const utilFunctions: Record<string, CljValue> = {
   // (keyword "foo")        => :foo
   // (keyword "user" "foo") => :user/foo
   keyword: withDoc(
-    cljNativeFunction('keyword', (...args: CljValue[]) => {
+    cljNativeFunction('keyword', function keywordImpl(...args: CljValue[]) {
       if (args.length === 0 || args.length > 2) {
         throw new EvaluationError('keyword expects 1 or 2 string arguments', {
           args,
@@ -252,7 +253,7 @@ export const utilFunctions: Record<string, CljValue> = {
   ),
 
   boolean: withDoc(
-    cljNativeFunction('boolean', (x: CljValue) => {
+    cljNativeFunction('boolean', function booleanImpl(x: CljValue) {
       if (x === undefined) return cljBoolean(false)
       return cljBoolean(isTruthy(x))
     }),

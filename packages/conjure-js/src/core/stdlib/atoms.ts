@@ -11,7 +11,7 @@ import type { CljValue, Env } from '../types'
 
 export const atomFunctions: Record<string, CljValue> = {
   atom: withDoc(
-    cljNativeFunction('atom', (value: CljValue) => {
+    cljNativeFunction('atom', function atom(value: CljValue) {
       return cljAtom(value)
     }),
     'Returns a new atom holding the given value.',
@@ -19,7 +19,7 @@ export const atomFunctions: Record<string, CljValue> = {
   ),
 
   deref: withDoc(
-    cljNativeFunction('deref', (value: CljValue) => {
+    cljNativeFunction('deref', function deref(value: CljValue) {
       if (isAtom(value)) return value.value
       if (isVolatile(value)) return value.value
       if (isReduced(value)) return value.value
@@ -32,13 +32,13 @@ export const atomFunctions: Record<string, CljValue> = {
   'swap!': withDoc(
     cljNativeFunctionWithContext(
       'swap!',
-      (
+      function swap(
         ctx,
         callEnv: Env,
         atomVal: CljValue,
         fn: CljValue,
         ...extraArgs: CljValue[]
-      ) => {
+      ) {
         if (!isAtom(atomVal)) {
           throw EvaluationError.atArg(`swap! expects an atom as its first argument, got ${atomVal.kind}`, { atomVal }, 0)
         }
@@ -55,7 +55,7 @@ export const atomFunctions: Record<string, CljValue> = {
   ),
 
   'reset!': withDoc(
-    cljNativeFunction('reset!', (atomVal: CljValue, newVal: CljValue) => {
+    cljNativeFunction('reset!', function reset(atomVal: CljValue, newVal: CljValue) {
       if (!isAtom(atomVal)) {
         throw EvaluationError.atArg(`reset! expects an atom as its first argument, got ${atomVal.kind}`, { atomVal }, 0)
       }
@@ -67,7 +67,7 @@ export const atomFunctions: Record<string, CljValue> = {
   ),
 
   'atom?': withDoc(
-    cljNativeFunction('atom?', (value: CljValue) => {
+    cljNativeFunction('atom?', function isAtomPredicate(value: CljValue) {
       return cljBoolean(isAtom(value))
     }),
     'Returns true if the value is an atom, false otherwise.',

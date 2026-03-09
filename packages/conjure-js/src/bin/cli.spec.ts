@@ -28,7 +28,7 @@ describe('bun cli', () => {
     const exitCode = runFile(fixturePath, io)
 
     expect(exitCode).toBe(0)
-    expect(lines).toContain('5')
+    expect(lines).toContain('5\n')
     expect(errors).toEqual([])
   })
 

@@ -69,7 +69,9 @@ function assertStringArg(val: CljValue, fnName: string): string {
 function matchToClj(match: RegExpExecArray): CljValue {
   if (match.length === 1) return cljString(match[0])
   return cljVector(
-    match.map((m) => (m == null ? cljNil() : cljString(m)))
+    match.map(function mapMatchToClj(m) {
+      return m == null ? cljNil() : cljString(m)
+    })
   )
 }
 
@@ -79,15 +81,15 @@ function matchToClj(match: RegExpExecArray): CljValue {
 
 export const regexFunctions: Record<string, CljValue> = {
   'regexp?': withDoc(
-    cljNativeFunction('regexp?', (x: CljValue) =>
-      cljBoolean(x !== undefined && isRegex(x))
-    ),
+    cljNativeFunction('regexp?', function regexpPredImpl(x: CljValue) {
+      return cljBoolean(x !== undefined && isRegex(x))
+    }),
     'Returns true if x is a regular expression pattern.',
     [['x']]
   ),
 
   're-pattern': withDoc(
-    cljNativeFunction('re-pattern', (s: CljValue) => {
+    cljNativeFunction('re-pattern', function rePatternImpl(s: CljValue) {
       if (s === undefined || s.kind !== 'string') {
         throw new EvaluationError(
           `re-pattern expects a string argument${s !== undefined ? `, got ${printString(s)}` : ''}`,
@@ -102,7 +104,7 @@ export const regexFunctions: Record<string, CljValue> = {
   ),
 
   're-find': withDoc(
-    cljNativeFunction('re-find', (reVal: CljValue, sVal: CljValue) => {
+    cljNativeFunction('re-find', function reFindImpl(reVal: CljValue, sVal: CljValue) {
       const re = assertRegex(reVal, 're-find')
       const s = assertStringArg(sVal, 're-find')
       const jsRe = new RegExp(re.pattern, re.flags)
@@ -115,7 +117,7 @@ export const regexFunctions: Record<string, CljValue> = {
   ),
 
   're-matches': withDoc(
-    cljNativeFunction('re-matches', (reVal: CljValue, sVal: CljValue) => {
+    cljNativeFunction('re-matches', function reMatchesImpl(reVal: CljValue, sVal: CljValue) {
       const re = assertRegex(reVal, 're-matches')
       const s = assertStringArg(sVal, 're-matches')
       const jsRe = new RegExp(re.pattern, re.flags)
@@ -130,7 +132,7 @@ export const regexFunctions: Record<string, CljValue> = {
   ),
 
   're-seq': withDoc(
-    cljNativeFunction('re-seq', (reVal: CljValue, sVal: CljValue) => {
+    cljNativeFunction('re-seq', function reSeqImpl(reVal: CljValue, sVal: CljValue) {
       const re = assertRegex(reVal, 're-seq')
       const s = assertStringArg(sVal, 're-seq')
       // Always create a fresh regex with the g flag for exec looping
@@ -157,7 +159,7 @@ export const regexFunctions: Record<string, CljValue> = {
   // When no limit is given, trailing empty strings are dropped (Clojure default).
   // When a limit is given, all parts including trailing empties are kept.
   'str-split*': withDoc(
-    cljNativeFunction('str-split*', (sVal: CljValue, sepVal: CljValue, limitVal?: CljValue) => {
+    cljNativeFunction('str-split*', function strSplitImpl(sVal: CljValue, sepVal: CljValue, limitVal?: CljValue) {
       if (sVal === undefined || sVal.kind !== 'string') {
         throw new EvaluationError(
           `str-split* expects a string as first argument${sVal !== undefined ? `, got ${printString(sVal)}` : ''}`,
@@ -188,7 +190,9 @@ export const regexFunctions: Record<string, CljValue> = {
         }
         // limit < chars.length: first (limit-1) chars + rest of string as final part
         const parts = [...chars.slice(0, limit - 1), chars.slice(limit - 1).join('')]
-        return cljVector(parts.map(cljString))
+        return cljVector(parts.map(function mapPartToString(p) {
+          return cljString(p)
+        }))
       }
 
       jsPattern = sepVal.pattern
@@ -197,7 +201,9 @@ export const regexFunctions: Record<string, CljValue> = {
       const re = new RegExp(jsPattern, jsFlags + 'g')
       const rawParts = splitWithRegex(s, re, limit)
 
-      return cljVector(rawParts.map((p) => cljString(p)))
+      return cljVector(rawParts.map(function mapRawPartToString(p) {
+        return cljString(p)
+      }))
     }),
     'Internal helper for clojure.string/split. Splits string s by a regex or\n  string separator. Optional limit keeps all parts when provided.',
     [['s', 'sep'], ['s', 'sep', 'limit']]
