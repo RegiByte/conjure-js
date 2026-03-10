@@ -1,4 +1,4 @@
-import { derefValue, getNamespaceEnv, getRootEnv, lookup } from '../env'
+import { derefValue, getNamespaceEnv, lookup } from '../env'
 import { EvaluationError } from '../errors'
 import { cljNil } from '../factories'
 import { getPos } from '../positions'
@@ -46,7 +46,7 @@ export function evaluateWithContext(
           const sym = expr.name.slice(slashIdx + 1)
           const nsEnv = getNamespaceEnv(env)
           // Resolve alias: local :as alias first, then full namespace name
-          const targetNs = nsEnv.ns?.aliases.get(alias) ?? getRootEnv(env).resolveNs?.(alias) ?? null
+          const targetNs = nsEnv.ns?.aliases.get(alias) ?? ctx.resolveNs(alias) ?? null
           if (!targetNs) {
             throw new EvaluationError(`No such namespace or alias: ${alias}`, {
               symbol: expr.name,

@@ -1,5 +1,5 @@
 import { isList, isMap, isMacro, isSymbol, isVector } from '../assertions'
-import { derefValue, getNamespaceEnv, getRootEnv, tryLookup } from '../env'
+import { derefValue, getNamespaceEnv, tryLookup } from '../env'
 import { cljList, cljMap, cljVector } from '../factories'
 import type { CljValue, Env, EvaluationContext } from '../types'
 
@@ -74,7 +74,7 @@ export function macroExpandAllWithContext(
     const nsPrefix = name.slice(0, slashIdx)
     const localName = name.slice(slashIdx + 1)
     const nsEnv = getNamespaceEnv(env)
-    const targetNs = nsEnv.ns?.aliases.get(nsPrefix) ?? getRootEnv(env).resolveNs?.(nsPrefix) ?? null
+    const targetNs = nsEnv.ns?.aliases.get(nsPrefix) ?? ctx.resolveNs(nsPrefix) ?? null
     if (targetNs) {
       const v = targetNs.vars.get(localName)
       macroOrUnknown = v !== undefined ? derefValue(v) : undefined

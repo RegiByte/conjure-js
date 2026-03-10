@@ -1323,3 +1323,21 @@
           (if rest-bindings
             `(mapcat (fn [~k] (for ~(apply concat rest-bindings) ~@body)) ~v)
             `(map (fn [~k] ~@body) ~v)))))))
+
+(defmacro with-out-str
+  "Evaluates body in a context in which *out* is bound to a fresh string
+  accumulator. Returns the string of all output produced by println, print,
+  pr, prn, pprint and newline during the evaluation."
+  [& body]
+  `(let [buf# (atom "")]
+     (binding [*out* (fn [s#] (swap! buf# str s#))]
+       ~@body)
+     @buf#))
+
+(defmacro with-err-str
+  "Like with-out-str but captures *err* output (warn, etc.)."
+  [& body]
+  `(let [buf# (atom "")]
+     (binding [*err* (fn [s#] (swap! buf# str s#))]
+       ~@body)
+     @buf#))

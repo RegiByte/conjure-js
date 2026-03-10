@@ -1,6 +1,6 @@
 // Collections: list, vector, hash-map, first, rest, seq, cons, conj, count,
-// nth, get, assoc, dissoc, keys, vals, take, drop, concat, into, zipmap,
-// last, reverse, empty?, repeat, range
+// nth, get, assoc, dissoc, keys, vals, zipmap,
+// last, reverse, empty?, repeat*, range*, vec, subvec, peek, pop, empty
 
 import {
   isCollection,
@@ -460,24 +460,6 @@ export const collectionFunctions: Record<string, CljValue> = {
   ).doc(
     'Returns the nth element of the given collection. If not-found is provided, it is returned if the index is out of bounds, otherwise an error is thrown.',
     [['coll', 'n', 'not-found']]
-  ),
-
-
-  concat: v.nativeFn('concat', function concatImpl(...colls: CljValue[]) {
-    const result: CljValue[] = []
-    for (const coll of colls) {
-      if (!isSeqable(coll)) {
-        throw new EvaluationError(
-          `concat expects collections or strings, got ${printString(coll)}`,
-          { coll }
-        )
-      }
-      result.push(...toSeq(coll))
-    }
-    return cljList(result)
-  }).doc(
-    'Returns a new sequence that is the concatenation of the given sequences or strings.',
-    [['&', 'colls']]
   ),
 
 

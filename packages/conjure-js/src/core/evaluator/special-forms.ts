@@ -10,7 +10,7 @@ import {
   isTruthy,
   isVector,
 } from '../assertions'
-import { define, extend, getNamespaceEnv, getRootEnv, internVar, lookup, lookupVar, makeEnv } from '../env'
+import { define, extend, getNamespaceEnv, internVar, lookup, lookupVar, makeEnv } from '../env'
 import { CljThrownSignal, EvaluationError } from '../errors'
 import {
   cljDelay,
@@ -639,7 +639,7 @@ function evaluateDefmethod(
 function evaluateVar(
   list: CljList,
   env: Env,
-  _ctx: EvaluationContext
+  ctx: EvaluationContext
 ): CljValue {
   const sym = list.value[1]
   if (!isSymbol(sym)) {
@@ -652,7 +652,7 @@ function evaluateVar(
     const localName = sym.name.slice(slashIdx + 1)
     const nsEnv = getNamespaceEnv(env)
     // Resolve alias: local :as alias first, then full namespace name
-    const targetNs = nsEnv.ns?.aliases.get(alias) ?? getRootEnv(env).resolveNs?.(alias) ?? null
+    const targetNs = nsEnv.ns?.aliases.get(alias) ?? ctx.resolveNs(alias) ?? null
     if (!targetNs) {
       throw new EvaluationError(`No such namespace: ${alias}`, { sym })
     }
