@@ -46,7 +46,7 @@ export type Env = {
   bindings: Map<string, CljValue>      // native fns, macros, multimethods, local values
   outer: Env | null
   ns?: CljNamespace                    // set on namespace-root envs only
-  resolveNs?: (name: string) => Env | null // set on coreEnv only
+  resolveNs?: (name: string) => CljNamespace | null // set on coreEnv only
 }
 
 export type DestructurePattern = CljSymbol | CljVector | CljMap

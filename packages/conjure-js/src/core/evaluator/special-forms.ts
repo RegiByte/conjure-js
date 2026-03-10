@@ -651,19 +651,12 @@ function evaluateVar(
     const alias = sym.name.slice(0, slashIdx)
     const localName = sym.name.slice(slashIdx + 1)
     const nsEnv = getNamespaceEnv(env)
-    // Try alias lookup (CljNamespace) first
-    const aliasCljNs = nsEnv.ns?.aliases.get(alias)
-    if (aliasCljNs) {
-      const v = aliasCljNs.vars.get(localName)
-      if (!v) throw new EvaluationError(`Var ${sym.name} not found`, { sym })
-      return v
-    }
-    // Fall back to full namespace Env chain (handles clojure.core/sym etc.)
-    const targetEnv = getRootEnv(env).resolveNs?.(alias) ?? null
-    if (!targetEnv) {
+    // Resolve alias: local :as alias first, then full namespace name
+    const targetNs = nsEnv.ns?.aliases.get(alias) ?? getRootEnv(env).resolveNs?.(alias) ?? null
+    if (!targetNs) {
       throw new EvaluationError(`No such namespace: ${alias}`, { sym })
     }
-    const v = lookupVar(localName, targetEnv)
+    const v = targetNs.vars.get(localName)
     if (!v) throw new EvaluationError(`Var ${sym.name} not found`, { sym })
     return v
   }

@@ -120,3 +120,78 @@ describe('ns-interns vs ns-refers accuracy', () => {
     expect(result).toMatchObject({ kind: 'boolean', value: true })
   })
 })
+
+// ---------------------------------------------------------------------------
+// Phase 3: Normalize namespace var storage / unified qualified lookup
+// ---------------------------------------------------------------------------
+
+describe('qualified symbol via full namespace name', () => {
+  it('(vec (clojure.core/map inc [1 2 3])) works via full name', () => {
+    const s = freshSession()
+    const result = s.evaluate('(vec (clojure.core/map inc [1 2 3]))')
+    expect(result).toMatchObject({ kind: 'vector', value: [
+      { kind: 'number', value: 2 },
+      { kind: 'number', value: 3 },
+      { kind: 'number', value: 4 },
+    ]})
+  })
+
+  it('(clojure.core/+ 1 2) works via full name', () => {
+    const s = freshSession()
+    const result = s.evaluate('(clojure.core/+ 1 2)')
+    expect(result).toMatchObject({ kind: 'number', value: 3 })
+  })
+})
+
+describe('qualified macro via full namespace name', () => {
+  it('(clojure.core/when true 42) expands and evaluates', () => {
+    const s = freshSession()
+    const result = s.evaluate('(clojure.core/when true 42)')
+    expect(result).toMatchObject({ kind: 'number', value: 42 })
+  })
+
+  it('(clojure.core/when false 42) returns nil', () => {
+    const s = freshSession()
+    const result = s.evaluate('(clojure.core/when false 42)')
+    expect(result).toMatchObject({ kind: 'nil' })
+  })
+})
+
+describe('qualified macro via :as alias', () => {
+  it('(cc/when true 99) expands and evaluates via alias', () => {
+    const s = freshSession()
+    s.evaluate('(ns macro-alias-test (:require [clojure.core :as cc]))')
+    const result = s.evaluate('(cc/when true 99)')
+    expect(result).toMatchObject({ kind: 'number', value: 99 })
+  })
+
+  it('(cc/when-let [x 1] x) expands via alias', () => {
+    const s = freshSession()
+    s.evaluate('(ns wl-test (:require [clojure.core :as cc]))')
+    const result = s.evaluate('(cc/when-let [x 10] x)')
+    expect(result).toMatchObject({ kind: 'number', value: 10 })
+  })
+})
+
+describe('dynamic var deref through qualified alias path', () => {
+  it('alias path respects active dynamic binding', () => {
+    // binding uses the referred *x* (unqualified); src/*x* accesses the same
+    // var via the alias path. The fix: alias path uses derefValue(v) instead
+    // of v.value, so it sees the active binding from the stack.
+    const s = freshSession()
+    s.evaluate('(ns dyn-source)')
+    s.evaluate('(def ^:dynamic *x* :root)')
+    s.evaluate('(ns dyn-consumer (:require [dyn-source :as src :refer [*x*]]))')
+    const result = s.evaluate('(binding [*x* :bound] src/*x*)')
+    expect(result).toMatchObject({ kind: 'keyword', name: ':bound' })
+  })
+})
+
+describe(':refer of nonexistent symbol throws', () => {
+  it('throws a clear error for nonexistent referred symbol', () => {
+    const s = freshSession()
+    expect(() =>
+      s.evaluate('(ns bad-refer (:require [clojure.string :refer [does-not-exist]]))')
+    ).toThrow('does-not-exist')
+  })
+})

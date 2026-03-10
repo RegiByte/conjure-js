@@ -1,9 +1,7 @@
 import { isKeyword, isList, isNamespace, isSymbol, isVector } from './assertions'
 import { loadCoreFunctions } from './core-env'
 import {
-  define,
   internVar,
-  lookup,
   lookupVar,
   makeEnv,
   makeNamespace,
@@ -264,21 +262,14 @@ function processRequireSpec(
             sym,
           })
         }
-        const v = lookupVar(sym.name, targetEnv)
-        if (v !== undefined) {
-          currentEnv.ns!.vars.set(sym.name, v)
-        } else {
-          let value: CljValue
-          try {
-            value = lookup(sym.name, targetEnv)
-          } catch {
-            throw new EvaluationError(
-              `Symbol ${sym.name} not found in namespace ${nsName}`,
-              { nsName, symbol: sym.name }
-            )
-          }
-          define(sym.name, value, currentEnv)
+        const v = targetEnv.ns!.vars.get(sym.name)
+        if (v === undefined) {
+          throw new EvaluationError(
+            `Symbol ${sym.name} not found in namespace ${nsName}`,
+            { nsName, symbol: sym.name }
+          )
         }
+        currentEnv.ns!.vars.set(sym.name, v)
       }
       i++
     } else {
@@ -364,7 +355,7 @@ function buildSessionApi(
   let currentNs = state.currentNs
 
   const coreEnv = registry.get('clojure.core')!
-  coreEnv.resolveNs = (name: string) => registry.get(name) ?? null
+  coreEnv.resolveNs = (name: string) => registry.get(name)?.ns ?? null
 
   // Always re-wire print/println so snapshot-derived sessions get the right
   // emit target. Falls back to console.log when no output callback is provided.

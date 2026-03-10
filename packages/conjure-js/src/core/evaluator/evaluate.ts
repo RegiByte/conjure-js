@@ -1,4 +1,4 @@
-import { getNamespaceEnv, getRootEnv, lookup } from '../env'
+import { derefValue, getNamespaceEnv, getRootEnv, lookup } from '../env'
 import { EvaluationError } from '../errors'
 import { cljNil } from '../factories'
 import { getPos } from '../positions'
@@ -45,27 +45,22 @@ export function evaluateWithContext(
           const alias = expr.name.slice(0, slashIdx)
           const sym = expr.name.slice(slashIdx + 1)
           const nsEnv = getNamespaceEnv(env)
-          // Try alias lookup (CljNamespace) first
-          const aliasCljNs = nsEnv.ns?.aliases.get(alias)
-          if (aliasCljNs) {
-            const v = aliasCljNs.vars.get(sym)
-            if (v === undefined) {
-              throw new EvaluationError(`Symbol ${expr.name} not found`, {
-                symbol: expr.name,
-                env,
-              })
-            }
-            return v.value
-          }
-          // Fall back to full namespace Env chain (handles clojure.core/sym etc.)
-          const targetEnv = getRootEnv(env).resolveNs?.(alias) ?? null
-          if (!targetEnv) {
+          // Resolve alias: local :as alias first, then full namespace name
+          const targetNs = nsEnv.ns?.aliases.get(alias) ?? getRootEnv(env).resolveNs?.(alias) ?? null
+          if (!targetNs) {
             throw new EvaluationError(`No such namespace or alias: ${alias}`, {
               symbol: expr.name,
               env,
             })
           }
-          return lookup(sym, targetEnv)
+          const v = targetNs.vars.get(sym)
+          if (v === undefined) {
+            throw new EvaluationError(`Symbol ${expr.name} not found`, {
+              symbol: expr.name,
+              env,
+            })
+          }
+          return derefValue(v)
         }
         return lookup(expr.name, env)
       }
