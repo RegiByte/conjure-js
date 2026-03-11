@@ -55,7 +55,7 @@ export function makeRepl(): ReplState {
   return state
 }
 
-export function evalSource(state: ReplState, source: string): ReplEntry[] {
+export async function evalSource(state: ReplState, source: string): Promise<ReplEntry[]> {
   const trimmed = source.trim()
   if (!trimmed) return []
 
@@ -66,7 +66,7 @@ export function evalSource(state: ReplState, source: string): ReplEntry[] {
   const start = performance.now()
 
   try {
-    const result = state.session.evaluate(trimmed)
+    const result = await state.session.evaluateAsync(trimmed)
     const end = performance.now()
 
     // Build entries in correct order: source, outputs, result

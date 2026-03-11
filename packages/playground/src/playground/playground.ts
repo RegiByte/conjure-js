@@ -271,7 +271,7 @@ function createPlayground(appEl: HTMLElement): void {
    * Falls back to evaluating the whole buffer if nothing is found before the
    * cursor (e.g. cursor is at the very start of the file).
    */
-  function evalAtCursor(): void {
+  async function evalAtCursor(): Promise<void> {
     const source = editor.getValue()
     if (!source.trim()) return
 
@@ -285,7 +285,7 @@ function createPlayground(appEl: HTMLElement): void {
       : source.trim()
     const formEnd = form ? form.end : source.trimEnd().length
 
-    const entries = evalSource(state, formSource)
+    const entries = await evalSource(state, formSource)
     emptyEl.style.display = 'none'
     appendEntries(entries, outputInnerEl, formSource)
     outputEl.scrollTop = outputEl.scrollHeight
@@ -306,12 +306,12 @@ function createPlayground(appEl: HTMLElement): void {
   }
 
   /** Evaluate the entire buffer — useful when you want to re-run everything. */
-  function evalAll(): void {
+  async function evalAll(): Promise<void> {
     const source = editor.getValue()
     if (!source.trim()) return
 
     clearInlineResult()
-    const entries = evalSource(state, source.trim())
+    const entries = await evalSource(state, source.trim())
     emptyEl.style.display = 'none'
     appendEntries(entries, outputInnerEl, source.trim())
     outputEl.scrollTop = outputEl.scrollHeight

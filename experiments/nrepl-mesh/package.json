@@ -1,0 +1,18 @@
+{
+  "name": "nrepl-mesh-experiment",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "bun src/server.ts",
+    "client": "bun src/client.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "conjure-js": "file:../../packages/conjure-js",
+    "ioredis": "^5.3.2"
+  },
+  "devDependencies": {
+    "vitest": "^4.0.18"
+  }
+}
