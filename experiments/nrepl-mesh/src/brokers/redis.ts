@@ -8,7 +8,8 @@
  *   - awaitReply() → BLPOP mesh:reply:{id}  (dedicated per-call connection)
  *   - register()   → HSET mesh:nodes {id} <JSON>
  *   - deregister() → HDEL mesh:nodes {id}
- *   - discover()   → HGETALL mesh:nodes, filter by capability tag
+ *   - discover()   → HGETALL mesh:nodes, filter live nodes by lastSeen recency,
+ *                    auto-remove stale entries (fire-and-forget HDEL)
  *
  * The `replyAddr` is a Redis list key; its meaning is opaque to callers.
  * Stale reply keys expire automatically (REPLY_TTL_SEC).
@@ -30,17 +31,29 @@ const REPLY_TTL_SEC = 30
 const reqChannel = (nodeId: string) => `mesh:req:${nodeId}`
 const replyKey = (correlationId: string) => `mesh:reply:${correlationId}`
 
+/**
+ * How long after the last heartbeat a node is considered stale.
+ * Default: 30 000 ms (≈ 4× the default heartbeat interval of 7 s).
+ * Stale nodes are excluded from discover() and cleaned up from Redis
+ * automatically on the next discover() call.
+ */
+const DEFAULT_STALE_THRESHOLD_MS = 30_000
+
 export type RedisBrokerOptions = {
   url?: string
+  /** Override the stale-node threshold (ms). Default: 30 000. */
+  staleThresholdMs?: number
 }
 
 export class RedisBroker implements MeshBroker {
   private readonly url: string
+  private readonly staleThresholdMs: number
   private pub: Redis
   private sub: Redis
 
   constructor(opts: RedisBrokerOptions = {}) {
     this.url = opts.url ?? 'redis://localhost:6379'
+    this.staleThresholdMs = opts.staleThresholdMs ?? DEFAULT_STALE_THRESHOLD_MS
     this.pub = new Redis(this.url)
     this.sub = new Redis(this.url)
   }
@@ -121,9 +134,28 @@ export class RedisBroker implements MeshBroker {
 
   async discover(capability?: string): Promise<NodeInfo[]> {
     const raw = await this.pub.hgetall(NODES_KEY)
-    const nodes = Object.values(raw).map((v) => JSON.parse(v) as NodeInfo)
-    if (!capability) return nodes
-    return nodes.filter((n) => n.capabilities?.includes(capability))
+    if (!raw) return []
+
+    const now = Date.now()
+    const staleIds: string[] = []
+    const live: NodeInfo[] = []
+
+    for (const [id, json] of Object.entries(raw)) {
+      const info = JSON.parse(json) as NodeInfo
+      if (now - info.lastSeen >= this.staleThresholdMs) {
+        staleIds.push(id)
+      } else {
+        live.push(info)
+      }
+    }
+
+    // Auto-clean stale entries so they don't accumulate across sessions.
+    if (staleIds.length > 0) {
+      void this.pub.hdel(NODES_KEY, ...staleIds)
+    }
+
+    if (!capability) return live
+    return live.filter((n) => n.capabilities?.includes(capability))
   }
 
   async close(): Promise<void> {

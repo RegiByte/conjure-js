@@ -183,10 +183,10 @@ describe('nREPL mesh — two nodes, one Redis', () => {
 
   // --- timeout ---
 
-  test('evalAt times out when target node does not exist', async () => {
+  test('evalAt throws immediately when target node is not registered', async () => {
     await expect(
       nodeA.evalAt('ghost-node', '(+ 1 2)', 500)
-    ).rejects.toThrow('Timeout')
+    ).rejects.toThrow('not registered')
   }, 3_000)
 })
 

@@ -87,18 +87,22 @@ describe('mesh RuntimeModule', () => {
     expect(result).toEqual({ kind: 'nil', value: null })
   })
 
-  test('set-target! with a keyword sets *eval-target* to a string', () => {
-    const { node } = createMockNode()
+  test('set-target! with a keyword sets *eval-target* to a string', async () => {
+    const { node } = createMockNode({
+      listNodesResult: [{ id: 'node-b', capabilities: [], lastSeen: Date.now() }],
+    })
     const session = sessionWithMesh(node)
-    session.evaluate('(mesh/set-target! :node-b)')
+    await session.evaluateAsync('(mesh/set-target! :node-b)')
     const result = session.evaluate('mesh/*eval-target*')
     expect(result).toEqual({ kind: 'string', value: 'node-b' })
   })
 
-  test('set-target! with a string also works', () => {
-    const { node } = createMockNode()
+  test('set-target! with a string also works', async () => {
+    const { node } = createMockNode({
+      listNodesResult: [{ id: 'node-c', capabilities: [], lastSeen: Date.now() }],
+    })
     const session = sessionWithMesh(node)
-    session.evaluate('(mesh/set-target! "node-c")')
+    await session.evaluateAsync('(mesh/set-target! "node-c")')
     const result = session.evaluate('mesh/*eval-target*')
     expect(result).toEqual({ kind: 'string', value: 'node-c' })
   })
