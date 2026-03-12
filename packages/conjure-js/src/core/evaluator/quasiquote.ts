@@ -1,4 +1,4 @@
-import { isCons, isList, isLazySeq, isNil, isSymbol, isVector } from '../assertions'
+import { is } from '../assertions'
 import { EvaluationError } from '../errors'
 import { cljList, cljMap, cljVector } from '../factories'
 import { toSeq } from '../transformations'
@@ -20,11 +20,11 @@ export function evaluateQuasiquote(
     case valueKeywords.vector:
     case valueKeywords.list: {
       // Handle unquote
-      const isAList = isList(form)
+      const isAList = is.list(form)
       if (
         isAList &&
         form.value.length === 2 &&
-        isSymbol(form.value[0]) &&
+        is.symbol(form.value[0]) &&
         form.value[0].name === 'unquote'
       ) {
         return ctx.evaluate(form.value[1], env)
@@ -35,17 +35,17 @@ export function evaluateQuasiquote(
       for (const elem of form.value) {
         // Handle unquote splicing
         if (
-          isList(elem) &&
+          is.list(elem) &&
           elem.value.length === 2 &&
-          isSymbol(elem.value[0]) &&
+          is.symbol(elem.value[0]) &&
           elem.value[0].name === 'unquote-splicing'
         ) {
           const toSplice = ctx.evaluate(elem.value[1], env)
-          if (isList(toSplice) || isVector(toSplice)) {
+          if (is.list(toSplice) || is.vector(toSplice)) {
             elements.push(...toSplice.value)
-          } else if (isLazySeq(toSplice) || isCons(toSplice)) {
+          } else if (is.lazySeq(toSplice) || is.cons(toSplice)) {
             elements.push(...toSeq(toSplice))
-          } else if (isNil(toSplice)) {
+          } else if (is.nil(toSplice)) {
             // nil splices as empty — nothing to push
           } else {
             throw new EvaluationError(

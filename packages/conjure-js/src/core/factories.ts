@@ -78,7 +78,11 @@ export const cljNativeFunction = <
   ({ kind: 'native-function', name, fn }) as const satisfies CljNativeFunction
 export const cljNativeFunctionWithContext = <
   T extends string,
-  U extends (ctx: EvaluationContext, callEnv: Env, ...args: CljValue[]) => CljValue,
+  U extends (
+    ctx: EvaluationContext,
+    callEnv: Env,
+    ...args: CljValue[]
+  ) => CljValue,
 >(
   name: T,
   fn: U
@@ -117,8 +121,12 @@ export const cljRegex = (pattern: string, flags: string = ''): CljRegex => ({
   flags,
 })
 
-export const cljVar = (ns: string, name: string, value: CljValue, meta?: CljMap): CljVar =>
-  ({ kind: 'var', ns, name, value, meta })
+export const cljVar = (
+  ns: string,
+  name: string,
+  value: CljValue,
+  meta?: CljMap
+): CljVar => ({ kind: 'var', ns, name, value, meta })
 
 export const cljAtom = (value: CljValue): CljAtom => ({ kind: 'atom', value })
 export const cljReduced = (value: CljValue): CljReduced => ({
@@ -157,8 +165,13 @@ export const cljPending = (promise: Promise<CljValue>): CljPending => {
   const pending: CljPending = { kind: 'pending', promise }
   // Track fulfillment so the printer can show #<Pending @val> when already settled.
   promise.then(
-    (v) => { pending.resolved = true; pending.resolvedValue = v },
-    () => { /* rejection — no resolved state; printer shows #<Pending> */ }
+    (v) => {
+      pending.resolved = true
+      pending.resolvedValue = v
+    },
+    () => {
+      /* rejection — no resolved state; printer shows #<Pending> */
+    }
   )
   return pending
 }
@@ -199,10 +212,12 @@ function buildDocMeta(text: string, arglists?: string[][]): CljMap {
   return cljMap([
     [cljKeyword(':doc'), cljString(text)],
     ...(arglists
-      ? ([[
-          cljKeyword(':arglists'),
-          cljVector(arglists.map((args) => cljVector(args.map(cljSymbol)))),
-        ]] as [CljValue, CljValue][])
+      ? ([
+          [
+            cljKeyword(':arglists'),
+            cljVector(arglists.map((args) => cljVector(args.map(cljSymbol)))),
+          ],
+        ] as [CljValue, CljValue][])
       : []),
   ])
 }
@@ -215,14 +230,19 @@ function makeNativeFnBuilder(def: CljNativeFunction): NativeFnBuilder {
     kind: 'native-function',
     name: def.name,
     fn: def.fn,
-    ...(def.fnWithContext !== undefined ? { fnWithContext: def.fnWithContext } : {}),
+    ...(def.fnWithContext !== undefined
+      ? { fnWithContext: def.fnWithContext }
+      : {}),
     ...(def.meta !== undefined ? { meta: def.meta } : {}),
   }
 
   return {
     ...plain,
     doc(text: string, arglists?: string[][]): NativeFnBuilder {
-      return makeNativeFnBuilder({ ...plain, meta: buildDocMeta(text, arglists) })
+      return makeNativeFnBuilder({
+        ...plain,
+        meta: buildDocMeta(text, arglists),
+      })
     },
   }
 }
@@ -253,53 +273,59 @@ export const cljMultiMethod = (
 
 export const v = {
   // primitives
-  number:  cljNumber,
-  string:  cljString,
+  number: cljNumber,
+  string: cljString,
   boolean: cljBoolean,
   keyword: cljKeyword,
-  nil:     cljNil,
-  symbol:  cljSymbol,
+  nil: cljNil,
+  symbol: cljSymbol,
+  kw: cljKeyword,
 
   // collections
-  list:    cljList,
-  vector:  cljVector,
-  map:     cljMap,
-  set:     cljSet,
-  cons:    cljCons,
+  list: cljList,
+  vector: cljVector,
+  map: cljMap,
+  set: cljSet,
+  cons: cljCons,
 
   // callables
-  function:           cljFunction,
+  function: cljFunction,
   multiArityFunction: cljMultiArityFunction,
-  macro:              cljMacro,
-  multiArityMacro:    cljMultiArityMacro,
-  multiMethod:        cljMultiMethod,
+  macro: cljMacro,
+  multiArityMacro: cljMultiArityMacro,
+  multiMethod: cljMultiMethod,
 
   // fluent native function builders
   nativeFn(
     name: string,
-    fn: (...args: CljValue[]) => CljValue,
+    fn: (...args: CljValue[]) => CljValue
   ): NativeFnBuilder {
     return makeNativeFnBuilder({ kind: 'native-function', name, fn })
   },
   nativeFnCtx(
     name: string,
-    fn: (ctx: EvaluationContext, callEnv: Env, ...args: CljValue[]) => CljValue,
+    fn: (ctx: EvaluationContext, callEnv: Env, ...args: CljValue[]) => CljValue
   ): NativeFnBuilder {
     return makeNativeFnBuilder({
       kind: 'native-function',
       name,
-      fn: () => { throw new EvaluationError('Native function called without context', { name }) },
+      fn: () => {
+        throw new EvaluationError('Native function called without context', {
+          name,
+        })
+      },
       fnWithContext: fn,
     })
   },
 
   // other value types
-  var:      cljVar,
-  atom:     cljAtom,
-  regex:    cljRegex,
-  reduced:  cljReduced,
+  var: cljVar,
+  atom: cljAtom,
+  regex: cljRegex,
+  reduced: cljReduced,
   volatile: cljVolatile,
-  delay:     cljDelay,
-  lazySeq:   cljLazySeq,
+  delay: cljDelay,
+  lazySeq: cljLazySeq,
   namespace: cljNamespace,
+  pending: cljPending,
 }

@@ -1,14 +1,13 @@
-import type { RuntimeModule, VarDeclaration, VarMap, ModuleContext } from './module'
-import {
-  cljNativeFunctionWithContext,
-  cljNil,
-  cljMap,
-  cljString,
-} from './factories'
+import type {
+  RuntimeModule,
+  VarDeclaration,
+  VarMap,
+  ModuleContext,
+} from './module'
 import { prettyPrintString, printString, withPrintContext } from './printer'
 import { derefValue, tryLookup } from './env'
 import { valueToString } from './transformations'
-import type { CljValue, Env, EvaluationContext } from './types'
+import type { CljMap, CljValue, Env, EvaluationContext } from './types'
 import { arithmeticFunctions } from './stdlib/arithmetic'
 import { atomFunctions } from './stdlib/atoms'
 import { collectionFunctions } from './stdlib/collections'
@@ -24,6 +23,7 @@ import { lazyFunctions } from './stdlib/lazy'
 import { varFunctions } from './stdlib/vars'
 // --- ASYNC (experimental) ---
 import { asyncFunctions } from './stdlib/async-fns'
+import { v } from './factories'
 // --- END ASYNC ---
 
 // ---------------------------------------------------------------------------
@@ -112,7 +112,7 @@ function emitToOut(ctx: EvaluationContext, callEnv: Env, text: string): void {
   const outVar = ctx.resolveNs('clojure.core')?.vars.get('*out*')
   const out = outVar ? derefValue(outVar) : undefined
   if (out && (out.kind === 'function' || out.kind === 'native-function')) {
-    ctx.applyCallable(out, [cljString(text)], callEnv)
+    ctx.applyCallable(out, [v.string(text)], callEnv)
   } else {
     ctx.io.stdout(text)
   }
@@ -128,7 +128,7 @@ function emitToErr(ctx: EvaluationContext, callEnv: Env, text: string): void {
   const errVar = ctx.resolveNs('clojure.core')?.vars.get('*err*')
   const err = errVar ? derefValue(errVar) : undefined
   if (err && (err.kind === 'function' || err.kind === 'native-function')) {
-    ctx.applyCallable(err, [cljString(text)], callEnv)
+    ctx.applyCallable(err, [v.string(text)], callEnv)
   } else {
     ctx.io.stderr(text)
   }
@@ -154,87 +154,98 @@ export function makeCoreModule(): RuntimeModule {
 
           // Pure stdlib functions (all have .meta via .doc())
           for (const [name, fn] of Object.entries(nativeFunctions)) {
-            const meta = (fn as { meta?: import('./types').CljMap }).meta
+            const meta = (fn as { meta?: CljMap }).meta
             map.set(name, { value: fn, ...(meta ? { meta } : {}) })
           }
 
           // IO functions — route through emitToOut/emitToErr so that
           // *out*/*err* dynamic bindings (e.g. inside with-out-str) are honoured.
           map.set('println', {
-            value: cljNativeFunctionWithContext(
+            value: v.nativeFnCtx(
               'println',
               (ctx, callEnv, ...args: CljValue[]) => {
                 withPrintContext(readPrintCtx(callEnv), () => {
-                  emitToOut(ctx, callEnv, args.map(valueToString).join(' ') + '\n')
+                  emitToOut(
+                    ctx,
+                    callEnv,
+                    args.map(valueToString).join(' ') + '\n'
+                  )
                 })
-                return cljNil()
+                return v.nil()
               }
             ),
           })
           map.set('print', {
-            value: cljNativeFunctionWithContext(
+            value: v.nativeFnCtx(
               'print',
               (ctx, callEnv, ...args: CljValue[]) => {
                 withPrintContext(readPrintCtx(callEnv), () => {
                   emitToOut(ctx, callEnv, args.map(valueToString).join(' '))
                 })
-                return cljNil()
+                return v.nil()
               }
             ),
           })
           map.set('newline', {
-            value: cljNativeFunctionWithContext(
-              'newline',
-              (ctx, callEnv) => {
-                emitToOut(ctx, callEnv, '\n')
-                return cljNil()
-              }
-            ),
+            value: v.nativeFnCtx('newline', (ctx, callEnv) => {
+              emitToOut(ctx, callEnv, '\n')
+              return v.nil()
+            }),
           })
           map.set('pr', {
-            value: cljNativeFunctionWithContext(
-              'pr',
-              (ctx, callEnv, ...args: CljValue[]) => {
-                withPrintContext(readPrintCtx(callEnv), () => {
-                  emitToOut(ctx, callEnv, args.map((v) => printString(v)).join(' '))
-                })
-                return cljNil()
-              }
-            ),
+            value: v.nativeFnCtx('pr', (ctx, callEnv, ...args: CljValue[]) => {
+              withPrintContext(readPrintCtx(callEnv), () => {
+                emitToOut(
+                  ctx,
+                  callEnv,
+                  args.map((v) => printString(v)).join(' ')
+                )
+              })
+              return v.nil()
+            }),
           })
           map.set('prn', {
-            value: cljNativeFunctionWithContext(
-              'prn',
-              (ctx, callEnv, ...args: CljValue[]) => {
-                withPrintContext(readPrintCtx(callEnv), () => {
-                  emitToOut(ctx, callEnv, args.map((v) => printString(v)).join(' ') + '\n')
-                })
-                return cljNil()
-              }
-            ),
+            value: v.nativeFnCtx('prn', (ctx, callEnv, ...args: CljValue[]) => {
+              withPrintContext(readPrintCtx(callEnv), () => {
+                emitToOut(
+                  ctx,
+                  callEnv,
+                  args.map((v) => printString(v)).join(' ') + '\n'
+                )
+              })
+              return v.nil()
+            }),
           })
           map.set('pprint', {
-            value: cljNativeFunctionWithContext(
+            value: v.nativeFnCtx(
               'pprint',
               (ctx, callEnv, form: CljValue, widthArg?: CljValue) => {
-                if (form === undefined) return cljNil()
+                if (form === undefined) return v.nil()
                 const maxWidth =
                   widthArg?.kind === 'number' ? widthArg.value : 80
                 withPrintContext(readPrintCtx(callEnv), () => {
-                  emitToOut(ctx, callEnv, prettyPrintString(form, maxWidth) + '\n')
+                  emitToOut(
+                    ctx,
+                    callEnv,
+                    prettyPrintString(form, maxWidth) + '\n'
+                  )
                 })
-                return cljNil()
+                return v.nil()
               }
             ),
           })
           map.set('warn', {
-            value: cljNativeFunctionWithContext(
+            value: v.nativeFnCtx(
               'warn',
               (ctx, callEnv, ...args: CljValue[]) => {
                 withPrintContext(readPrintCtx(callEnv), () => {
-                  emitToErr(ctx, callEnv, args.map(valueToString).join(' ') + '\n')
+                  emitToErr(
+                    ctx,
+                    callEnv,
+                    args.map(valueToString).join(' ') + '\n'
+                  )
                 })
-                return cljNil()
+                return v.nil()
               }
             ),
           })
@@ -242,15 +253,15 @@ export function makeCoreModule(): RuntimeModule {
           // Dynamic output-channel vars. IO functions check these first before
           // falling back to ctx.io.stdout / ctx.io.stderr. Bound by with-out-str
           // and with-err-str macros defined in clojure.core.
-          map.set('*out*', { value: cljNil(), dynamic: true })
-          map.set('*err*', { value: cljNil(), dynamic: true })
+          map.set('*out*', { value: v.nil(), dynamic: true })
+          map.set('*err*', { value: v.nil(), dynamic: true })
 
           // Dynamic print-control vars
-          map.set('*print-length*', { value: cljNil(), dynamic: true })
-          map.set('*print-level*', { value: cljNil(), dynamic: true })
+          map.set('*print-length*', { value: v.nil(), dynamic: true })
+          map.set('*print-level*', { value: v.nil(), dynamic: true })
 
           // Compatibility var for IDE tooling
-          map.set('*compiler-options*', { value: cljMap([]) })
+          map.set('*compiler-options*', { value: v.map([]) })
 
           return map
         },

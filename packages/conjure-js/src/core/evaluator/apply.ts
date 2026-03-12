@@ -1,4 +1,4 @@
-import { isAFunction, isEqual, isKeyword, isMap } from '../assertions'
+import { is } from '../assertions'
 import { EvaluationError } from '../errors'
 import { cljNil } from '../factories'
 import { printString } from '../printer'
@@ -69,25 +69,25 @@ export function applyCallableWithContext(
   ctx: EvaluationContext,
   callEnv: Env
 ): CljValue {
-  if (isAFunction(fn)) {
+  if (is.aFunction(fn)) {
     return applyFunctionWithContext(fn, args, ctx, callEnv)
   }
-  if (isKeyword(fn)) {
+  if (is.keyword(fn)) {
     const target = args[0]
     const defaultVal = args.length > 1 ? args[1] : cljNil()
-    if (isMap(target)) {
-      const entry = target.entries.find(([k]) => isEqual(k, fn))
+    if (is.map(target)) {
+      const entry = target.entries.find(([k]) => is.equal(k, fn))
       return entry ? entry[1] : defaultVal
     }
     return defaultVal
   }
-  if (isMap(fn)) {
+  if (is.map(fn)) {
     if (args.length === 0) {
       throw new EvaluationError('Map used as function requires at least one argument', { fn, args })
     }
     const key = args[0]
     const defaultVal = args.length > 1 ? args[1] : cljNil()
-    const entry = fn.entries.find(([k]) => isEqual(k, key))
+    const entry = fn.entries.find(([k]) => is.equal(k, key))
     return entry ? entry[1] : defaultVal
   }
   throw new EvaluationError(`${printString(fn)} is not a callable value`, {

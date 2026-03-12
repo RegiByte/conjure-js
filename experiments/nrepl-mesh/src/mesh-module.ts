@@ -145,7 +145,7 @@ export function makeMeshModule(meshNode: MeshNode): RuntimeModule {
                   const nodeId = extractId(nodeIdVal)
                   const source = printString(form)
                   const promise = meshNode
-                    .evalAt(nodeId, source)
+                    .evalAt(nodeId, source, undefined)
                     .then((result) => {
                       if (result.error) throw new Error(result.error)
                       return readString(result.value!)

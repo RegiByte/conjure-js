@@ -1,7 +1,7 @@
 import { builtInNamespaceSources } from '../clojure/generated/builtin-namespace-registry'
 import { CljThrownSignal, EvaluationError, ReaderError } from './errors'
 import { createEvaluationContext, RecurSignal } from './evaluator'
-import { cljNil } from './factories'
+import { v } from './factories'
 import type { RuntimeModule } from './module'
 import { formatErrorContext } from './positions'
 import { printString } from './printer'
@@ -139,7 +139,7 @@ function buildSessionFacade(
         })
         const forms = readForms(tokens, currentNs, aliasMap)
         runtime.processNsRequires(forms, env, ctx)
-        let result: CljValue = cljNil()
+        let result: CljValue = v.nil()
         for (const form of forms) {
           const expanded = ctx.expandAll(form, env)
           result = ctx.evaluate(expanded, env)
@@ -195,7 +195,7 @@ function buildSessionFacade(
     evaluateForms(forms: CljValue[]): CljValue {
       try {
         const env = runtime.getNamespaceEnv(currentNs)!
-        let result: CljValue = cljNil()
+        let result: CljValue = v.nil()
         for (const form of forms) {
           const expanded = ctx.expandAll(form, env)
           result = ctx.evaluate(expanded, env)

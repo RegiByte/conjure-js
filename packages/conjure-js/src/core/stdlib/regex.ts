@@ -1,15 +1,8 @@
 // Regex stdlib: regexp?, re-pattern, re-find, re-matches, re-seq
 // Also exports str-split* used internally by clojure.string/split.
-import { isRegex } from '../assertions'
+import { is } from '../assertions'
 import { EvaluationError } from '../errors'
-import {
-  cljBoolean,
-  cljNil,
-  cljRegex,
-  cljString,
-  cljVector,
-  v,
-} from '../factories'
+import { v } from '../factories'
 import { printString } from '../printer'
 import type { CljRegex, CljValue } from '../types'
 
@@ -18,7 +11,10 @@ import type { CljRegex, CljValue } from '../types'
 // Mirrors the logic in reader.ts so that re-pattern can also process flags.
 // Only leading standalone (?flags) groups are stripped. (?:...) is untouched.
 // ---------------------------------------------------------------------------
-export function extractInlineFlags(raw: string): { pattern: string; flags: string } {
+export function extractInlineFlags(raw: string): {
+  pattern: string
+  flags: string
+} {
   let remaining = raw
   let flags = ''
   const flagGroupRe = /^\(\?([imsx]+)\)/
@@ -43,7 +39,7 @@ export function extractInlineFlags(raw: string): { pattern: string; flags: strin
 // ---------------------------------------------------------------------------
 
 function assertRegex(val: CljValue, fnName: string): CljRegex {
-  if (!isRegex(val)) {
+  if (!is.regex(val)) {
     throw new EvaluationError(
       `${fnName} expects a regex as first argument, got ${printString(val)}`,
       { val }
@@ -66,10 +62,10 @@ function assertStringArg(val: CljValue, fnName: string): string {
 // - no capturing groups → CljString
 // - with capturing groups → CljVector of [whole, g1, g2, ...] with nil for unmatched groups
 function matchToClj(match: RegExpExecArray): CljValue {
-  if (match.length === 1) return cljString(match[0])
-  return cljVector(
+  if (match.length === 1) return v.string(match[0])
+  return v.vector(
     match.map(function mapMatchToClj(m) {
-      return m == null ? cljNil() : cljString(m)
+      return m == null ? v.nil() : v.string(m)
     })
   )
 }
@@ -79,132 +75,165 @@ function matchToClj(match: RegExpExecArray): CljValue {
 // ---------------------------------------------------------------------------
 
 export const regexFunctions: Record<string, CljValue> = {
-  'regexp?': v.nativeFn('regexp?', function regexpPredImpl(x: CljValue) {
-    return cljBoolean(x !== undefined && isRegex(x))
-  }).doc(
-    'Returns true if x is a regular expression pattern.',
-    [['x']]
-  ),
+  'regexp?': v
+    .nativeFn('regexp?', function regexpPredImpl(x: CljValue) {
+      return v.boolean(x !== undefined && is.regex(x))
+    })
+    .doc('Returns true if x is a regular expression pattern.', [['x']]),
 
-  're-pattern': v.nativeFn('re-pattern', function rePatternImpl(s: CljValue) {
-    if (s === undefined || s.kind !== 'string') {
-      throw new EvaluationError(
-        `re-pattern expects a string argument${s !== undefined ? `, got ${printString(s)}` : ''}`,
-        { s }
-      )
-    }
-    const { pattern, flags } = extractInlineFlags(s.value)
-    return cljRegex(pattern, flags)
-  }).doc(
-    'Returns an instance of java.util.regex.Pattern, for use, e.g. in re-matcher.\n  (re-pattern "\\\\d+") produces the same pattern as #"\\d+".',
-    [['s']]
-  ),
-
-  're-find': v.nativeFn('re-find', function reFindImpl(reVal: CljValue, sVal: CljValue) {
-    const re = assertRegex(reVal, 're-find')
-    const s = assertStringArg(sVal, 're-find')
-    const jsRe = new RegExp(re.pattern, re.flags)
-    const match = jsRe.exec(s)
-    if (!match) return cljNil()
-    return matchToClj(match)
-  }).doc(
-    'Returns the next regex match, if any, of string to pattern, using\n  java.util.regex.Matcher.find(). Returns the match or nil. When there\n  are groups, returns a vector of the whole match and groups (nil for\n  unmatched optional groups).',
-    [['re', 's']]
-  ),
-
-  're-matches': v.nativeFn('re-matches', function reMatchesImpl(reVal: CljValue, sVal: CljValue) {
-    const re = assertRegex(reVal, 're-matches')
-    const s = assertStringArg(sVal, 're-matches')
-    const jsRe = new RegExp(re.pattern, re.flags)
-    const match = jsRe.exec(s)
-    if (!match || match.index !== 0 || match[0].length !== s.length) {
-      return cljNil()
-    }
-    return matchToClj(match)
-  }).doc(
-    'Returns the match, if any, of string to pattern, using\n  java.util.regex.Matcher.matches(). The entire string must match.\n  Returns the match or nil. When there are groups, returns a vector\n  of the whole match and groups (nil for unmatched optional groups).',
-    [['re', 's']]
-  ),
-
-  're-seq': v.nativeFn('re-seq', function reSeqImpl(reVal: CljValue, sVal: CljValue) {
-    const re = assertRegex(reVal, 're-seq')
-    const s = assertStringArg(sVal, 're-seq')
-    // Always create a fresh regex with the g flag for exec looping
-    const jsRe = new RegExp(re.pattern, re.flags + 'g')
-    const results: CljValue[] = []
-    let match: RegExpExecArray | null
-    while ((match = jsRe.exec(s)) !== null) {
-      // Guard against zero-length match infinite loops
-      if (match[0].length === 0) {
-        jsRe.lastIndex++
-        continue
+  're-pattern': v
+    .nativeFn('re-pattern', function rePatternImpl(s: CljValue) {
+      if (s === undefined || s.kind !== 'string') {
+        throw new EvaluationError(
+          `re-pattern expects a string argument${s !== undefined ? `, got ${printString(s)}` : ''}`,
+          { s }
+        )
       }
-      results.push(matchToClj(match))
-    }
-    if (results.length === 0) return cljNil()
-    return { kind: 'list' as const, value: results }
-  }).doc(
-    'Returns a lazy sequence of successive matches of pattern in string,\n  using java.util.regex.Matcher.find(), each such match processed with\n  re-groups.',
-    [['re', 's']]
-  ),
+      const { pattern, flags } = extractInlineFlags(s.value)
+      return v.regex(pattern, flags)
+    })
+    .doc(
+      'Returns an instance of java.util.regex.Pattern, for use, e.g. in re-matcher.\n  (re-pattern "\\\\d+") produces the same pattern as #"\\d+".',
+      [['s']]
+    ),
+
+  're-find': v
+    .nativeFn('re-find', function reFindImpl(reVal: CljValue, sVal: CljValue) {
+      const re = assertRegex(reVal, 're-find')
+      const s = assertStringArg(sVal, 're-find')
+      const jsRe = new RegExp(re.pattern, re.flags)
+      const match = jsRe.exec(s)
+      if (!match) return v.nil()
+      return matchToClj(match)
+    })
+    .doc(
+      'Returns the next regex match, if any, of string to pattern, using\n  java.util.regex.Matcher.find(). Returns the match or nil. When there\n  are groups, returns a vector of the whole match and groups (nil for\n  unmatched optional groups).',
+      [['re', 's']]
+    ),
+
+  're-matches': v
+    .nativeFn(
+      're-matches',
+      function reMatchesImpl(reVal: CljValue, sVal: CljValue) {
+        const re = assertRegex(reVal, 're-matches')
+        const s = assertStringArg(sVal, 're-matches')
+        const jsRe = new RegExp(re.pattern, re.flags)
+        const match = jsRe.exec(s)
+        if (!match || match.index !== 0 || match[0].length !== s.length) {
+          return v.nil()
+        }
+        return matchToClj(match)
+      }
+    )
+    .doc(
+      'Returns the match, if any, of string to pattern, using\n  java.util.regex.Matcher.matches(). The entire string must match.\n  Returns the match or nil. When there are groups, returns a vector\n  of the whole match and groups (nil for unmatched optional groups).',
+      [['re', 's']]
+    ),
+
+  're-seq': v
+    .nativeFn('re-seq', function reSeqImpl(reVal: CljValue, sVal: CljValue) {
+      const re = assertRegex(reVal, 're-seq')
+      const s = assertStringArg(sVal, 're-seq')
+      // Always create a fresh regex with the g flag for exec looping
+      const jsRe = new RegExp(re.pattern, re.flags + 'g')
+      const results: CljValue[] = []
+      let match: RegExpExecArray | null
+      while ((match = jsRe.exec(s)) !== null) {
+        // Guard against zero-length match infinite loops
+        if (match[0].length === 0) {
+          jsRe.lastIndex++
+          continue
+        }
+        results.push(matchToClj(match))
+      }
+      if (results.length === 0) return v.nil()
+      return { kind: 'list' as const, value: results }
+    })
+    .doc(
+      'Returns a lazy sequence of successive matches of pattern in string,\n  using java.util.regex.Matcher.find(), each such match processed with\n  re-groups.',
+      [['re', 's']]
+    ),
 
   // Internal helper used by clojure.string/split.
   // Accepts a CljRegex or CljString as separator.
   // When no limit is given, trailing empty strings are dropped (Clojure default).
   // When a limit is given, all parts including trailing empties are kept.
-  'str-split*': v.nativeFn('str-split*', function strSplitImpl(sVal: CljValue, sepVal: CljValue, limitVal?: CljValue) {
-    if (sVal === undefined || sVal.kind !== 'string') {
-      throw new EvaluationError(
-        `str-split* expects a string as first argument${sVal !== undefined ? `, got ${printString(sVal)}` : ''}`,
-        { sVal }
-      )
-    }
-    const s = sVal.value
-    const hasLimit = limitVal !== undefined && limitVal.kind !== 'nil'
-    const limit: number | undefined =
-      hasLimit && limitVal!.kind === 'number' ? limitVal!.value : undefined
+  'str-split*': v
+    .nativeFn(
+      'str-split*',
+      function strSplitImpl(
+        sVal: CljValue,
+        sepVal: CljValue,
+        limitVal?: CljValue
+      ) {
+        if (sVal === undefined || sVal.kind !== 'string') {
+          throw new EvaluationError(
+            `str-split* expects a string as first argument${sVal !== undefined ? `, got ${printString(sVal)}` : ''}`,
+            { sVal }
+          )
+        }
+        const s = sVal.value
+        const hasLimit = limitVal !== undefined && limitVal.kind !== 'nil'
+        const limit: number | undefined =
+          hasLimit && limitVal!.kind === 'number' ? limitVal!.value : undefined
 
-    let jsPattern: string
-    let jsFlags: string
+        let jsPattern: string
+        let jsFlags: string
 
-    if (sepVal.kind !== 'regex') {
-      throw new EvaluationError(
-        `str-split* expects a regex pattern as second argument, got ${printString(sepVal)}`,
-        { sepVal }
-      )
-    }
+        if (sepVal.kind !== 'regex') {
+          throw new EvaluationError(
+            `str-split* expects a regex pattern as second argument, got ${printString(sepVal)}`,
+            { sepVal }
+          )
+        }
 
-    // Empty pattern (#"") splits into individual characters — matching
-    // Clojure/Java split("") semantics. Unicode-safe via [...s].
-    if (sepVal.pattern === '') {
-      const chars = [...s]
-      if (limit === undefined || limit >= chars.length) {
-        return cljVector(chars.map(cljString))
+        // Empty pattern (#"") splits into individual characters — matching
+        // Clojure/Java split("") semantics. Unicode-safe via [...s].
+        if (sepVal.pattern === '') {
+          const chars = [...s]
+          if (limit === undefined || limit >= chars.length) {
+            return v.vector(chars.map(v.string))
+          }
+          // limit < chars.length: first (limit-1) chars + rest of string as final part
+          const parts = [
+            ...chars.slice(0, limit - 1),
+            chars.slice(limit - 1).join(''),
+          ]
+          return v.vector(
+            parts.map(function mapPartToString(p) {
+              return v.string(p)
+            })
+          )
+        }
+
+        jsPattern = sepVal.pattern
+        jsFlags = sepVal.flags
+
+        const re = new RegExp(jsPattern, jsFlags + 'g')
+        const rawParts = splitWithRegex(s, re, limit)
+
+        return v.vector(
+          rawParts.map(function mapRawPartToString(p) {
+            return v.string(p)
+          })
+        )
       }
-      // limit < chars.length: first (limit-1) chars + rest of string as final part
-      const parts = [...chars.slice(0, limit - 1), chars.slice(limit - 1).join('')]
-      return cljVector(parts.map(function mapPartToString(p) {
-        return cljString(p)
-      }))
-    }
-
-    jsPattern = sepVal.pattern
-    jsFlags = sepVal.flags
-
-    const re = new RegExp(jsPattern, jsFlags + 'g')
-    const rawParts = splitWithRegex(s, re, limit)
-
-    return cljVector(rawParts.map(function mapRawPartToString(p) {
-      return cljString(p)
-    }))
-  }).doc(
-    'Internal helper for clojure.string/split. Splits string s by a regex or\n  string separator. Optional limit keeps all parts when provided.',
-    [['s', 'sep'], ['s', 'sep', 'limit']]
-  ),
+    )
+    .doc(
+      'Internal helper for clojure.string/split. Splits string s by a regex or\n  string separator. Optional limit keeps all parts when provided.',
+      [
+        ['s', 'sep'],
+        ['s', 'sep', 'limit'],
+      ]
+    ),
 }
 
 // Performs the actual split, applying limit and trailing-empty-drop semantics.
-function splitWithRegex(s: string, re: RegExp, limit: number | undefined): string[] {
+function splitWithRegex(
+  s: string,
+  re: RegExp,
+  limit: number | undefined
+): string[] {
   const parts: string[] = []
   let lastIndex = 0
   let match: RegExpExecArray | null

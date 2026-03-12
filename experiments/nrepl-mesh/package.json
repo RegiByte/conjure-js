@@ -4,10 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "serve": "bun src/server.ts",
-    "client": "bun src/client.ts",
-    "nrepl-server": "bun src/nrepl-server.ts",
-    "nrepl-local": "bun src/nrepl-local.ts",
+    "repl": "bun src/nrepl-local.ts",
+    "worker": "bun src/worker.ts",
+    "nrepl-worker": "bun src/nrepl-server.ts",
+    "mesh-cli": "bun src/mesh-cli.ts",
+    "dev": "bash dev.sh",
     "test": "vitest run"
   },
   "dependencies": {

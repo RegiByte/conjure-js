@@ -83,12 +83,15 @@ export class RedisBroker implements MeshBroker {
   }
 
   async sendChunk(replyAddr: string, chunk: MeshStreamChunk): Promise<void> {
-    await this.pub.lpush(replyAddr, JSON.stringify(chunk))
+    // RPUSH + BLPOP = FIFO queue: chunks are read in the order they were sent.
+    // LPUSH + BLPOP would be LIFO — the terminal eval-reply (pushed last) would
+    // be read first, causing the loop to exit before any chunk is consumed.
+    await this.pub.rpush(replyAddr, JSON.stringify(chunk))
     await this.pub.expire(replyAddr, REPLY_TTL_SEC)
   }
 
   async reply(replyAddr: string, reply: MeshReply): Promise<void> {
-    await this.pub.lpush(replyAddr, JSON.stringify(reply))
+    await this.pub.rpush(replyAddr, JSON.stringify(reply))
     await this.pub.expire(replyAddr, REPLY_TTL_SEC)
   }
 

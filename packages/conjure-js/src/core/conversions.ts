@@ -1,15 +1,6 @@
 import { isCljValue } from './assertions'
 import { applyFunction } from './evaluator'
-import {
-  cljBoolean,
-  cljKeyword,
-  cljMap,
-  cljNativeFunction,
-  cljNil,
-  cljNumber,
-  cljString,
-  cljVector,
-} from './factories'
+import { v } from './factories'
 import type { CljValue } from './types'
 
 export class ConversionError extends Error {
@@ -72,19 +63,19 @@ export function cljToJs(value: CljValue): unknown {
 }
 
 export function jsToClj(value: unknown): CljValue {
-  if (value === null || value === undefined) return cljNil()
+  if (value === null || value === undefined) return v.nil()
   if (isCljValue(value)) return value
 
   switch (typeof value) {
     case 'number':
-      return cljNumber(value)
+      return v.number(value)
     case 'string':
-      return cljString(value)
+      return v.string(value)
     case 'boolean':
-      return cljBoolean(value)
+      return v.boolean(value)
     case 'function': {
       const jsFn = value as (...args: unknown[]) => unknown
-      return cljNativeFunction('js-fn', (...cljArgs: CljValue[]) => {
+      return v.nativeFn('js-fn', (...cljArgs: CljValue[]) => {
         const jsArgs = cljArgs.map(cljToJs)
         const result = jsFn(...jsArgs)
         return jsToClj(result)
@@ -92,12 +83,12 @@ export function jsToClj(value: unknown): CljValue {
     }
     case 'object': {
       if (Array.isArray(value)) {
-        return cljVector(value.map(jsToClj))
+        return v.vector(value.map(jsToClj))
       }
       const entries: [CljValue, CljValue][] = Object.entries(
         value as Record<string, unknown>
-      ).map(([k, v]) => [cljKeyword(`:${k}`), jsToClj(v)])
-      return cljMap(entries)
+      ).map(([k, value]) => [v.keyword(`:${k}`), jsToClj(value)])
+      return v.map(entries)
     }
     default:
       throw new ConversionError(

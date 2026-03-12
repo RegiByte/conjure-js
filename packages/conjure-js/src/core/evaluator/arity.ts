@@ -1,4 +1,4 @@
-import { isList, isMap, isSymbol, isVector } from '../assertions'
+import { is } from '../assertions'
 import { extend } from '../env'
 import { EvaluationError } from '../errors'
 import { cljList, cljNil } from '../factories'
@@ -23,14 +23,14 @@ export function parseParamVector(
   args: CljVector,
   env: Env
 ): { params: DestructurePattern[]; restParam: DestructurePattern | null } {
-  const ampIdx = args.value.findIndex((a) => isSymbol(a) && a.name === '&')
+  const ampIdx = args.value.findIndex((a) => is.symbol(a) && a.name === '&')
   let params: DestructurePattern[] = []
   let restParam: DestructurePattern | null = null
   if (ampIdx === -1) {
     params = args.value as DestructurePattern[]
   } else {
     const ampsCount = args.value.filter(
-      (a) => isSymbol(a) && a.name === '&'
+      (a) => is.symbol(a) && a.name === '&'
     ).length
     if (ampsCount > 1) {
       throw new EvaluationError('& can only appear once', { args, env })
@@ -58,23 +58,23 @@ export function parseArities(forms: CljValue[], env: Env): Arity[] {
     )
   }
 
-  if (isVector(forms[0])) {
+  if (is.vector(forms[0])) {
     const paramVec = forms[0]
     const { params, restParam } = parseParamVector(paramVec, env)
     return [{ params, restParam, body: forms.slice(1) }]
   }
 
-  if (isList(forms[0])) {
+  if (is.list(forms[0])) {
     const arities: Arity[] = []
     for (const form of forms) {
-      if (!isList(form) || form.value.length === 0) {
+      if (!is.list(form) || form.value.length === 0) {
         throw new EvaluationError(
           'Multi-arity clause must be a list starting with a parameter vector',
           { form, env }
         )
       }
       const paramVec = form.value[0]
-      if (!isVector(paramVec)) {
+      if (!is.vector(paramVec)) {
         throw new EvaluationError(
           'First element of arity clause must be a parameter vector',
           { paramVec, env }
@@ -134,7 +134,7 @@ export function bindParams(
   if (restParam !== null) {
     const restArgs = args.slice(params.length)
     let restValue: CljValue
-    if (isMap(restParam) && restArgs.length > 0) {
+    if (is.map(restParam) && restArgs.length > 0) {
       const entries: [CljValue, CljValue][] = []
       for (let i = 0; i < restArgs.length; i += 2) {
         entries.push([restArgs[i], restArgs[i + 1] ?? cljNil()])

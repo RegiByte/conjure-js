@@ -1,4 +1,4 @@
-import { isList, isSymbol, isVector } from '../assertions'
+import { is } from '../assertions'
 import { EvaluationError } from '../errors'
 import type { CljValue } from '../types'
 import { specialFormKeywords } from './special-forms'
@@ -28,9 +28,9 @@ export function assertRecurInTailPosition(body: CljValue[]): void {
 
 function isRecurForm(form: CljValue): boolean {
   return (
-    isList(form) &&
+    is.list(form) &&
     form.value.length >= 1 &&
-    isSymbol(form.value[0]) &&
+    is.symbol(form.value[0]) &&
     form.value[0].name === specialFormKeywords.recur
   )
 }
@@ -44,7 +44,7 @@ function validateForms(forms: CljValue[], inTail: boolean): void {
 
 /** Walk a single form; `inTail` = whether a direct recur here is valid. */
 function validateForm(form: CljValue, inTail: boolean): void {
-  if (!isList(form)) return
+  if (!is.list(form)) return
 
   if (isRecurForm(form)) {
     if (!inTail) {
@@ -57,7 +57,7 @@ function validateForm(form: CljValue, inTail: boolean): void {
 
   const first = form.value[0]
 
-  if (!isSymbol(first)) {
+  if (!is.symbol(first)) {
     // Anonymous fn call etc. — all sub-forms are non-tail
     for (const sub of form.value) validateForm(sub, false)
     return
@@ -92,7 +92,7 @@ function validateForm(form: CljValue, inTail: boolean): void {
   // `let`: binding values are non-tail; last body form inherits inTail
   if (name === specialFormKeywords.let) {
     const bindings = form.value[1]
-    if (isVector(bindings)) {
+    if (is.vector(bindings)) {
       for (let i = 1; i < bindings.value.length; i += 2) {
         validateForm(bindings.value[i], false)
       }

@@ -56,11 +56,13 @@
   (postwalk
    (fn [x]
      (if (map? x)
-       (into {} (map (fn [e]
-                       (let [k (first e)]
-                         (if (keyword? k)
-                           [(name k) (second e)]
-                           e)))
-                     x))
+       (into {}
+             (map
+              (fn [e]
+                (let [k (first e)]
+                  (if (keyword? k)
+                    [(name k) (second e)]
+                    e)))
+              x))
        x))
    m))

@@ -1,10 +1,4 @@
-import {
-  isCallable,
-  isEqual,
-  isMultiMethod,
-  isSpecialForm,
-  isSymbol,
-} from '../assertions'
+import { is } from '../assertions'
 import { EvaluationError } from '../errors'
 import { printString } from '../printer'
 import { getPos } from '../positions'
@@ -26,7 +20,7 @@ function dispatchMultiMethod(
 ): CljValue {
   const dispatchVal = ctx.applyFunction(mm.dispatchFn, args, env)
   const method = mm.methods.find(({ dispatchVal: dv }) =>
-    isEqual(dv, dispatchVal)
+    is.equal(dv, dispatchVal)
   )
   if (method) return ctx.applyFunction(method.fn, args, env)
   if (mm.defaultMethod) return ctx.applyFunction(mm.defaultMethod, args, env)
@@ -53,19 +47,19 @@ export function evaluateList(
   }
   const first = list.value[0]
 
-  if (isSpecialForm(first)) {
+  if (is.specialForm(first)) {
     return evaluateSpecialForm(first.name, list, env, ctx)
   }
 
   const evaledFirst = ctx.evaluate(first, env)
 
-  if (isMultiMethod(evaledFirst)) {
+  if (is.multiMethod(evaledFirst)) {
     const args = list.value.slice(1).map((v) => ctx.evaluate(v, env))
     return dispatchMultiMethod(evaledFirst, args, ctx, env)
   }
 
-  if (!isCallable(evaledFirst)) {
-    const name = isSymbol(first) ? first.name : printString(first)
+  if (!is.callable(evaledFirst)) {
+    const name = is.symbol(first) ? first.name : printString(first)
     throw new EvaluationError(`${name} is not callable`, { list, env })
   }
 
@@ -73,7 +67,11 @@ export function evaluateList(
   try {
     return ctx.applyCallable(evaledFirst, args, env)
   } catch (e) {
-    if (e instanceof EvaluationError && e.data?.argIndex !== undefined && !e.pos) {
+    if (
+      e instanceof EvaluationError &&
+      e.data?.argIndex !== undefined &&
+      !e.pos
+    ) {
       const argForm = list.value[(e.data.argIndex as number) + 1]
       if (argForm) {
         const pos = getPos(argForm)

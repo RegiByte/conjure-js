@@ -122,6 +122,13 @@ export class MeshNode {
       )
     }
 
+    // Temporarily switch to the requester's namespace so symbols resolve the
+    // same way they would locally. Restore afterward regardless of outcome.
+    const prevNs = this.session.currentNs
+    if (req.ns && req.ns !== prevNs) {
+      try { this.session.setNs(req.ns) } catch { /* ns doesn't exist on this node — stay put */ }
+    }
+
     let reply: EvalReply
     try {
       const result = await this.session.evaluateAsync(req.source)
@@ -134,6 +141,9 @@ export class MeshNode {
       reply = { type: 'eval-reply', id: req.id, error: e instanceof Error ? e.message : String(e) }
     } finally {
       this.outputRedirect?.uninstall()
+      if (req.ns && this.session.currentNs !== prevNs) {
+        try { this.session.setNs(prevNs) } catch { /* ignore */ }
+      }
     }
     await this.broker.reply(req.replyTo, reply)
   }
@@ -141,6 +151,7 @@ export class MeshNode {
   async evalAt(
     targetId: string,
     source: string,
+    ns?: string,
     timeoutMs = 10_000,
     onChunk?: (chunk: MeshStreamChunk) => void
   ): Promise<EvalResult> {
@@ -156,7 +167,7 @@ export class MeshNode {
 
     // Start streaming BEFORE sending — a fast node may reply before we BLPOP.
     const replyPromise = this.broker.streamReply(replyTo, onChunk ?? (() => {}), timeoutMs)
-    await this.broker.send(targetId, { type: 'eval', id, source, replyTo })
+    await this.broker.send(targetId, { type: 'eval', id, source, replyTo, ns })
 
     const reply = await replyPromise
     if (!reply) {

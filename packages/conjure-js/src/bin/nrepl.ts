@@ -7,6 +7,7 @@ import {
   createSessionFromSnapshot,
   cljNil,
   printString,
+  readString,
   snapshotSession,
   type CljValue,
   type Session,
@@ -20,6 +21,7 @@ import {
   extractMeta as extractMetaShared,
 } from './nrepl-symbol'
 import { VERSION } from './version'
+export { makeNodeHostModule } from '../host/node-host-module'
 import { makeNodeHostModule } from '../host/node-host-module'
 
 const CONJURE_VERSION = VERSION
@@ -40,6 +42,7 @@ export type RemoteEvalNode = {
   evalAt(
     targetId: string,
     source: string,
+    ns?: string,
     timeoutMs?: number,
     onChunk?: (chunk: RemoteStreamChunk) => void
   ): Promise<{ value?: string; error?: string }>
@@ -66,13 +69,15 @@ function createManagedSession(
   id: string,
   snapshot: SessionSnapshot,
   encoder: BEncoderStream,
-  sourceRoots?: string[]
+  sourceRoots?: string[],
+  onOutput?: (text: string) => void
 ): ManagedSession {
   let currentMsgId = ''
 
   const session = createSessionFromSnapshot(snapshot, {
     output: (text) => {
       send(encoder, { id: currentMsgId, session: id, out: text })
+      onOutput?.(text)
     },
     readFile: (filePath) => readFileSync(filePath, 'utf8'),
     sourceRoots,
@@ -125,11 +130,12 @@ function handleClone(
   sessions: Map<string, ManagedSession>,
   snapshot: SessionSnapshot,
   encoder: BEncoderStream,
-  sourceRoots?: string[]
+  sourceRoots?: string[],
+  onOutput?: (text: string) => void
 ) {
   const id = (msg['id'] as string) ?? ''
   const newId = makeSessionId()
-  const managed = createManagedSession(newId, snapshot, encoder, sourceRoots)
+  const managed = createManagedSession(newId, snapshot, encoder, sourceRoots, onOutput)
   sessions.set(newId, managed)
   done(encoder, id, undefined, { 'new-session': newId })
 }
@@ -176,7 +182,37 @@ async function handleEval(
 
   // Mesh routing: if mesh/*eval-target* is set and a meshNode is provided, route remotely.
   // *eval-target* stores a CljString (set by set-target!) or CljNil (cleared).
-  if (meshNode) {
+  //
+  // IMPORTANT: set-target! must ALWAYS run locally, regardless of the current target.
+  // If routed, (mesh/set-target! nil) would run on the remote node and clear ITS var,
+  // leaving the local target set — the user would be permanently stuck until reconnect.
+  //
+  // We detect "is this a set-target! call?" by resolving the head symbol in the local
+  // environment, not by regex. This correctly handles namespace aliases (:as m → m/set-target!),
+  // refers, and user renames — without any string matching on code.
+  // Vars that must always evaluate locally — reading or calling them on a
+  // remote node would return that node's state, not the local connection's.
+  const MESH_LOCAL_ONLY = new Set(['set-target!', '*eval-target*'])
+  const isMeshControl = (() => {
+    try {
+      const first = readString(code.trim())
+      // Direct symbol read: mesh/*eval-target*
+      if (first.kind === 'symbol') {
+        const resolved = resolveSymbol(first.name, managed)
+        return resolved?.resolvedNs === 'mesh' && MESH_LOCAL_ONLY.has(resolved.localName)
+      }
+      // Function call: (set-target! ...) or (mesh/set-target! ...)
+      if (first.kind !== 'list' || first.value.length === 0) return false
+      const head = first.value[0]
+      if (head.kind !== 'symbol') return false
+      const resolved = resolveSymbol(head.name, managed)
+      return resolved?.resolvedNs === 'mesh' && MESH_LOCAL_ONLY.has(resolved?.localName ?? '')
+    } catch {
+      return false
+    }
+  })()
+
+  if (!isMeshControl && meshNode) {
     const meshNs = managed.session.getNs('mesh')
     const evalTargetVar = meshNs?.vars.get('*eval-target*')
     const targetVal = evalTargetVar?.value
@@ -186,6 +222,7 @@ async function handleEval(
         const result = await meshNode.evalAt(
           targetId,
           code,
+          managed.session.currentNs,
           undefined,
           (chunk) => {
             // Stream each chunk back to the editor immediately as it arrives —
@@ -490,7 +527,8 @@ function handleMessage(
   encoder: BEncoderStream,
   defaultSession: ManagedSession,
   sourceRoots?: string[],
-  meshNode?: RemoteEvalNode
+  meshNode?: RemoteEvalNode,
+  onOutput?: (text: string) => void
 ) {
   const op = msg['op'] as string
   const sessionId = msg['session'] as string | undefined
@@ -500,7 +538,7 @@ function handleMessage(
 
   switch (op) {
     case 'clone':
-      handleClone(msg, sessions, snapshot, encoder, sourceRoots)
+      handleClone(msg, sessions, snapshot, encoder, sourceRoots, onOutput)
       break
     case 'describe':
       handleDescribe(msg, encoder)
@@ -555,6 +593,12 @@ export type NreplServerOptions = {
   meshNode?: RemoteEvalNode
   /** Write .nrepl-port to cwd on listen. Default: true. Set false for embedded/server use. */
   writePortFile?: boolean
+  /**
+   * Called for every stdout chunk from any managed session (i.e. local evals from the editor).
+   * Use this to echo output to the server terminal alongside the Calva encoder stream.
+   * Example: onOutput: (t) => process.stdout.write(t)
+   */
+  onOutput?: (text: string) => void
 }
 
 export function startNreplServer(options: NreplServerOptions = {}): net.Server {
@@ -574,7 +618,7 @@ export function startNreplServer(options: NreplServerOptions = {}): net.Server {
           })
         ))
 
-  const { meshNode } = options
+  const { meshNode, onOutput } = options
 
   const server = net.createServer((socket) => {
     const encoder = new BEncoderStream()
@@ -591,7 +635,8 @@ export function startNreplServer(options: NreplServerOptions = {}): net.Server {
       defaultId,
       snapshot,
       encoder,
-      options.sourceRoots
+      options.sourceRoots,
+      onOutput
     )
     sessions.set(defaultId, defaultSession)
 
@@ -603,7 +648,8 @@ export function startNreplServer(options: NreplServerOptions = {}): net.Server {
         encoder,
         defaultSession,
         options.sourceRoots,
-        meshNode
+        meshNode,
+        onOutput
       )
     })
 

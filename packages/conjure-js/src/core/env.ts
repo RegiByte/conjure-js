@@ -1,6 +1,6 @@
 import { EvaluationError } from './errors'
 import type { CljNamespace, CljMap, CljValue, CljVar, Env } from './types'
-import { cljVar } from './factories'
+import { v } from './factories'
 
 class EnvError extends Error {
   context: any
@@ -20,7 +20,13 @@ export function derefValue(val: CljValue): CljValue {
 }
 
 export function makeNamespace(name: string): CljNamespace {
-  return { kind: 'namespace', name, vars: new Map(), aliases: new Map(), readerAliases: new Map() }
+  return {
+    kind: 'namespace',
+    name,
+    vars: new Map(),
+    aliases: new Map(),
+    readerAliases: new Map(),
+  }
 }
 
 export function makeEnv(outer?: Env): Env {
@@ -62,14 +68,19 @@ export function tryLookup(name: string, env: Env): CljValue | undefined {
  * Re-def: mutates the existing var's value in place.
  * New def: creates a new CljVar and stores it in ns.vars.
  */
-export function internVar(name: string, value: CljValue, nsEnv: Env, meta?: CljMap) {
+export function internVar(
+  name: string,
+  value: CljValue,
+  nsEnv: Env,
+  meta?: CljMap
+) {
   const ns = nsEnv.ns!
   const existing = ns.vars.get(name)
   if (existing) {
     existing.value = value
     if (meta) existing.meta = meta
   } else {
-    ns.vars.set(name, cljVar(ns.name, name, value, meta))
+    ns.vars.set(name, v.var(ns.name, name, value, meta))
   }
 }
 

@@ -9,7 +9,7 @@
  * Design: .regibyte/sessions/87-async-pending-design-and-plan.md
  */
 
-import { isAFunction, isVector } from '../assertions'
+import { is } from '../assertions'
 import { extend } from '../env'
 import { CljThrownSignal, EvaluationError } from '../errors'
 import { cljNil } from '../factories'
@@ -171,11 +171,7 @@ async function evaluateListAsync(
 
   // Deref interception: @x expands to (deref x).
   // If the dereffed value is CljPending, await it here — this is the heart of async @.
-  if (
-    isAFunction(fn) &&
-    fn.name === 'deref' &&
-    list.value.length === 2
-  ) {
+  if (is.aFunction(fn) && fn.name === 'deref' && list.value.length === 2) {
     const val = await evaluateFormAsync(list.value[1], env, asyncCtx)
     if (val.kind === 'pending') {
       return val.promise // await the pending value
@@ -298,7 +294,7 @@ async function evaluateLetAsync(
   asyncCtx: AsyncEvalCtx
 ): Promise<CljValue> {
   const bindings = list.value[1]
-  if (!isVector(bindings)) {
+  if (!is.vector(bindings)) {
     throw new EvaluationError('let bindings must be a vector', { list, env })
   }
   if (bindings.value.length % 2 !== 0) {
@@ -336,7 +332,7 @@ async function evaluateLoopAsync(
   asyncCtx: AsyncEvalCtx
 ): Promise<CljValue> {
   const loopBindings = list.value[1]
-  if (!isVector(loopBindings)) {
+  if (!is.vector(loopBindings)) {
     throw new EvaluationError('loop bindings must be a vector', { list, env })
   }
   if (loopBindings.value.length % 2 !== 0) {

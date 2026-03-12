@@ -5,21 +5,14 @@ import {
   isSymbol,
   isVector,
 } from './assertions'
-import { resolveModuleOrder, type RuntimeModule, type ModuleContext } from './module'
+import {
+  resolveModuleOrder,
+  type RuntimeModule,
+  type ModuleContext,
+} from './module'
 import { internVar, makeEnv, makeNamespace, tryLookup } from './env'
 import { EvaluationError } from './errors'
-import {
-  cljBoolean,
-  cljKeyword,
-  cljList,
-  cljMap,
-  cljNativeFunction,
-  cljNativeFunctionWithContext,
-  cljNil,
-  cljSet,
-  cljString,
-  cljSymbol,
-} from './factories'
+import { v } from './factories'
 import { readForms } from './reader'
 import { tokenize } from './tokenizer'
 import type {
@@ -449,147 +442,147 @@ function buildRuntime(
   // Namespace introspection
   internVar(
     'ns-name',
-    cljNativeFunction('ns-name', (x: CljValue) => {
-      if (x === undefined) return cljNil()
-      if (x.kind === 'namespace') return cljSymbol(x.name)
+    v.nativeFn('ns-name', (x: CljValue) => {
+      if (x === undefined) return v.nil()
+      if (x.kind === 'namespace') return v.symbol(x.name)
       if (x.kind === 'symbol') return x
-      if (x.kind === 'string') return cljSymbol(x.value)
-      return cljNil()
+      if (x.kind === 'string') return v.symbol(x.value)
+      return v.nil()
     }),
     coreEnv
   )
 
   internVar(
     'all-ns',
-    cljNativeFunction('all-ns', () =>
-      cljList([...registry.values()].map((env) => env.ns!).filter(Boolean))
+    v.nativeFn('all-ns', () =>
+      v.list([...registry.values()].map((env) => env.ns!).filter(Boolean))
     ),
     coreEnv
   )
 
   internVar(
     'find-ns',
-    cljNativeFunction('find-ns', (sym: CljValue) => {
-      if (sym === undefined || !isSymbol(sym)) return cljNil()
-      return registry.get(sym.name)?.ns ?? cljNil()
+    v.nativeFn('find-ns', (sym: CljValue) => {
+      if (sym === undefined || !isSymbol(sym)) return v.nil()
+      return registry.get(sym.name)?.ns ?? v.nil()
     }),
     coreEnv
   )
 
   internVar(
     'ns-aliases',
-    cljNativeFunction('ns-aliases', (sym: CljValue) => {
+    v.nativeFn('ns-aliases', (sym: CljValue) => {
       const ns = resolveNsSym(sym)
-      if (!ns) return cljMap([])
+      if (!ns) return v.map([])
       const entries: [CljValue, CljValue][] = []
       ns.aliases.forEach((targetNs, alias) => {
-        entries.push([cljSymbol(alias), targetNs])
+        entries.push([v.symbol(alias), targetNs])
       })
-      return cljMap(entries)
+      return v.map(entries)
     }),
     coreEnv
   )
 
   internVar(
     'ns-interns',
-    cljNativeFunction('ns-interns', (sym: CljValue) => {
+    v.nativeFn('ns-interns', (sym: CljValue) => {
       const ns = resolveNsSym(sym)
-      if (!ns) return cljMap([])
+      if (!ns) return v.map([])
       const entries: [CljValue, CljValue][] = []
-      ns.vars.forEach((v, name) => {
-        if (v.ns === ns.name) entries.push([cljSymbol(name), v])
+      ns.vars.forEach((theVar, name) => {
+        if (theVar.ns === ns.name) entries.push([v.symbol(name), theVar])
       })
-      return cljMap(entries)
+      return v.map(entries)
     }),
     coreEnv
   )
 
   internVar(
     'ns-publics',
-    cljNativeFunction('ns-publics', (sym: CljValue) => {
+    v.nativeFn('ns-publics', (sym: CljValue) => {
       const ns = resolveNsSym(sym)
-      if (!ns) return cljMap([])
+      if (!ns) return v.map([])
       const entries: [CljValue, CljValue][] = []
-      ns.vars.forEach((v, name) => {
-        if (v.ns === ns.name) entries.push([cljSymbol(name), v])
+      ns.vars.forEach((theVar, name) => {
+        if (theVar.ns === ns.name) entries.push([v.symbol(name), theVar])
       })
-      return cljMap(entries)
+      return v.map(entries)
     }),
     coreEnv
   )
 
   internVar(
     'ns-refers',
-    cljNativeFunction('ns-refers', (sym: CljValue) => {
+    v.nativeFn('ns-refers', (sym: CljValue) => {
       const ns = resolveNsSym(sym)
-      if (!ns) return cljMap([])
+      if (!ns) return v.map([])
       const entries: [CljValue, CljValue][] = []
-      ns.vars.forEach((v, name) => {
-        if (v.ns !== ns.name) entries.push([cljSymbol(name), v])
+      ns.vars.forEach((theVar, name) => {
+        if (theVar.ns !== ns.name) entries.push([v.symbol(name), theVar])
       })
-      return cljMap(entries)
+      return v.map(entries)
     }),
     coreEnv
   )
 
   internVar(
     'ns-map',
-    cljNativeFunction('ns-map', (sym: CljValue) => {
+    v.nativeFn('ns-map', (sym: CljValue) => {
       const ns = resolveNsSym(sym)
-      if (!ns) return cljMap([])
+      if (!ns) return v.map([])
       const entries: [CljValue, CljValue][] = []
-      ns.vars.forEach((v, name) => {
-        entries.push([cljSymbol(name), v])
+      ns.vars.forEach((theVar, name) => {
+        entries.push([v.symbol(name), theVar])
       })
-      return cljMap(entries)
+      return v.map(entries)
     }),
     coreEnv
   )
 
   internVar(
     'ns-imports',
-    cljNativeFunction('ns-imports', (_sym: CljValue) => cljMap([])),
+    v.nativeFn('ns-imports', (_sym: CljValue) => v.map([])),
     coreEnv
   )
 
   internVar(
     'the-ns',
-    cljNativeFunction('the-ns', (sym: CljValue) => {
-      if (sym === undefined) return cljNil()
+    v.nativeFn('the-ns', (sym: CljValue) => {
+      if (sym === undefined) return v.nil()
       if (isNamespace(sym)) return sym
-      if (!isSymbol(sym)) return cljNil()
-      return registry.get(sym.name)?.ns ?? cljNil()
+      if (!isSymbol(sym)) return v.nil()
+      return registry.get(sym.name)?.ns ?? v.nil()
     }),
     coreEnv
   )
 
   internVar(
     'instance?',
-    cljNativeFunction('instance?', (_cls: CljValue, _obj: CljValue) =>
-      cljBoolean(false)
+    v.nativeFn('instance?', (_cls: CljValue, _obj: CljValue) =>
+      v.boolean(false)
     ),
     coreEnv
   )
 
   internVar(
     'class',
-    cljNativeFunction('class', (x: CljValue) => {
-      if (x === undefined) return cljNil()
-      return cljString(`conjure.${x.kind}`)
+    v.nativeFn('class', (x: CljValue) => {
+      if (x === undefined) return v.nil()
+      return v.string(`conjure.${x.kind}`)
     }),
     coreEnv
   )
 
   internVar(
     'class?',
-    cljNativeFunction('class?', (_x: CljValue) => cljBoolean(false)),
+    v.nativeFn('class?', (_x: CljValue) => v.boolean(false)),
     coreEnv
   )
 
   internVar(
     'special-symbol?',
-    cljNativeFunction('special-symbol?', (sym: CljValue) => {
-      if (sym === undefined || !isSymbol(sym)) return cljBoolean(false)
+    v.nativeFn('special-symbol?', (sym: CljValue) => {
+      if (sym === undefined || !isSymbol(sym)) return v.boolean(false)
       const specials = new Set([
         'def',
         'if',
@@ -614,51 +607,46 @@ function buildRuntime(
         '.',
         'import',
       ])
-      return cljBoolean(specials.has(sym.name))
+      return v.boolean(specials.has(sym.name))
     }),
     coreEnv
   )
 
   internVar(
     'loaded-libs',
-    cljNativeFunction('loaded-libs', () =>
-      cljSet([...registry.keys()].map(cljSymbol))
-    ),
+    v.nativeFn('loaded-libs', () => v.set([...registry.keys()].map(v.symbol))),
     coreEnv
   )
 
   // require — context-aware so it can thread ctx to resolveNamespace
   internVar(
     'require',
-    cljNativeFunctionWithContext(
-      'require',
-      (ctx, _callEnv, ...args: CljValue[]) => {
-        const currentEnv = registry.get(currentNsRef)!
-        for (const arg of args) {
-          processRequireSpec(arg, currentEnv, registry, (nsName) =>
-            resolveNamespace(nsName, ctx)
-          )
-        }
-        return cljNil()
+    v.nativeFnCtx('require', (ctx, _callEnv, ...args: CljValue[]) => {
+      const currentEnv = registry.get(currentNsRef)!
+      for (const arg of args) {
+        processRequireSpec(arg, currentEnv, registry, (nsName) =>
+          resolveNamespace(nsName, ctx)
+        )
       }
-    ),
+      return v.nil()
+    }),
     coreEnv
   )
 
   internVar(
     'resolve',
-    cljNativeFunction('resolve', (sym: CljValue) => {
-      if (!isSymbol(sym)) return cljNil()
+    v.nativeFn('resolve', (sym: CljValue) => {
+      if (!isSymbol(sym)) return v.nil()
       const slashIdx = sym.name.indexOf('/')
       if (slashIdx > 0) {
         const nsName = sym.name.slice(0, slashIdx)
         const symName = sym.name.slice(slashIdx + 1)
         const nsEnv = registry.get(nsName) ?? null
-        if (!nsEnv) return cljNil()
-        return tryLookup(symName, nsEnv) ?? cljNil()
+        if (!nsEnv) return v.nil()
+        return tryLookup(symName, nsEnv) ?? v.nil()
       }
       const currentEnv = registry.get(currentNsRef)!
-      return tryLookup(sym.name, currentEnv) ?? cljNil()
+      return tryLookup(sym.name, currentEnv) ?? v.nil()
     }),
     coreEnv
   )
@@ -671,21 +659,18 @@ function buildRuntime(
   )
   internVar(
     'parse-flags',
-    cljNativeFunction('parse-flags', (_flags: CljValue, _kind: CljValue) =>
-      cljSet([])
-    ),
+    v.nativeFn('parse-flags', (_flags: CljValue, _kind: CljValue) => v.set([])),
     reflectEnv
   )
   internVar(
     'reflect',
-    cljNativeFunction('reflect', (_obj: CljValue) => cljMap([])),
+    v.nativeFn('reflect', (_obj: CljValue) => v.map([])),
     reflectEnv
   )
   internVar(
     'type-reflect',
-    cljNativeFunction(
-      'type-reflect',
-      (_typeobj: CljValue, ..._opts: CljValue[]) => cljMap([])
+    v.nativeFn('type-reflect', (_typeobj: CljValue, ..._opts: CljValue[]) =>
+      v.map([])
     ),
     reflectEnv
   )
@@ -698,7 +683,7 @@ function buildRuntime(
   )
   internVar(
     'completions',
-    cljNativeFunction('completions', (..._args: CljValue[]) => cljNil()),
+    v.nativeFn('completions', (..._args: CljValue[]) => v.nil()),
     cursiveEnv
   )
 
@@ -729,7 +714,7 @@ function buildRuntime(
     'Runnable',
     'Cloneable',
   ]) {
-    internVar(javaClass, cljKeyword(`:java.lang/${javaClass}`), coreEnv)
+    internVar(javaClass, v.keyword(`:java.lang/${javaClass}`), coreEnv)
   }
 
   const runtime: Runtime = {

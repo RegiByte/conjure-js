@@ -1,5 +1,11 @@
 (ns clojure.core)
 
+;; Host shims, for autocomplete only
+(def all)
+(def async)
+(def catch*)
+(def then)
+
 (defmacro defn [name & fdecl]
   (let [doc       (if (string? (first fdecl)) (first fdecl) nil)
         rest-decl (if doc (rest fdecl) fdecl)

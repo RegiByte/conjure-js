@@ -1,16 +1,6 @@
 import { ReaderError } from './errors'
-import {
-  cljBoolean,
-  cljKeyword,
-  cljList,
-  cljMap,
-  cljNil,
-  cljRegex,
-  cljSet,
-  cljSymbol,
-  cljVector,
-} from './factories'
-import { isEqual } from './assertions'
+import { v } from './factories'
+import { is } from './assertions'
 import { makeTokenScanner, type TokenScanner } from './scanners'
 import { getTokenValue } from './tokenizer'
 import { valueKeywords, tokenKeywords, type Token } from './types'
@@ -88,7 +78,7 @@ const readQuote = (ctx: ReaderCtx) => {
   if (!value) {
     throw new ReaderError(`Unexpected token: ${getTokenValue(token)}`, token)
   }
-  return { kind: valueKeywords.list, value: [cljSymbol('quote'), value] }
+  return { kind: valueKeywords.list, value: [v.symbol('quote'), value] }
 }
 
 const readQuasiquote = (ctx: ReaderCtx) => {
@@ -105,7 +95,7 @@ const readQuasiquote = (ctx: ReaderCtx) => {
   if (!value) {
     throw new ReaderError(`Unexpected token: ${getTokenValue(token)}`, token)
   }
-  return { kind: valueKeywords.list, value: [cljSymbol('quasiquote'), value] }
+  return { kind: valueKeywords.list, value: [v.symbol('quasiquote'), value] }
 }
 
 const readUnquote = (ctx: ReaderCtx) => {
@@ -122,7 +112,7 @@ const readUnquote = (ctx: ReaderCtx) => {
   if (!value) {
     throw new ReaderError(`Unexpected token: ${getTokenValue(token)}`, token)
   }
-  return { kind: valueKeywords.list, value: [cljSymbol('unquote'), value] }
+  return { kind: valueKeywords.list, value: [v.symbol('unquote'), value] }
 }
 
 const readMeta = (ctx: ReaderCtx): CljValue => {
@@ -142,11 +132,11 @@ const readMeta = (ctx: ReaderCtx): CljValue => {
   // Convert metaForm to a CljMap
   let metaEntries: [CljValue, CljValue][]
   if (metaForm.kind === 'keyword') {
-    metaEntries = [[metaForm, cljBoolean(true)]]
+    metaEntries = [[metaForm, v.boolean(true)]]
   } else if (metaForm.kind === 'map') {
     metaEntries = metaForm.entries
   } else if (metaForm.kind === 'symbol') {
-    metaEntries = [[cljKeyword(':tag'), metaForm]]
+    metaEntries = [[v.keyword(':tag'), metaForm]]
   } else {
     throw new ReaderError('Metadata must be a keyword, map, or symbol', token)
   }
@@ -159,7 +149,10 @@ const readMeta = (ctx: ReaderCtx): CljValue => {
     target.kind === 'map'
   ) {
     const existingEntries = target.meta ? target.meta.entries : []
-    const result = { ...target, meta: cljMap([...existingEntries, ...metaEntries]) }
+    const result = {
+      ...target,
+      meta: v.map([...existingEntries, ...metaEntries]),
+    }
     // Spread drops non-enumerable properties like _pos — re-attach it.
     const pos = getPos(target)
     if (pos) setPos(result, pos)
@@ -173,13 +166,13 @@ const readVarQuote = (ctx: ReaderCtx) => {
   const token = scanner.peek()
   if (!token) {
     throw new ReaderError(
-      "Unexpected end of input while parsing var quote",
+      'Unexpected end of input while parsing var quote',
       scanner.position()
     )
   }
   scanner.advance() // consume VarQuote token
   const value = readForm(ctx)
-  return cljList([cljSymbol('var'), value])
+  return v.list([v.symbol('var'), value])
 }
 
 const readDeref = (ctx: ReaderCtx) => {
@@ -196,7 +189,7 @@ const readDeref = (ctx: ReaderCtx) => {
   if (!value) {
     throw new ReaderError(`Unexpected token: ${getTokenValue(token)}`, token)
   }
-  return { kind: valueKeywords.list, value: [cljSymbol('deref'), value] }
+  return { kind: valueKeywords.list, value: [v.symbol('deref'), value] }
 }
 
 const readUnquoteSplicing = (ctx: ReaderCtx) => {
@@ -215,7 +208,7 @@ const readUnquoteSplicing = (ctx: ReaderCtx) => {
   }
   return {
     kind: valueKeywords.list,
-    value: [cljSymbol('unquote-splicing'), value],
+    value: [v.symbol('unquote-splicing'), value],
   }
 }
 
@@ -324,12 +317,12 @@ const readSet = (ctx: ReaderCtx) => {
   // Deduplicate using isEqual
   const deduped: CljValue[] = []
   for (const v of values) {
-    if (!deduped.some(existing => isEqual(existing, v))) {
+    if (!deduped.some((existing) => is.equal(existing, v))) {
       deduped.push(v)
     }
   }
 
-  const result = cljSet(deduped)
+  const result = v.set(deduped)
   if (closingEnd !== undefined) {
     setPos(result, { start: startToken.start.offset, end: closingEnd })
   }
@@ -352,13 +345,13 @@ const readSymbol = (scanner: TokenScanner) => {
   switch (token.value) {
     case 'true':
     case 'false':
-      val = cljBoolean(token.value === 'true')
+      val = v.boolean(token.value === 'true')
       break
     case 'nil':
-      val = cljNil()
+      val = v.nil()
       break
     default:
-      val = cljSymbol(token.value)
+      val = v.symbol(token.value)
   }
   setPos(val, { start: token.start.offset, end: token.end.offset })
   return val
@@ -472,9 +465,9 @@ function substituteAnonFnParams(form: CljValue): CljValue {
   switch (form.kind) {
     case 'symbol': {
       const name = form.name
-      if (name === '%' || name === '%1') return cljSymbol('p1')
-      if (/^%[2-9]$/.test(name)) return cljSymbol(`p${name[1]}`)
-      if (name === '%&') return cljSymbol('rest')
+      if (name === '%' || name === '%1') return v.symbol('p1')
+      if (/^%[2-9]$/.test(name)) return v.symbol(`p${name[1]}`)
+      if (name === '%&') return v.symbol('rest')
       return form
     }
     case 'list':
@@ -550,18 +543,18 @@ const readAnonFn = (ctx: ReaderCtx) => {
 
   const paramSymbols: CljValue[] = []
   for (let i = 1; i <= maxIndex; i++) {
-    paramSymbols.push(cljSymbol(`p${i}`))
+    paramSymbols.push(v.symbol(`p${i}`))
   }
   if (hasRest) {
-    paramSymbols.push(cljSymbol('&'))
-    paramSymbols.push(cljSymbol('rest'))
+    paramSymbols.push(v.symbol('&'))
+    paramSymbols.push(v.symbol('rest'))
   }
 
   const substitutedBody = substituteAnonFnParams(bodyList)
 
-  const result = cljList([
-    cljSymbol('fn'),
-    cljVector(paramSymbols),
+  const result = v.list([
+    v.symbol('fn'),
+    v.vector(paramSymbols),
     substitutedBody,
   ])
   if (closingEnd !== undefined) {
@@ -601,7 +594,7 @@ const readRegex = (ctx: ReaderCtx): CljValue => {
   }
   scanner.advance()
   const { pattern, flags } = extractInlineFlags(token.value)
-  const val = cljRegex(pattern, flags)
+  const val = v.regex(pattern, flags)
   setPos(val, { start: token.start.offset, end: token.end.offset })
   return val
 }

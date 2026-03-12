@@ -1,32 +1,15 @@
+import { is } from '../assertions'
 import {
-  isAFunction,
-  isEqual,
-  isFalsy,
-  isKeyword,
-  isList,
-  isMap,
-  isMultiMethod,
-  isSymbol,
-  isTruthy,
-  isVector,
-} from '../assertions'
-import { define, extend, getNamespaceEnv, internVar, lookup, lookupVar, makeEnv } from '../env'
+  define,
+  extend,
+  getNamespaceEnv,
+  internVar,
+  lookup,
+  lookupVar,
+  makeEnv,
+} from '../env'
 import { CljThrownSignal, EvaluationError } from '../errors'
-import {
-  cljDelay,
-  cljKeyword,
-  cljLazySeq,
-  cljMap,
-  cljMultiArityFunction,
-  cljMultiArityMacro,
-  cljMultiMethod,
-  cljNativeFunction,
-  cljNil,
-  cljNumber,
-  cljPending,
-  cljString,
-  cljVar,
-} from '../factories'
+import { v } from '../factories'
 // --- ASYNC (experimental) ---
 import { createAsyncEvalCtx } from './async-evaluator'
 // --- END ASYNC ---
@@ -50,7 +33,12 @@ import { assertRecurInTailPosition } from './recur-check'
 function hasDynamicMeta(meta: CljMap | undefined): boolean {
   if (!meta) return false
   for (const [k, v] of meta.entries) {
-    if (k.kind === 'keyword' && k.name === ':dynamic' && v.kind === 'boolean' && v.value === true) {
+    if (
+      is.keyword(k) &&
+      k.name === ':dynamic' &&
+      is.boolean(v) &&
+      v.value === true
+    ) {
       return true
     }
   }
@@ -84,11 +72,11 @@ export const specialFormKeywords = {
 } as const
 
 function keywordToDispatchFn(kw: CljKeyword): CljNativeFunction {
-  return cljNativeFunction(`kw:${kw.name}`, (...args: CljValue[]) => {
+  return v.nativeFn(`kw:${kw.name}`, (...args: CljValue[]) => {
     const target = args[0]
-    if (!isMap(target)) return cljNil()
-    const entry = target.entries.find(([k]) => isEqual(k, kw))
-    return entry ? entry[1] : cljNil()
+    if (!is.map(target)) return v.nil()
+    const entry = target.entries.find(([k]) => is.equal(k, kw))
+    return entry ? entry[1] : v.nil()
   })
 }
 
@@ -108,7 +96,7 @@ function evaluateTry(
 
   for (let i = 0; i < forms.length; i++) {
     const form = forms[i]
-    if (isList(form) && form.value.length > 0 && isSymbol(form.value[0])) {
+    if (is.list(form) && form.value.length > 0 && is.symbol(form.value[0])) {
       const head = form.value[0].name
       if (head === 'catch') {
         if (form.value.length < 3) {
@@ -119,7 +107,7 @@ function evaluateTry(
         }
         const discriminator = form.value[1]
         const bindingSym = form.value[2]
-        if (!isSymbol(bindingSym)) {
+        if (!is.symbol(bindingSym)) {
           throw new EvaluationError('catch binding must be a symbol', {
             form,
             env,
@@ -163,18 +151,18 @@ function evaluateTry(
     }
     // A symbol that evaluated to itself (shouldn't happen, but guard anyway)
     if (disc.kind === 'symbol') return true
-    if (isKeyword(disc)) {
+    if (is.keyword(disc)) {
       if (disc.name === ':default') return true
-      if (!isMap(thrown)) return false
+      if (!is.map(thrown)) return false
       const typeEntry = thrown.entries.find(
-        ([k]) => isKeyword(k) && k.name === ':type'
+        ([k]) => is.keyword(k) && k.name === ':type'
       )
       if (!typeEntry) return false
-      return isEqual(typeEntry[1], disc)
+      return is.equal(typeEntry[1], disc)
     }
-    if (isAFunction(disc)) {
+    if (is.aFunction(disc)) {
       const result = ctx.applyFunction(disc, [thrown], env)
-      return isTruthy(result)
+      return is.truthy(result)
     }
     throw new EvaluationError(
       'catch discriminator must be a keyword or a predicate function',
@@ -182,7 +170,7 @@ function evaluateTry(
     )
   }
 
-  let result: CljValue = cljNil()
+  let result: CljValue = v.nil()
   let pendingThrow: unknown = null
 
   try {
@@ -194,9 +182,9 @@ function evaluateTry(
     if (e instanceof CljThrownSignal) {
       thrownValue = e.value
     } else if (e instanceof EvaluationError) {
-      thrownValue = cljMap([
-        [cljKeyword(':type'), cljKeyword(':error/runtime')],
-        [cljKeyword(':message'), cljString(e.message)],
+      thrownValue = v.map([
+        [v.keyword(':type'), v.keyword(':error/runtime')],
+        [v.keyword(':message'), v.string(e.message)],
       ])
     } else {
       throw e
@@ -260,11 +248,14 @@ function buildVarMeta(
   if (hasPosInfo) {
     const { line, col } = getLineCol(ctx.currentSource!, pos!.start)
     const lineOffset = ctx.currentLineOffset ?? 0
-    const colOffset  = ctx.currentColOffset  ?? 0
-    posEntries.push([cljKeyword(':line'),   cljNumber(line + lineOffset)])
-    posEntries.push([cljKeyword(':column'), cljNumber(line === 1 ? col + colOffset : col)])
+    const colOffset = ctx.currentColOffset ?? 0
+    posEntries.push([v.keyword(':line'), v.number(line + lineOffset)])
+    posEntries.push([
+      v.keyword(':column'),
+      v.number(line === 1 ? col + colOffset : col),
+    ])
     if (ctx.currentFile) {
-      posEntries.push([cljKeyword(':file'), cljString(ctx.currentFile)])
+      posEntries.push([v.keyword(':file'), v.string(ctx.currentFile)])
     }
   }
 
@@ -275,7 +266,7 @@ function buildVarMeta(
   )
 
   const allEntries = [...baseEntries, ...posEntries]
-  return allEntries.length > 0 ? cljMap(allEntries) : undefined
+  return allEntries.length > 0 ? v.map(allEntries) : undefined
 }
 
 function evaluateDef(
@@ -294,7 +285,7 @@ function evaluateDef(
   // (def name) with no value is a bare declaration — a no-op in the evaluator.
   // This lets .clj source files declare runtime-injected symbols so that
   // clojure-lsp can resolve them, without clobbering the native binding.
-  if (list.value[2] === undefined) return cljNil()
+  if (list.value[2] === undefined) return v.nil()
 
   const nsEnv = getNamespaceEnv(env)
   const cljNs = nsEnv.ns!
@@ -311,11 +302,11 @@ function evaluateDef(
       if (hasDynamicMeta(varMeta)) existing.dynamic = true
     }
   } else {
-    const v = cljVar(cljNs.name, name.name, newValue, varMeta)
-    if (hasDynamicMeta(varMeta)) v.dynamic = true
-    cljNs.vars.set(name.name, v)
+    const newVar = v.var(cljNs.name, name.name, newValue, varMeta)
+    if (hasDynamicMeta(varMeta)) newVar.dynamic = true
+    cljNs.vars.set(name.name, newVar)
   }
-  return cljNil()
+  return v.nil()
 }
 
 const evaluateNs = (
@@ -323,16 +314,16 @@ const evaluateNs = (
   _env: Env,
   _ctx: EvaluationContext
 ): CljValue => {
-  return cljNil() // special form handled by the environment, no effects here
+  return v.nil() // special form handled by the environment, no effects here
 }
 
 function evaluateIf(list: CljList, env: Env, ctx: EvaluationContext): CljValue {
   const condition = ctx.evaluate(list.value[1], env)
-  if (!isFalsy(condition)) {
+  if (!is.falsy(condition)) {
     return ctx.evaluate(list.value[2], env)
   }
   if (!list.value[3]) {
-    return cljNil() // no-else case, return nil
+    return v.nil() // no-else case, return nil
   }
   return ctx.evaluate(list.value[3], env)
 }
@@ -347,7 +338,7 @@ function evaluateLet(
   ctx: EvaluationContext
 ): CljValue {
   const bindings = list.value[1]
-  if (!isVector(bindings)) {
+  if (!is.vector(bindings)) {
     throw new EvaluationError('Bindings must be a vector', {
       bindings,
       env,
@@ -392,7 +383,7 @@ function evaluateFn(
   for (const arity of arities) {
     assertRecurInTailPosition(arity.body)
   }
-  const fn = cljMultiArityFunction(arities, env)
+  const fn = v.multiArityFunction(arities, env)
   if (fnName) {
     fn.name = fnName
     // Bind the name in the fn's closure env so the body can call itself by name.
@@ -412,8 +403,11 @@ function evaluateLetfn(
 ): CljValue {
   // (letfn [(f1 [x] ...) (f2 [x] ...)] body...)
   const fnSpecs = list.value[1]
-  if (!isVector(fnSpecs)) {
-    throw new EvaluationError('letfn binding specs must be a vector', { fnSpecs, env })
+  if (!is.vector(fnSpecs)) {
+    throw new EvaluationError('letfn binding specs must be a vector', {
+      fnSpecs,
+      env,
+    })
   }
   const body = list.value.slice(2)
 
@@ -422,8 +416,11 @@ function evaluateLetfn(
 
   // First pass: create all fn objects in the shared env
   for (const spec of fnSpecs.value) {
-    if (!isList(spec) || spec.value.length < 2 || !isSymbol(spec.value[0])) {
-      throw new EvaluationError('letfn specs must be (name [params] body...) forms', { spec })
+    if (!is.list(spec) || spec.value.length < 2 || !is.symbol(spec.value[0])) {
+      throw new EvaluationError(
+        'letfn specs must be (name [params] body...) forms',
+        { spec }
+      )
     }
     const name = spec.value[0].name
     const arityForms = spec.value.slice(1)
@@ -431,7 +428,7 @@ function evaluateLetfn(
     for (const arity of arities) {
       assertRecurInTailPosition(arity.body)
     }
-    const fn = cljMultiArityFunction(arities, sharedEnv)
+    const fn = v.multiArityFunction(arities, sharedEnv)
     fn.name = name
     sharedEnv.bindings.set(name, fn)
   }
@@ -447,7 +444,10 @@ function evaluateLetfn(
 }
 
 function mergeDocIntoMeta(base: CljMap | undefined, docstring: string): CljMap {
-  const docEntry: [CljValue, CljValue] = [cljKeyword(':doc'), cljString(docstring)]
+  const docEntry: [CljValue, CljValue] = [
+    v.keyword(':doc'),
+    v.string(docstring),
+  ]
   const existing = (base?.entries ?? []).filter(
     ([k]) => !(k.kind === 'keyword' && k.name === ':doc')
   )
@@ -460,7 +460,7 @@ function evaluateDefmacro(
   ctx: EvaluationContext
 ): CljValue {
   const name = list.value[1]
-  if (!isSymbol(name)) {
+  if (!is.symbol(name)) {
     throw new EvaluationError('First element of defmacro must be a symbol', {
       name,
       list,
@@ -471,12 +471,12 @@ function evaluateDefmacro(
   const docstring = rest[0]?.kind === 'string' ? rest[0].value : undefined
   const arityForms = docstring ? rest.slice(1) : rest
   const arities = parseArities(arityForms, env)
-  const macro = cljMultiArityMacro(arities, env)
+  const macro = v.multiArityMacro(arities, env)
   macro.name = name.name
   const varMeta = buildVarMeta(name.meta, ctx, name)
   const finalMeta = docstring ? mergeDocIntoMeta(varMeta, docstring) : varMeta
   internVar(name.name, macro, getNamespaceEnv(env), finalMeta)
-  return cljNil()
+  return v.nil()
 }
 
 function evaluateLoop(
@@ -485,7 +485,7 @@ function evaluateLoop(
   ctx: EvaluationContext
 ): CljValue {
   const loopBindings = list.value[1]
-  if (!isVector(loopBindings)) {
+  if (!is.vector(loopBindings)) {
     throw new EvaluationError('loop bindings must be a vector', {
       loopBindings,
       env,
@@ -568,7 +568,7 @@ function evaluateDefmulti(
   ctx: EvaluationContext
 ): CljValue {
   const mmName = list.value[1]
-  if (!isSymbol(mmName)) {
+  if (!is.symbol(mmName)) {
     throw new EvaluationError('defmulti: first argument must be a symbol', {
       list,
       env,
@@ -576,11 +576,11 @@ function evaluateDefmulti(
   }
   const dispatchFnExpr = list.value[2]
   let dispatchFn: CljFunction | CljNativeFunction
-  if (isKeyword(dispatchFnExpr)) {
+  if (is.keyword(dispatchFnExpr)) {
     dispatchFn = keywordToDispatchFn(dispatchFnExpr)
   } else {
     const evaluated = ctx.evaluate(dispatchFnExpr, env)
-    if (!isAFunction(evaluated)) {
+    if (!is.aFunction(evaluated)) {
       throw new EvaluationError(
         'defmulti: dispatch-fn must be a function or keyword',
         { list, env }
@@ -588,9 +588,9 @@ function evaluateDefmulti(
     }
     dispatchFn = evaluated
   }
-  const mm = cljMultiMethod(mmName.name, dispatchFn, [])
+  const mm = v.multiMethod(mmName.name, dispatchFn, [])
   internVar(mmName.name, mm, getNamespaceEnv(env))
-  return cljNil()
+  return v.nil()
 }
 
 function evaluateDefmethod(
@@ -599,7 +599,7 @@ function evaluateDefmethod(
   ctx: EvaluationContext
 ): CljValue {
   const mmName = list.value[1]
-  if (!isSymbol(mmName)) {
+  if (!is.symbol(mmName)) {
     throw new EvaluationError('defmethod: first argument must be a symbol', {
       list,
       env,
@@ -607,18 +607,18 @@ function evaluateDefmethod(
   }
   const dispatchVal = ctx.evaluate(list.value[2], env)
   const existing = lookup(mmName.name, env)
-  if (!isMultiMethod(existing)) {
+  if (!is.multiMethod(existing)) {
     throw new EvaluationError(
       `defmethod: ${mmName.name} is not a multimethod`,
       { list, env }
     )
   }
   const arities = parseArities([list.value[3], ...list.value.slice(4)], env)
-  const methodFn = cljMultiArityFunction(arities, env)
-  const isDefault = isKeyword(dispatchVal) && dispatchVal.name === ':default'
+  const methodFn = v.multiArityFunction(arities, env)
+  const isDefault = is.keyword(dispatchVal) && dispatchVal.name === ':default'
   let updated: CljMultiMethod
   if (isDefault) {
-    updated = cljMultiMethod(
+    updated = v.multiMethod(
       existing.name,
       existing.dispatchFn,
       existing.methods,
@@ -626,21 +626,21 @@ function evaluateDefmethod(
     )
   } else {
     const filtered = existing.methods.filter(
-      (m) => !isEqual(m.dispatchVal, dispatchVal)
+      (m) => !is.equal(m.dispatchVal, dispatchVal)
     )
-    updated = cljMultiMethod(existing.name, existing.dispatchFn, [
+    updated = v.multiMethod(existing.name, existing.dispatchFn, [
       ...filtered,
       { dispatchVal, fn: methodFn },
     ])
   }
   // Update the var's value in place if possible, otherwise fall back to define
-  const v = lookupVar(mmName.name, env)
-  if (v) {
-    v.value = updated
+  const eVar = lookupVar(mmName.name, env)
+  if (eVar) {
+    eVar.value = updated
   } else {
     define(mmName.name, updated, getNamespaceEnv(env))
   }
-  return cljNil()
+  return v.nil()
 }
 
 function evaluateVar(
@@ -649,7 +649,7 @@ function evaluateVar(
   ctx: EvaluationContext
 ): CljValue {
   const sym = list.value[1]
-  if (!isSymbol(sym)) {
+  if (!is.symbol(sym)) {
     throw new EvaluationError('var expects a symbol', { list })
   }
 
@@ -659,7 +659,8 @@ function evaluateVar(
     const localName = sym.name.slice(slashIdx + 1)
     const nsEnv = getNamespaceEnv(env)
     // Resolve alias: local :as alias first, then full namespace name
-    const targetNs = nsEnv.ns?.aliases.get(alias) ?? ctx.resolveNs(alias) ?? null
+    const targetNs =
+      nsEnv.ns?.aliases.get(alias) ?? ctx.resolveNs(alias) ?? null
     if (!targetNs) {
       throw new EvaluationError(`No such namespace: ${alias}`, { sym })
     }
@@ -684,7 +685,7 @@ function evaluateBinding(
   ctx: EvaluationContext
 ): CljValue {
   const bindings = list.value[1]
-  if (!isVector(bindings)) {
+  if (!is.vector(bindings)) {
     throw new EvaluationError('binding requires a vector of bindings', {
       list,
       env,
@@ -701,11 +702,10 @@ function evaluateBinding(
 
   for (let i = 0; i < bindings.value.length; i += 2) {
     const sym = bindings.value[i]
-    if (!isSymbol(sym)) {
-      throw new EvaluationError(
-        'binding left-hand side must be a symbol',
-        { sym }
-      )
+    if (!is.symbol(sym)) {
+      throw new EvaluationError('binding left-hand side must be a symbol', {
+        sym,
+      })
     }
     const newVal = ctx.evaluate(bindings.value[i + 1], env)
     const v = lookupVar(sym.name, env)
@@ -735,7 +735,11 @@ function evaluateBinding(
   }
 }
 
-function evaluateSet(list: CljList, env: Env, ctx: EvaluationContext): CljValue {
+function evaluateSet(
+  list: CljList,
+  env: Env,
+  ctx: EvaluationContext
+): CljValue {
   if (list.value.length !== 3) {
     throw new EvaluationError(
       `set! requires exactly 2 arguments, got ${list.value.length - 1}`,
@@ -743,7 +747,7 @@ function evaluateSet(list: CljList, env: Env, ctx: EvaluationContext): CljValue 
     )
   }
   const symForm = list.value[1]
-  if (!isSymbol(symForm)) {
+  if (!is.symbol(symForm)) {
     throw new EvaluationError(
       `set! first argument must be a symbol, got ${symForm.kind}`,
       { symForm, env }
@@ -779,7 +783,7 @@ function evaluateDelay(
   ctx: EvaluationContext
 ): CljValue {
   const body = list.value.slice(1)
-  return cljDelay(() => ctx.evaluateForms(body, env))
+  return v.delay(() => ctx.evaluateForms(body, env))
 }
 
 function evaluateLazySeqForm(
@@ -788,7 +792,7 @@ function evaluateLazySeqForm(
   ctx: EvaluationContext
 ): CljValue {
   const body = list.value.slice(1)
-  return cljLazySeq(() => ctx.evaluateForms(body, env))
+  return v.lazySeq(() => ctx.evaluateForms(body, env))
 }
 
 // --- ASYNC BLOCK HANDLER (experimental) ---
@@ -800,10 +804,10 @@ function evaluateAsyncBlock(
   ctx: EvaluationContext
 ): CljValue {
   const body = list.value.slice(1)
-  if (body.length === 0) return cljPending(Promise.resolve(cljNil()))
+  if (body.length === 0) return v.pending(Promise.resolve(v.nil()))
   const asyncCtx = createAsyncEvalCtx(ctx)
   const promise = asyncCtx.evaluateForms(body, env)
-  return cljPending(promise)
+  return v.pending(promise)
 }
 // --- END ASYNC BLOCK HANDLER ---
 
