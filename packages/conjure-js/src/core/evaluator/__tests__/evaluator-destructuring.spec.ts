@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { isEqual } from '../assertions'
-import { cljNil, cljNumber, cljVector } from '../factories'
-import { EvaluationError } from '../errors'
+import { isEqual } from '../../assertions'
+import { cljNil, cljNumber, cljVector } from '../../factories'
+import { EvaluationError } from '../../errors'
 import { freshSession, toCljValue } from './evaluator-test-utils'
 
 describe('destructuring', () => {

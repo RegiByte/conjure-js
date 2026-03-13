@@ -2,6 +2,7 @@ import {
   isKeyword,
   isList,
   isNamespace,
+  isString,
   isSymbol,
   isVector,
 } from './assertions'
@@ -25,6 +26,7 @@ import type {
 } from './types'
 import { builtInNamespaceSources } from '../clojure/generated/builtin-namespace-registry'
 import { makeCoreModule } from './core-module'
+import { makeJsModule } from './stdlib/js-namespace'
 
 // ---------------------------------------------------------------------------
 // Core types
@@ -59,6 +61,16 @@ export type Runtime = {
     fromEnv: Env,
     ctx: EvaluationContext
   ): void
+  /**
+   * Async variant of processNsRequires.
+   * Handles both symbol specs (sync) and string specs (async via ctx.importModule).
+   * Must be used when the ns form contains string (:require ["module" :as Alias]) entries.
+   */
+  processNsRequiresAsync(
+    forms: CljValue[],
+    fromEnv: Env,
+    ctx: EvaluationContext
+  ): Promise<void>
 
   // File loading — ctx comes from the owning session
   loadFile(
@@ -765,9 +777,72 @@ function buildRuntime(
       const requireClauses = extractRequireClauses(forms)
       for (const specs of requireClauses) {
         for (const spec of specs) {
+          if (
+            isVector(spec) &&
+            spec.value.length > 0 &&
+            isString(spec.value[0])
+          ) {
+            const specifier = spec.value[0].value
+            throw new EvaluationError(
+              `String module require ["${specifier}" :as ...] is async — use evaluateAsync() instead of evaluate()`,
+              { specifier }
+            )
+          }
           processRequireSpec(spec, fromEnv, registry, (nsName) =>
             resolveNamespace(nsName, ctx)
           )
+        }
+      }
+    },
+
+    async processNsRequiresAsync(
+      forms: CljValue[],
+      fromEnv: Env,
+      ctx: EvaluationContext
+    ): Promise<void> {
+      const requireClauses = extractRequireClauses(forms)
+      for (const specs of requireClauses) {
+        for (const spec of specs) {
+          if (
+            isVector(spec) &&
+            spec.value.length > 0 &&
+            isString(spec.value[0])
+          ) {
+            // String module require — calls importModule and interns result as a var
+            const specifier = spec.value[0].value
+            if (!ctx.importModule) {
+              throw new EvaluationError(
+                `importModule is not configured; cannot require "${specifier}". Pass importModule to createSession().`,
+                { specifier }
+              )
+            }
+            const elements = spec.value
+            let aliasName: string | null = null
+            for (let i = 1; i < elements.length; i++) {
+              if (isKeyword(elements[i]) && (elements[i] as { name: string }).name === ':as') {
+                i++
+                const aliasSym = elements[i]
+                if (!aliasSym || !isSymbol(aliasSym)) {
+                  throw new EvaluationError(':as expects a symbol alias', { spec })
+                }
+                aliasName = aliasSym.name
+                break
+              }
+            }
+            if (aliasName === null) {
+              throw new EvaluationError(
+                `String require spec must have an :as alias: ["${specifier}" :as Alias]`,
+                { spec }
+              )
+            }
+            const rawModule = await ctx.importModule(specifier)
+            internVar(aliasName, v.jsValue(rawModule), fromEnv)
+          } else {
+            // Symbol require spec — sync path
+            processRequireSpec(spec, fromEnv, registry, (nsName) =>
+              resolveNamespace(nsName, ctx)
+            )
+          }
         }
       }
     },
@@ -866,7 +941,7 @@ export function createRuntime(options?: RuntimeOptions): Runtime {
   registry.set('user', userEnv)
 
   const runtime = buildRuntime(registry, coreEnv, options)
-  runtime.installModules([makeCoreModule()])
+  runtime.installModules([makeCoreModule(), makeJsModule()])
   return runtime
 }
 

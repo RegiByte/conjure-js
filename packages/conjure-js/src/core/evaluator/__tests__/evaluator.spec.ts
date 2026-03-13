@@ -9,8 +9,8 @@ import {
   cljString,
   cljSymbol,
   cljVector,
-} from '../factories'
-import { lookup } from '../env'
+} from '../../factories'
+import { lookup } from '../../env'
 import { freshSession, toCljValue } from './evaluator-test-utils'
 
 describe('evaluator spec', () => {

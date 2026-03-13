@@ -62,8 +62,16 @@ export function cljToJs(value: CljValue): unknown {
   }
 }
 
-export function jsToClj(value: unknown): CljValue {
-  if (value === null || value === undefined) return v.nil()
+export interface JsToCljOpts {
+  /** When true, plain object keys become keywords. Default: true. */
+  keywordizeKeys?: boolean
+}
+
+export function jsToClj(value: unknown, opts: JsToCljOpts = {}): CljValue {
+  const { keywordizeKeys = true } = opts
+
+  if (value === null) return v.nil()
+  if (value === undefined) return v.jsValue(undefined)
   if (isCljValue(value)) return value
 
   switch (typeof value) {
@@ -78,16 +86,19 @@ export function jsToClj(value: unknown): CljValue {
       return v.nativeFn('js-fn', (...cljArgs: CljValue[]) => {
         const jsArgs = cljArgs.map(cljToJs)
         const result = jsFn(...jsArgs)
-        return jsToClj(result)
+        return jsToClj(result, opts)
       })
     }
     case 'object': {
       if (Array.isArray(value)) {
-        return v.vector(value.map(jsToClj))
+        return v.vector(value.map((item) => jsToClj(item, opts)))
       }
       const entries: [CljValue, CljValue][] = Object.entries(
         value as Record<string, unknown>
-      ).map(([k, value]) => [v.keyword(`:${k}`), jsToClj(value)])
+      ).map(([k, val]) => [
+        keywordizeKeys ? v.keyword(`:${k}`) : v.string(k),
+        jsToClj(val, opts),
+      ])
       return v.map(entries)
     }
     default:

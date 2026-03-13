@@ -6,8 +6,8 @@ import {
   cljNil,
   cljNumber,
   cljString,
-} from '../factories'
-import { EvaluationError } from '../errors'
+} from '../../factories'
+import { EvaluationError } from '../../errors'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 function catchError(code: string): EvaluationError {

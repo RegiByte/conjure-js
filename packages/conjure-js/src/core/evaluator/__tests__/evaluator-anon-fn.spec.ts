@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljNumber, cljString, cljVector } from '../factories'
+import { cljNumber, cljString, cljVector } from '../../factories'
 import { freshSession } from './evaluator-test-utils'
 
 describe('anonymous function reader macro #(...)', () => {

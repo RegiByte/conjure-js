@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cljNil } from '../factories'
-import { isEqual } from '../assertions'
+import { cljNil } from '../../factories'
+import { isEqual } from '../../assertions'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 // ---------------------------------------------------------------------------

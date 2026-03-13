@@ -204,6 +204,24 @@ function printStringImpl(value: CljValue, depth: number): string {
         return `#<Pending @${printString(value.resolvedValue, depth + 1)}>`
       return '#<Pending>'
     // --- END ASYNC ---
+    case valueKeywords.jsValue: {
+      const raw = value.value
+      let typeName: string
+      if (raw === null) {
+        typeName = 'null'
+      } else if (raw === undefined) {
+        typeName = 'undefined'
+      } else if (typeof raw === 'function') {
+        typeName = 'Function'
+      } else if (Array.isArray(raw)) {
+        typeName = 'Array'
+      } else if (raw instanceof Promise) {
+        typeName = 'Promise'
+      } else {
+        typeName = (raw as { constructor?: { name?: string } }).constructor?.name ?? 'Object'
+      }
+      return `#<js ${typeName}>`
+    }
     default:
       throw new EvaluationError(`unhandled value type: ${value.kind}`, {
         value,

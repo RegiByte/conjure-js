@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljBoolean, cljKeyword } from '../factories'
+import { cljBoolean, cljKeyword } from '../../factories'
 import { freshSession, toCljValue } from './evaluator-test-utils'
 describe('truthy?', () => {
   it.each([

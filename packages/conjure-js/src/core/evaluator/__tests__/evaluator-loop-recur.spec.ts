@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljNumber, cljVector } from '../factories'
+import { cljNumber, cljVector } from '../../factories'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 describe('loop/recur', () => {

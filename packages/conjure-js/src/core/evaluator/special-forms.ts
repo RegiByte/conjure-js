@@ -27,6 +27,7 @@ import type {
 } from '../types'
 import { parseArities, RecurSignal } from './arity'
 import { destructureBindings } from './destructure'
+import { evaluateDot, evaluateNew } from './js-interop'
 import { evaluateQuasiquote } from './quasiquote'
 import { assertRecurInTailPosition } from './recur-check'
 
@@ -69,6 +70,10 @@ export const specialFormKeywords = {
   // --- ASYNC (experimental) ---
   async: 'async',
   // --- END ASYNC ---
+  // --- JS INTEROP ---
+  '.': '.',
+  'js/new': 'js/new',
+  // --- END JS INTEROP ---
 } as const
 
 function keywordToDispatchFn(kw: CljKeyword): CljNativeFunction {
@@ -841,6 +846,10 @@ const specialFormEvaluatorEntries = {
   // --- ASYNC (experimental) ---
   async: evaluateAsyncBlock,
   // --- END ASYNC ---
+  // --- JS INTEROP ---
+  '.': evaluateDot,
+  'js/new': evaluateNew,
+  // --- END JS INTEROP ---
 } as const satisfies Record<
   keyof typeof specialFormKeywords,
   SpecialFormEvaluatorFn

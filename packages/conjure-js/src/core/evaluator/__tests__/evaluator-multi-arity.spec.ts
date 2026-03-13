@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljBoolean, cljKeyword, cljNumber, cljString } from '../factories'
+import { cljBoolean, cljKeyword, cljNumber, cljString } from '../../factories'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 describe('multi-arity fn', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljBoolean, cljList, cljNil, cljNumber, cljVector } from '../factories'
+import { cljBoolean, cljList, cljNil, cljNumber, cljVector } from '../../factories'
 import { expectError, freshSession, materialize } from './evaluator-test-utils'
 
 describe('reduced / unreduced / ensure-reduced', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cljBoolean } from '../factories'
-import { EvaluationError } from '../errors'
+import { cljBoolean } from '../../factories'
+import { EvaluationError } from '../../errors'
 import { expectError, freshSession, toCljValue } from './evaluator-test-utils'
 describe('basic math', () => {
   it.each([

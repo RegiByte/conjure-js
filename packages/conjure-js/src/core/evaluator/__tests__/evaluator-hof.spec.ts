@@ -8,8 +8,8 @@ import {
   cljNumber,
   cljString,
   cljVector,
-} from '../factories'
-import { createSession } from '../session'
+} from '../../factories'
+import { createSession } from '../../session'
 import { expectError, freshSession, materialize, toCljValue } from './evaluator-test-utils'
 describe('str', () => {
   it.each([

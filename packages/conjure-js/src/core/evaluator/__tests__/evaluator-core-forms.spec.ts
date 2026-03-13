@@ -8,7 +8,7 @@ import {
   cljNumber,
   cljSymbol,
   cljVector,
-} from '../factories'
+} from '../../factories'
 import { expectError, freshSession, toCljValue } from './evaluator-test-utils'
 
 describe('keywords', () => {

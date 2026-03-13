@@ -7,7 +7,7 @@ import {
   cljNumber,
   cljString,
   cljVector,
-} from '../factories'
+} from '../../factories'
 import { expectError, freshSession, materialize, toCljValue } from './evaluator-test-utils'
 describe('count', () => {
   it.each([

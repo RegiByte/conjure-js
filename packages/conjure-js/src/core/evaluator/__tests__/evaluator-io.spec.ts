@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { cljString } from '../factories'
-import { createSession, createSessionFromSnapshot, snapshotSession } from '../session'
+import { cljString } from '../../factories'
+import { createSession, createSessionFromSnapshot, snapshotSession } from '../../session'
 
 const _snapshot = snapshotSession(createSession())
 

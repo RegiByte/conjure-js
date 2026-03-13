@@ -11,6 +11,7 @@ import type {
   EvaluationContext,
 } from '../types'
 import { bindParams, RecurSignal, resolveArity } from './arity'
+import { cljToJs, jsToClj } from './js-interop'
 
 export function applyFunctionWithContext(
   fn: CljFunction | CljNativeFunction,
@@ -71,6 +72,17 @@ export function applyCallableWithContext(
 ): CljValue {
   if (is.aFunction(fn)) {
     return applyFunctionWithContext(fn, args, ctx, callEnv)
+  }
+  if (is.jsValue(fn)) {
+    if (typeof fn.value !== 'function') {
+      throw new EvaluationError(
+        `js-value is not callable: ${typeof fn.value}`,
+        { fn, args }
+      )
+    }
+    const jsArgs = args.map((a) => cljToJs(a, ctx, callEnv))
+    const rawResult = (fn.value as (...a: unknown[]) => unknown)(...jsArgs)
+    return jsToClj(rawResult)
   }
   if (is.keyword(fn)) {
     const target = args[0]

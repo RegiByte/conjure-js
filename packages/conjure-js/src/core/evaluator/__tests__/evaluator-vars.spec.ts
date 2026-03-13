@@ -3,9 +3,9 @@ import {
   createSession,
   snapshotSession,
   createSessionFromSnapshot,
-} from '../session'
-import type { Session, SessionSnapshot } from '../session'
-import { printString } from '../printer'
+} from '../../session'
+import type { Session, SessionSnapshot } from '../../session'
+import { printString } from '../../printer'
 import { materialize } from './evaluator-test-utils'
 
 let snapshot: SessionSnapshot

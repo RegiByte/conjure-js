@@ -10,9 +10,9 @@ import {
   cljMap,
   cljNumber,
   cljVector,
-} from '../factories'
-import type { CljKeyword, CljMap, CljPending } from '../types'
-import { EvaluationError } from '../errors'
+} from '../../factories'
+import type { CljKeyword, CljMap, CljPending } from '../../types'
+import { EvaluationError } from '../../errors'
 import { freshSession } from './evaluator-test-utils'
 
 // Helper: evaluate and assert we got a CljPending back

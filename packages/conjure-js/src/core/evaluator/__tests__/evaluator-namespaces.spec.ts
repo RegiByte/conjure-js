@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljKeyword, cljNumber } from '../factories'
+import { cljKeyword, cljNumber } from '../../factories'
 import { freshSession } from './evaluator-test-utils'
 
 function sessionWithNs(nsName: string, defs: string) {

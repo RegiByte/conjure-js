@@ -7,7 +7,7 @@ import {
   cljNumber,
   cljString,
   cljVector,
-} from '../factories'
+} from '../../factories'
 import { freshSession, materialize } from './evaluator-test-utils'
 
 describe('delay / force', () => {

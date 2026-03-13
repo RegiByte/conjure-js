@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljKeyword, cljNumber, cljString } from '../factories'
+import { cljKeyword, cljNumber, cljString } from '../../factories'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 describe('multimethods', () => {

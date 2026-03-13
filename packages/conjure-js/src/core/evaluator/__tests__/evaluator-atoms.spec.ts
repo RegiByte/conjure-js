@@ -5,8 +5,8 @@ import {
   cljMap,
   cljNil,
   cljNumber,
-} from '../factories'
-import type { CljAtom } from '../types'
+} from '../../factories'
+import type { CljAtom } from '../../types'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 describe('atoms', () => {

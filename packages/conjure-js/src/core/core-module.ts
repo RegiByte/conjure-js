@@ -24,6 +24,9 @@ import { varFunctions } from './stdlib/vars'
 // --- ASYNC (experimental) ---
 import { asyncFunctions } from './stdlib/async-fns'
 import { v } from './factories'
+import { is } from './assertions'
+import { EvaluationError } from './errors'
+import { cljToJs as cljToJsDeep, jsToClj as jsToCljDeep } from './conversions'
 // --- END ASYNC ---
 
 // ---------------------------------------------------------------------------
@@ -262,6 +265,36 @@ export function makeCoreModule(): RuntimeModule {
 
           // Compatibility var for IDE tooling
           map.set('*compiler-options*', { value: v.map([]) })
+
+          // JS interop — deep conversion functions
+          map.set('clj->js', {
+            value: v.nativeFn('clj->js', (val: CljValue) => {
+              if (is.jsValue(val)) return val
+              return v.jsValue(cljToJsDeep(val))
+            }),
+          })
+
+          map.set('js->clj', {
+            value: v.nativeFn('js->clj', (val: CljValue, opts?: CljValue) => {
+              if (val.kind === 'nil') return val
+              if (!is.jsValue(val)) {
+                throw new EvaluationError(
+                  `js->clj expects a js-value, got ${val.kind}`,
+                  { val }
+                )
+              }
+              const keywordizeKeys = (() => {
+                if (!opts || opts.kind !== 'map') return false
+                for (const [k, flag] of opts.entries) {
+                  if (k.kind === 'keyword' && k.name === ':keywordize-keys') {
+                    return flag.kind !== 'boolean' || flag.value !== false
+                  }
+                }
+                return false
+              })()
+              return jsToCljDeep(val.value, { keywordizeKeys })
+            }),
+          })
 
           return map
         },

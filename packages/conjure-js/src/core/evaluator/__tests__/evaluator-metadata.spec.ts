@@ -8,8 +8,8 @@ import {
   cljString,
   cljSymbol,
   cljVector,
-} from '../factories'
-import { createSession } from '../session'
+} from '../../factories'
+import { createSession } from '../../session'
 import { expectError, freshSession } from './evaluator-test-utils'
 
 describe('docstrings and metadata', () => {

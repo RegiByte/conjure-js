@@ -225,8 +225,10 @@ describe('jsToClj', () => {
       expect(jsToClj(null)).toEqual(cljNil())
     })
 
-    it('converts undefined to CljNil', () => {
-      expect(jsToClj(undefined)).toEqual(cljNil())
+    it('converts undefined to CljJsValue wrapping undefined', () => {
+      const result = jsToClj(undefined)
+      expect(result.kind).toBe('js-value')
+      if (result.kind === 'js-value') expect(result.value).toBeUndefined()
     })
   })
 
@@ -281,6 +283,25 @@ describe('jsToClj', () => {
       expect(result).toEqual(
         cljMap([
           [cljKeyword(':items'), cljVector([cljNumber(1), cljNumber(2)])],
+        ])
+      )
+    })
+
+    it('uses string keys when keywordizeKeys is false', () => {
+      const result = jsToClj({ name: 'alice', age: 30 }, { keywordizeKeys: false })
+      expect(result).toEqual(
+        cljMap([
+          [cljString('name'), cljString('alice')],
+          [cljString('age'), cljNumber(30)],
+        ])
+      )
+    })
+
+    it('propagates keywordizeKeys: false recursively', () => {
+      const result = jsToClj({ person: { name: 'bob' } }, { keywordizeKeys: false })
+      expect(result).toEqual(
+        cljMap([
+          [cljString('person'), cljMap([[cljString('name'), cljString('bob')]])],
         ])
       )
     })

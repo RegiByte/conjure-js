@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { cljKeyword, cljList, cljNil, cljNumber } from '../factories'
+import { cljKeyword, cljList, cljNil, cljNumber } from '../../factories'
 import { expectError, freshSession, materialize } from './evaluator-test-utils'
 
 describe('maps as IFn', () => {
