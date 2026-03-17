@@ -90,7 +90,8 @@ Work items in order. Do not skip ahead — each layer is the foundation for the 
 
 See `docs/core-language.md` for the compilation target.
 
-- [ ] **Phase 1: Compiler foundation** — `evaluator/compiler.ts`; compile literals, symbols, and plain function calls to JS closures `(ctx) => CljValue`
+- [x] **Phase 1: Compiler foundation** — `evaluator/compiler.ts`; `CompiledExpr` type; literals and unqualified symbols compile to closures; wired into `evaluateWithContext` with null fallback (Session 113)
+- [ ] **Phase 1b: Function calls** — compile `(f arg1 arg2)` where `f` is not a special form; this is the unlock for user-defined fn call performance
 - [ ] **Phase 2: Control flow** — compile `if`, `do`, `throw`, `try`
 - [ ] **Phase 3: Slot indexing** — compile `let*`, assign variable slots at compile time; `env[0]` replaces `tryLookup("x", env)`. This is the key performance gain.
 - [ ] **Phase 4: Closure compilation** — compile `fn*`; slot-indexed params; var-object deref for globals

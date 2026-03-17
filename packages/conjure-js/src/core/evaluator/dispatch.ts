@@ -1,7 +1,7 @@
 import { is } from '../assertions'
 import { EvaluationError } from '../errors'
 import { printString } from '../printer'
-import { getPos } from '../positions'
+import { maybeHydrateErrorPos } from '../positions'
 import type {
   CljList,
   CljValue,
@@ -12,7 +12,7 @@ import type {
 
 import { evaluateSpecialForm } from './special-forms'
 
-function dispatchMultiMethod(
+export function dispatchMultiMethod(
   mm: CljMultiMethod,
   args: CljValue[],
   ctx: EvaluationContext,
@@ -67,17 +67,7 @@ export function evaluateList(
   try {
     return ctx.applyCallable(evaledFirst, args, env)
   } catch (e) {
-    if (
-      e instanceof EvaluationError &&
-      e.data?.argIndex !== undefined &&
-      !e.pos
-    ) {
-      const argForm = list.value[(e.data.argIndex as number) + 1]
-      if (argForm) {
-        const pos = getPos(argForm)
-        if (pos) e.pos = pos
-      }
-    }
+    maybeHydrateErrorPos(e, list)
     throw e
   }
 }

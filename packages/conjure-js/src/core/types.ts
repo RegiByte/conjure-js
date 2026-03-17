@@ -34,19 +34,23 @@ export type CljNil = { kind: 'nil'; value: null }
 export type CljSymbol = { kind: 'symbol'; name: string; meta?: CljMap }
 export type CljList = { kind: 'list'; value: CljValue[]; meta?: CljMap }
 export type CljVector = { kind: 'vector'; value: CljValue[]; meta?: CljMap }
-export type CljMap = { kind: 'map'; entries: [CljValue, CljValue][]; meta?: CljMap }
+export type CljMap = {
+  kind: 'map'
+  entries: [CljValue, CljValue][]
+  meta?: CljMap
+}
 export type CljNamespace = {
   kind: 'namespace'
   name: string
-  vars: Map<string, CljVar>            // user defs from (def ...)
-  aliases: Map<string, CljNamespace>   // :as namespace aliases
-  readerAliases: Map<string, string>   // :as-alias reader aliases
+  vars: Map<string, CljVar> // user defs from (def ...)
+  aliases: Map<string, CljNamespace> // :as namespace aliases
+  readerAliases: Map<string, string> // :as-alias reader aliases
 }
 
 export type Env = {
-  bindings: Map<string, CljValue>      // native fns, macros, multimethods, local values
+  bindings: Map<string, CljValue> // native fns, macros, multimethods, local values
   outer: Env | null
-  ns?: CljNamespace                    // set on namespace-root envs only
+  ns?: CljNamespace // set on namespace-root envs only
 }
 
 export type DestructurePattern = CljSymbol | CljVector | CljMap
@@ -55,13 +59,14 @@ export type Arity = {
   params: DestructurePattern[]
   restParam: DestructurePattern | null
   body: CljValue[]
+  compiledBody?: CompiledExpr
 }
 
 export type CljFunction = {
   kind: 'function'
   arities: Arity[]
   env: Env
-  name?: string   // set for named fn: (fn my-name [x] x)
+  name?: string // set for named fn: (fn my-name [x] x)
   meta?: CljMap
 }
 
@@ -69,14 +74,17 @@ export type CljMacro = {
   kind: 'macro'
   arities: Arity[]
   env: Env
-  name?: string   // set for named defmacro
+  name?: string // set for named defmacro
 }
 
 export type CljAtom = {
   kind: 'atom'
   value: CljValue
   meta?: CljMap
-  watches?: Map<string, { key: CljValue; fn: CljValue; ctx: EvaluationContext; callEnv: Env }>
+  watches?: Map<
+    string,
+    { key: CljValue; fn: CljValue; ctx: EvaluationContext; callEnv: Env }
+  >
   validator?: CljValue
 }
 export type CljReduced = { kind: 'reduced'; value: CljValue }
@@ -96,13 +104,13 @@ export type CljLazySeq = {
   kind: 'lazy-seq'
   thunk: (() => CljValue) | null
   realized: boolean
-  value?: CljValue  // nil, list, cons, or another lazy-seq after realization
+  value?: CljValue // nil, list, cons, or another lazy-seq after realization
 }
 
 export type CljCons = {
   kind: 'cons'
   head: CljValue
-  tail: CljValue  // can be list, vector, lazy-seq, cons, or nil
+  tail: CljValue // can be list, vector, lazy-seq, cons, or nil
   meta?: CljMap
 }
 
@@ -111,8 +119,8 @@ export type CljVar = {
   ns: string
   name: string
   value: CljValue
-  dynamic?: boolean          // set when def is annotated with ^:dynamic
-  bindingStack?: CljValue[]  // active dynamic bindings (push/pop by `binding`)
+  dynamic?: boolean // set when def is annotated with ^:dynamic
+  bindingStack?: CljValue[] // active dynamic bindings (push/pop by `binding`)
   meta?: CljMap
 }
 
@@ -388,3 +396,27 @@ export type Token = (
   | TokenMeta
   | TokenSetStart
 ) & { start: Cursor; end: Cursor }
+
+/** Compiler */
+
+/**
+ * A compiled expression takes runtime env + ctx, returns a CljValue.
+ * Signature includes ctx even though we don't use it yet
+ * Phases 2+ (if, fn*, apply) will need it. We keep the shape fixed now.
+ */
+export type CompiledExpr = (env: Env, ctx: EvaluationContext) => CljValue
+
+/**
+ * A mutable box. Allocated at compile time.
+ * Read by compiled symbols that reference the slot binding.
+ */
+export type SlotRef = { value: CljValue | null }
+
+export type CompileEnv = {
+  bindings: Map<string, SlotRef>
+  outer: CompileEnv | null
+  loop?: {
+    slots: SlotRef[]
+    recurTarget: { args: CljValue[] | null }
+  }
+}

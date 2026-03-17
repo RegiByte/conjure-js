@@ -35,6 +35,11 @@
     (deep (dec n))))
 
 (deep 3936)
+(deep 4000)
+(deep 5000)
+(deep 6000)
+(deep 7000)
+(deep 7247)
 
 (loop [n 1000000]
   (if (zero? n)

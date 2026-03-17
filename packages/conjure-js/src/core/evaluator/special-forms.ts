@@ -35,6 +35,8 @@ import {
   parseTryStructure,
   validateBindingVector,
 } from './form-parsers'
+import { specialFormKeywords } from './keywords.ts'
+import { compileDo } from './compiler.ts'
 
 function hasDynamicMeta(meta: CljMap | undefined): boolean {
   if (!meta) return false
@@ -51,36 +53,6 @@ function hasDynamicMeta(meta: CljMap | undefined): boolean {
   return false
 }
 
-export const specialFormKeywords = {
-  quote: 'quote',
-  def: 'def',
-  if: 'if',
-  do: 'do',
-  let: 'let',
-  fn: 'fn',
-  defmacro: 'defmacro',
-  quasiquote: 'quasiquote',
-  ns: 'ns',
-  loop: 'loop',
-  recur: 'recur',
-  defmulti: 'defmulti',
-  defmethod: 'defmethod',
-  try: 'try',
-  var: 'var',
-  binding: 'binding',
-  'set!': 'set!',
-  letfn: 'letfn',
-  delay: 'delay',
-  'lazy-seq': 'lazy-seq',
-  // --- ASYNC (experimental) ---
-  async: 'async',
-  // --- END ASYNC ---
-  // --- JS INTEROP ---
-  '.': '.',
-  'js/new': 'js/new',
-  // --- END JS INTEROP ---
-} as const
-
 function keywordToDispatchFn(kw: CljKeyword): CljNativeFunction {
   return v.nativeFn(`kw:${kw.name}`, (...args: CljValue[]) => {
     const target = args[0]
@@ -95,10 +67,7 @@ function evaluateTry(
   env: Env,
   ctx: EvaluationContext
 ): CljValue {
-  const { bodyForms, catchClauses, finallyForms } = parseTryStructure(
-    list,
-    env
-  )
+  const { bodyForms, catchClauses, finallyForms } = parseTryStructure(list, env)
 
   let result: CljValue = v.nil()
   let pendingThrow: unknown = null
@@ -301,6 +270,12 @@ function evaluateFn(
   const arities = parseArities(arityForms, env)
   for (const arity of arities) {
     assertRecurInTailPosition(arity.body)
+    // Try to compile this arity
+    // store the compiled body if successful
+    const compiled = compileDo(arity.body, null)
+    if (compiled !== null) {
+      arity.compiledBody = compiled
+    }
   }
   const fn = v.multiArityFunction(arities, env)
   if (fnName) {

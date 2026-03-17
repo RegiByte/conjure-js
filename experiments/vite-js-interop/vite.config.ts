@@ -15,17 +15,4 @@ export default defineConfig({
       entrypoint: 'src/conjure.ts',
     }),
   ],
-  // build: {
-  //   lib: {
-  //     entry: 'src/main.ts',
-  //     formats: ['es'],
-  //     fileName: 'main',
-  //   },
-  //   target: 'esnext',
-  //   // Bundle everything including conjure-js and date-fns for a self-contained
-  //   // runnable output — makes build artifact validation straightforward with Bun.
-  //   rollupOptions: {
-  //     external: (id) => id.startsWith('node:'),
-  //   },
-  // },
 })

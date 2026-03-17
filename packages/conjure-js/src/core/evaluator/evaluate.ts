@@ -6,6 +6,7 @@ import { valueKeywords } from '../types'
 
 import type { CljValue, Env, EvaluationContext } from '../types'
 import { evaluateMap, evaluateSet, evaluateVector } from './collections'
+import { compile } from './compiler'
 import { evaluateList } from './dispatch'
 
 export type EvaluationMeasurement = {
@@ -24,6 +25,10 @@ export function evaluateWithContext(
   ctx: EvaluationContext
 ): CljValue {
   try {
+    const compiled = compile(expr)
+    if (compiled !== null) {
+      return compiled(env, ctx)
+    }
     switch (expr.kind) {
       // self-evaluating forms
       case valueKeywords.number:

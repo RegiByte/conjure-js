@@ -1,4 +1,5 @@
-import type { CljValue, Pos } from './types'
+import { EvaluationError } from './errors'
+import type { CljList, CljValue, Pos } from './types'
 
 export function setPos(val: CljValue, pos: Pos): void {
   Object.defineProperty(val, '_pos', {
@@ -37,9 +38,28 @@ export function formatErrorContext(
 ): string {
   const { line, col, lineText } = getLineCol(source, pos.start)
   const absLine = line + (opts?.lineOffset ?? 0)
-  const absCol  = line === 1 ? col + (opts?.colOffset ?? 0) : col
+  const absCol = line === 1 ? col + (opts?.colOffset ?? 0) : col
   const span = Math.max(1, pos.end - pos.start)
   // Caret uses raw col so it aligns with the displayed lineText snippet.
   const caret = ' '.repeat(col) + '^'.repeat(span)
   return `\n  at line ${absLine}, col ${absCol + 1}:\n  ${lineText}\n  ${caret}`
+}
+
+/**
+ * Mutable function to hydrate the inner position of an EvaluationError
+ * If the error has an argIndex in its data and no position,
+ * if it already has a position stamped, do nothing.
+ */
+export function maybeHydrateErrorPos(error: unknown, list: CljList) {
+  if (
+    error instanceof EvaluationError &&
+    error.data?.argIndex !== undefined &&
+    !error.pos
+  ) {
+    const argForm = list.value[(error.data.argIndex as number) + 1]
+    if (argForm) {
+      const pos = getPos(argForm)
+      if (pos) error.pos = pos
+    }
+  }
 }

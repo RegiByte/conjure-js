@@ -25,7 +25,8 @@ import {
   type CljVector,
   type CljVolatile,
 } from './types.ts'
-import { specialFormKeywords } from './evaluator/special-forms.ts'
+
+import { specialFormKeywords } from './evaluator/keywords.ts'
 
 export const isNil = (value: CljValue): boolean => value.kind === 'nil'
 export const isBoolean = (value: CljValue): value is CljBoolean =>
@@ -67,7 +68,9 @@ export const isJsValue = (value: CljValue): value is CljJsValue =>
 
 /** True for any value that can be invoked like a function (IFn). */
 export const isCallable = (value: CljValue): boolean =>
-  isAFunction(value) || isKeyword(value) || isMap(value) ||
+  isAFunction(value) ||
+  isKeyword(value) ||
+  isMap(value) ||
   (isJsValue(value) && typeof value.value === 'function')
 export const isMultiMethod = (value: CljValue): value is CljMultiMethod =>
   value.kind === 'multi-method'

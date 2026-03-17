@@ -39,6 +39,9 @@ export function applyFunctionWithContext(
         callEnv
       )
       try {
+        if (arity.compiledBody) {
+          return arity.compiledBody(localEnv, ctx)
+        }
         return ctx.evaluateForms(arity.body, localEnv)
       } catch (e) {
         if (e instanceof RecurSignal) {

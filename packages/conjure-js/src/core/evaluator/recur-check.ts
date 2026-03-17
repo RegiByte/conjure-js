@@ -1,7 +1,7 @@
 import { is } from '../assertions'
 import { EvaluationError } from '../errors'
 import type { CljValue } from '../types'
-import { specialFormKeywords } from './special-forms'
+import { specialFormKeywords } from './keywords'
 
 /**
  * Asserts that every `recur` form in `body` appears strictly in tail position.
