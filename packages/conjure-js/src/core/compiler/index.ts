@@ -50,8 +50,10 @@ function compileList(
       case specialFormKeywords.do:
         return compileDo(node.value.slice(1), compileEnv, compile)
       case specialFormKeywords.let:
+      case specialFormKeywords['let*']:
         return compileLet(node, compileEnv, compile)
       case specialFormKeywords.loop:
+      case specialFormKeywords['loop*']:
         return compileLoop(node, compileEnv, compile)
       case specialFormKeywords.recur:
         return compileRecur(node, compileEnv, compile)

@@ -190,7 +190,7 @@ export const mapsSetsFunctions: Record<string, CljValue> = {
               }
             )
             if (entryIdx === -1) {
-              return collection // not found, unchanged
+              continue // key not present — skip, don't bail
             }
             newEntries.splice(entryIdx, 1)
           }

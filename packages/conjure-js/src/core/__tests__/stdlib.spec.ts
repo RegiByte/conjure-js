@@ -299,11 +299,12 @@ describe('stdlib macros', () => {
     })
 
     it('expands nested macros inside a let binding value', () => {
+      // let is now a macro, so macroexpand-all fully expands it to let*
       expect(
         printString(
           session().evaluate("(macroexpand-all '(let [x (when true 1)] x))")
         )
-      ).toEqual('(let [x (if true (do 1) nil)] x)')
+      ).toEqual('(let* [x (if true (do 1) nil)] x)')
     })
 
     it('expands macros inside an if branch', () => {

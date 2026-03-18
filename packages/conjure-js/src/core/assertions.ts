@@ -71,6 +71,7 @@ export const isCallable = (value: CljValue): boolean =>
   isAFunction(value) ||
   isKeyword(value) ||
   isMap(value) ||
+  isSet(value) ||
   (isJsValue(value) && typeof value.value === 'function')
 export const isMultiMethod = (value: CljValue): value is CljMultiMethod =>
   value.kind === 'multi-method'

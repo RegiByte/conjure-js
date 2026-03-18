@@ -170,9 +170,9 @@ export const predicateFunctions: Record<string, CljValue> = {
         pred: CljValue,
         coll: CljValue
       ): CljValue {
-        if (pred === undefined || !is.aFunction(pred)) {
+        if (pred === undefined || !is.callable(pred)) {
           throw EvaluationError.atArg(
-            `some expects a function as first argument${pred !== undefined ? `, got ${printString(pred)}` : ''}`,
+            `some expects a callable as first argument${pred !== undefined ? `, got ${printString(pred)}` : ''}`,
             { pred },
             0
           )
@@ -188,7 +188,7 @@ export const predicateFunctions: Record<string, CljValue> = {
           )
         }
         for (const item of toSeq(coll)) {
-          const result = ctx.applyFunction(pred, [item], callEnv)
+          const result = ctx.applyCallable(pred, [item], callEnv)
           if (is.truthy(result)) {
             return result
           }

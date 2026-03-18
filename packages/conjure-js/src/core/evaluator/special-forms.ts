@@ -295,6 +295,124 @@ function evaluateFn(
   return fn
 }
 
+function evaluateLetStar(
+  list: CljList,
+  env: Env,
+  ctx: EvaluationContext
+): CljValue {
+  const bindings = list.value[1]
+  validateBindingVector(bindings, 'let*', env)
+  const body = list.value.slice(2)
+  let localEnv = env
+  for (let i = 0; i < bindings.value.length; i += 2) {
+    const pattern = bindings.value[i]
+    if (!is.symbol(pattern)) {
+      throw new EvaluationError(
+        'let* only supports simple symbol bindings; use let for destructuring',
+        { pattern, env }
+      )
+    }
+    const value = ctx.evaluate(bindings.value[i + 1], localEnv)
+    localEnv = extend([pattern.name], [value], localEnv)
+  }
+  return ctx.evaluateForms(body, localEnv)
+}
+
+function evaluateFnStar(
+  list: CljList,
+  env: Env,
+  _ctx: EvaluationContext
+): CljValue {
+  const rest = list.value.slice(1)
+  let fnName: string | undefined
+  let arityForms = rest
+  if (rest[0] && is.symbol(rest[0])) {
+    fnName = rest[0].name
+    arityForms = rest.slice(1)
+  }
+  const arities = parseArities(arityForms, env)
+  for (const arity of arities) {
+    for (const param of arity.params) {
+      if (!is.symbol(param)) {
+        throw new EvaluationError(
+          'fn* only supports simple symbol params; use fn for destructuring',
+          { param, env }
+        )
+      }
+    }
+    if (arity.restParam !== null && !is.symbol(arity.restParam)) {
+      throw new EvaluationError(
+        'fn* only supports simple symbol rest param; use fn for destructuring',
+        { restParam: arity.restParam, env }
+      )
+    }
+    assertRecurInTailPosition(arity.body)
+    const compiled = compile(
+      v.list([v.symbol(specialFormKeywords.do), ...arity.body])
+    )
+    if (compiled !== null) {
+      arity.compiledBody = compiled
+    }
+  }
+  const fn = v.multiArityFunction(arities, env)
+  if (fnName) {
+    fn.name = fnName
+    const selfEnv = makeEnv(env)
+    selfEnv.bindings.set(fnName, fn)
+    fn.env = selfEnv
+  }
+  return fn
+}
+
+function evaluateLoopStar(
+  list: CljList,
+  env: Env,
+  ctx: EvaluationContext
+): CljValue {
+  const loopBindings = list.value[1]
+  validateBindingVector(loopBindings, 'loop*', env)
+  const loopBody = list.value.slice(2)
+  assertRecurInTailPosition(loopBody)
+
+  const names: string[] = []
+  const initValues: CljValue[] = []
+  let initEnv = env
+  for (let i = 0; i < loopBindings.value.length; i += 2) {
+    const pattern = loopBindings.value[i]
+    if (!is.symbol(pattern)) {
+      throw new EvaluationError(
+        'loop* only supports simple symbol bindings; use loop for destructuring',
+        { pattern, env }
+      )
+    }
+    const value = ctx.evaluate(loopBindings.value[i + 1], initEnv)
+    names.push(pattern.name)
+    initValues.push(value)
+    initEnv = extend([pattern.name], [value], initEnv)
+  }
+
+  let currentValues = initValues
+
+  while (true) {
+    const loopEnv = extend(names, currentValues, env)
+    try {
+      return ctx.evaluateForms(loopBody, loopEnv)
+    } catch (e) {
+      if (e instanceof RecurSignal) {
+        if (e.args.length !== names.length) {
+          throw new EvaluationError(
+            `recur expects ${names.length} arguments but got ${e.args.length}`,
+            { list, env }
+          )
+        }
+        currentValues = e.args
+        continue
+      }
+      throw e
+    }
+  }
+}
+
 function evaluateLetfn(
   list: CljList,
   env: Env,
@@ -714,9 +832,12 @@ const specialFormEvaluatorEntries = {
   if: evaluateIf,
   do: evaluateDo,
   let: evaluateLet,
+  'let*': evaluateLetStar,
   fn: evaluateFn,
+  'fn*': evaluateFnStar,
   defmacro: evaluateDefmacro,
   loop: evaluateLoop,
+  'loop*': evaluateLoopStar,
   recur: evaluateRecur,
   defmulti: evaluateDefmulti,
   defmethod: evaluateDefmethod,

@@ -1336,6 +1336,213 @@
             `(mapcat (fn [~k] (for ~(apply concat rest-bindings) ~@body)) ~v)
             `(map (fn [~k] ~@body) ~v)))))))
 
+;; ── Destructure ──────────────────────────────────────────────────────────────
+;; Mirrors Clojure's own destructure function. Takes a flat bindings vector
+;; (as written in let/loop forms) and expands any destructuring patterns into
+;; simple symbol bindings that let*/loop* can handle directly.
+;;
+;; Key adaptations from Clojure's source:
+;;   - reduce1         → reduce
+;;   - (new Exception) → ex-info
+;;   - Java type hints → removed
+;;   - PersistentArrayMap/createAsIfByAssoc → simplified (use map directly)
+;;   - (instance? Named x) / (ident? x) → (or (keyword? x) (symbol? x))
+;;   - (keyword nil name) → guarded to 1-arity (keyword name) when ns is nil
+;;   - (key entry) / (val entry) → (first entry) / (second entry)
+(defn destructure [bindings]
+  (let* [bents (partition 2 bindings)
+         pb    (fn pb [bvec b v]
+                 (let* [;; ── vector pattern ───────────────────────────────────
+                        pvec
+                        (fn [bvec b val]
+                          (let* [gvec     (gensym "vec__")
+                                 gseq     (gensym "seq__")
+                                 gfirst   (gensym "first__")
+                                 has-rest (some #{'&} b)]
+                            (loop* [ret        (let* [ret (conj bvec gvec val)]
+                                                 (if has-rest
+                                                   (conj ret gseq (list 'seq gvec))
+                                                   ret))
+                                    n          0
+                                    bs         b
+                                    seen-rest? false]
+                              (if (seq bs)
+                                (let* [firstb (first bs)]
+                                  (cond
+                                    (= firstb '&)
+                                    (recur (pb ret (second bs) gseq)
+                                           n
+                                           (next (next bs))
+                                           true)
+
+                                    (= firstb :as)
+                                    (pb ret (second bs) gvec)
+
+                                    :else
+                                    (if seen-rest?
+                                      (throw (ex-info "Unsupported binding form, only :as can follow & parameter" {}))
+                                      (recur (pb (if has-rest
+                                                    (-> ret
+                                                        (conj gfirst) (conj (list 'first gseq))
+                                                        (conj gseq)   (conj (list 'next gseq)))
+                                                    ret)
+                                                  firstb
+                                                  (if has-rest
+                                                    gfirst
+                                                    (list 'nth gvec n nil)))
+                                             (inc n)
+                                             (next bs)
+                                             seen-rest?))))
+                                ret))))
+
+                        ;; ── map pattern ──────────────────────────────────────
+                        pmap
+                        (fn [bvec b v]
+                          (let* [gmap     (gensym "map__")
+                                 defaults (:or b)
+                                 ;; Expand :keys/:strs/:syms shorthands into direct
+                                 ;; {sym lookup-key} entries before the main loop.
+                                 bes      (reduce
+                                            (fn [acc mk]
+                                              (let* [mkn  (name mk)
+                                                     mkns (namespace mk)]
+                                                (cond
+                                                  (= mkn "keys")
+                                                  (reduce
+                                                    (fn [a sym]
+                                                      (assoc (dissoc a mk)
+                                                             sym
+                                                             (let* [ns-part (or mkns (namespace sym))]
+                                                               (if ns-part
+                                                                 (keyword ns-part (name sym))
+                                                                 (keyword (name sym))))))
+                                                    acc (mk acc))
+
+                                                  (= mkn "strs")
+                                                  (reduce
+                                                    (fn [a sym]
+                                                      (assoc (dissoc a mk) sym (name sym)))
+                                                    acc (mk acc))
+
+                                                  (= mkn "syms")
+                                                  (reduce
+                                                    (fn [a sym]
+                                                      (assoc (dissoc a mk) sym
+                                                             (list 'quote (symbol (name sym)))))
+                                                    acc (mk acc))
+
+                                                  :else acc)))
+                                            (dissoc b :as :or)
+                                            (filter keyword? (keys (dissoc b :as :or))))]
+                            ;; Coerce seq values (kwargs-style) to a map.
+                            ;; When & is followed by a map pattern, the rest args
+                            ;; arrive as a flat seq (:k1 v1 :k2 v2 ...) and must
+                            ;; be turned into a map before we can do key lookups.
+                            (loop* [ret     (-> bvec
+                                               (conj gmap)
+                                               (conj (list 'if (list 'map? v) v
+                                                           (list 'if (list 'nil? v) (hash-map)
+                                                                 (list 'apply 'hash-map v))))
+                                               ((fn [r]
+                                                  (if (:as b)
+                                                    (conj r (:as b) gmap)
+                                                    r))))
+                                    entries (seq bes)]
+                              (if entries
+                                (let* [entry (first entries)
+                                       bb    (first entry)
+                                       bk    (second entry)
+                                       local (if (or (keyword? bb) (symbol? bb))
+                                               (symbol (name bb))
+                                               bb)
+                                       ;; Use (if (contains? ...) (get ...) default) so that
+                                       ;; :or defaults are only evaluated when the key is absent.
+                                       ;; Intentional divergence from JVM Clojure, which generates
+                                       ;; (get m k default-expr) and evaluates the default eagerly.
+                                       ;; See docs/core-language.md § "Intentional Divergences".
+                                       bv    (if (and defaults (contains? defaults local))
+                                               (list 'if (list 'contains? gmap bk)
+                                                     (list 'get gmap bk)
+                                                     (get defaults local))
+                                               (list 'get gmap bk))]
+                                  (recur (if (or (keyword? bb) (symbol? bb))
+                                           (-> ret (conj local bv))
+                                           (pb ret bb bv))
+                                         (next entries)))
+                                ret))))]
+                   (cond
+                     (symbol? b) (-> bvec (conj b) (conj v))
+                     (vector? b) (pvec bvec b v)
+                     (map? b)    (pmap bvec b v)
+                     :else (throw (ex-info (str "Unsupported binding form: " b) {})))))
+         process-entry (fn [bvec b] (pb bvec (first b) (second b)))]
+    (if (every? symbol? (map first bents))
+      bindings
+      (reduce process-entry [] bents))))
+
+(defn maybe-destructured
+  [params body]
+  (if (every? symbol? params)
+    (cons params body)
+    (loop* [params params
+            new-params []
+            lets []]
+      (if params
+        (if (symbol? (first params))
+          (recur (next params) (conj new-params (first params)) lets)
+          (let* [gparam (gensym "p__")]
+            (recur (next params)
+                   (conj new-params gparam)
+                   (-> lets (conj (first params)) (conj gparam)))))
+        (list (vec new-params)
+              (cons 'let (cons (vec lets) body)))))))
+
+(defmacro fn [& sigs]
+  (let* [name    (if (symbol? (first sigs)) (first sigs) nil)
+         sigs    (if name (next sigs) sigs)
+         sigs    (if (vector? (first sigs)) (list sigs) sigs)
+         psig    (fn* [sig]
+                   (let* [params (first sig)
+                          body   (rest sig)]
+                     (maybe-destructured params body)))
+         new-sigs (map psig sigs)]
+    (if name
+      (list* 'fn* name new-sigs)
+      (cons 'fn* new-sigs))))
+
+(defmacro let [bindings & body]
+  (if (not (vector? bindings))
+    (throw (ex-info "let requires a vector for its bindings" {}))
+    (if (not (even? (count bindings)))
+      (throw (ex-info "let requires an even number of forms in binding vector" {}))
+      `(let* ~(destructure bindings) ~@body))))
+
+(defmacro loop [bindings & body]
+  (if (not (vector? bindings))
+    (throw (ex-info "loop requires a vector for its binding" {}))
+    (if (not (even? (count bindings)))
+      (throw (ex-info "loop requires an even number of forms in binding vector" {}))
+      (let* [db (destructure bindings)]
+        (if (= db bindings)
+          `(loop* ~bindings ~@body)
+          (let* [vs  (take-nth 2 (drop 1 bindings))
+                 bs  (take-nth 2 bindings)
+                 gs  (map (fn* [b] (if (symbol? b) b (gensym))) bs)
+                 bfs (reduce (fn* [ret bvg]
+                               (let* [b (first bvg)
+                                      v (second bvg)
+                                      g (nth bvg 2)]
+                                 (if (symbol? b)
+                                   (conj ret g v)
+                                   (conj ret g v b g))))
+                             [] (map vector bs vs gs))]
+            `(let ~bfs
+               (loop* ~(vec (interleave gs gs))
+                 (let ~(vec (interleave bs gs))
+                   ~@body)))))))))
+
+
+
 (defmacro with-out-str
   "Evaluates body in a context in which *out* is bound to a fresh string
   accumulator. Returns the string of all output produced by println, print,

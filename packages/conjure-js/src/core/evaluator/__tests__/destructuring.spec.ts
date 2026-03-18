@@ -351,12 +351,12 @@ describe('destructuring', () => {
       expect(isEqual(result, v.vector([v.number(1), v.nil()]))).toBe(true)
     })
 
-    it('kwargs rest with odd number of trailing args handles gracefully', () => {
+    it('kwargs rest with odd number of trailing args throws', () => {
+      // Clojure semantics: (apply hash-map [:b]) = (hash-map :b) throws (odd args)
       const session = freshSession()
-      const result = session.evaluate(`
-        (let [[a & {:keys [b]}] [1 :b]] [a b])
-      `)
-      expect(isEqual(result, v.vector([v.number(1), v.nil()]))).toBe(true)
+      expect(() => {
+        session.evaluate(`(let [[a & {:keys [b]}] [1 :b]] [a b])`)
+      }).toThrow()
     })
   })
 
@@ -421,11 +421,12 @@ describe('destructuring', () => {
       }).toThrow(EvaluationError)
     })
 
-    it('destructuring non-map as map throws', () => {
+    it('destructuring non-map as map coerces via apply hash-map', () => {
+      // Clojure semantics: [1 2] gets coerced to {1 2} via (apply hash-map [1 2])
+      // then (get {1 2} :a) = nil — no throw
       const session = freshSession()
-      expect(() => {
-        session.evaluate('(let [{:keys [a]} [1 2]] a)')
-      }).toThrow(EvaluationError)
+      const result = session.evaluate('(let [{:keys [a]} [1 2]] a)')
+      expect(isEqual(result, v.nil())).toBe(true)
     })
   })
 })

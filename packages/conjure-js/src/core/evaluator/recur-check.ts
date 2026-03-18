@@ -68,7 +68,9 @@ function validateForm(form: CljValue, inTail: boolean): void {
   // Boundaries: new recur target or literal data — stop descending
   if (
     name === specialFormKeywords.fn ||
+    name === specialFormKeywords['fn*'] ||
     name === specialFormKeywords.loop ||
+    name === specialFormKeywords['loop*'] ||
     name === specialFormKeywords.quote ||
     name === specialFormKeywords.quasiquote
   ) {
@@ -89,8 +91,8 @@ function validateForm(form: CljValue, inTail: boolean): void {
     return
   }
 
-  // `let`: binding values are non-tail; last body form inherits inTail
-  if (name === specialFormKeywords.let) {
+  // `let`/`let*`: binding values are non-tail; last body form inherits inTail
+  if (name === specialFormKeywords.let || name === specialFormKeywords['let*']) {
     const bindings = form.value[1]
     if (is.vector(bindings)) {
       for (let i = 1; i < bindings.value.length; i += 2) {

@@ -126,6 +126,17 @@ export function applyCallableWithContext(
     const entry = fn.entries.find(([k]) => is.equal(k, key))
     return entry ? entry[1] : defaultVal
   }
+  if (is.set(fn)) {
+    if (args.length === 0) {
+      throw new EvaluationError(
+        'Set used as function requires at least one argument',
+        { fn, args }
+      )
+    }
+    const key = args[0]
+    const found = fn.values.some((v) => is.equal(v, key))
+    return found ? key : cljNil()
+  }
   throw new EvaluationError(`${printString(fn)} is not a callable value`, {
     fn,
     args,

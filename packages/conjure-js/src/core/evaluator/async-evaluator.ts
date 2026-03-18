@@ -176,6 +176,7 @@ const ASYNC_SPECIAL_FORMS = new Set([
   'fn',
   'fn*',
   'loop',
+  'loop*',
   'recur',
   'binding',
   'set!',
@@ -286,10 +287,12 @@ async function evaluateSpecialFormAsync(
 
     // let/let*: sequential bindings (value eval is async, pattern binding is sync)
     case specialFormKeywords.let:
+    case specialFormKeywords['let*']:
       return evaluateLetAsync(list, env, asyncCtx)
 
-    // loop: like let but supports recur
+    // loop/loop*: like let but supports recur
     case specialFormKeywords.loop:
+    case specialFormKeywords['loop*']:
       return evaluateLoopAsync(list, env, asyncCtx)
 
     // binding: evaluate binding values async, then body

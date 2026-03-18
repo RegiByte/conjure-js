@@ -379,3 +379,50 @@ Key properties of compiled expressions:
 - **`fn*`** → captures lexical env at creation: `(ctx) => makeClosure(compiledBody, ctx.env)`
 - **`loop*`/`recur`** → `while` loop, no stack growth
 - **Dynamic vars** → always resolved through `ctx.resolveNs` at call time, never captured at compile time
+
+---
+
+## Intentional Divergences from JVM Clojure
+
+Conjure-JS is not a port — it's an independent implementation that targets the same semantics where they make sense, and improves on them where it doesn't. The divergences below are deliberate.
+
+### `:or` defaults in destructuring are evaluated lazily
+
+In JVM Clojure, the `destructure` function generates `(get m k default-expr)` for
+`:or` entries. Because Clojure uses applicative-order (eager) evaluation, `default-expr`
+is always evaluated as an argument to `get` — even when `k` is already present in the map.
+
+```clojure
+;; JVM Clojure — default-expr runs even when :x is present
+(let [called (atom false)]
+  (let [{:keys [x] :or {x (do (reset! called true) 99)}} {:x 42}]
+    @called))
+;; => true  (default expression ran)
+```
+
+Conjure-JS generates `(if (contains? m k) (get m k) default-expr)` instead. The
+default expression is only evaluated when the key is absent.
+
+```clojure
+;; Conjure-JS — default-expr only runs when :x is missing
+(let [called (atom false)]
+  (let [{:keys [x] :or {x (do (reset! called true) 99)}} {:x 42}]
+    @called))
+;; => false  (default expression skipped)
+```
+
+**Why JVM Clojure behaves this way:** `destructure` is a code generator (a macro-time
+function). Its job is to emit binding forms using existing primitives. `get` was the
+natural primitive — it encodes the concept of "value or default" directly. The eager
+evaluation of the default is an artifact of how function calls work in Clojure, not a
+deliberate semantic choice about destructuring.
+
+**Why Conjure-JS diverges:** The generated code should accurately represent the user's
+intent — "use this default *if* the key is missing." Emitting `if/contains?` makes the
+code generator's output match the construct's meaning, rather than leaking the
+implementation detail of which function was used to produce it.
+
+**In practice:** This only matters when a `:or` default expression has side effects.
+For the vast majority of uses — constants, simple data structures — behavior is
+identical. Code relying on JVM Clojure's eager evaluation of `:or` defaults would be
+surprising to most Clojure programmers anyway.

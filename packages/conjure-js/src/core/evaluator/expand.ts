@@ -1,6 +1,7 @@
 import { is } from '../assertions'
 import { derefValue, getNamespaceEnv, tryLookup } from '../env'
 import { v } from '../factories'
+import { toSeq } from '../transformations'
 import type { CljValue, Env, EvaluationContext } from '../types'
 
 /**
@@ -48,6 +49,14 @@ export function macroExpandAllWithContext(
     )
       ? form
       : v.map(expanded)
+  }
+
+  // Cons cells and lazy seqs (e.g. from macro output using `cons`/`list*`): materialize
+  // as a proper list so the expander and evaluator can treat them as code forms.
+  // In Clojure, any ISeq can appear in code position; CljCons/CljLazySeq are the
+  // Conjure-JS equivalents that macros like `fn` produce via `cons`/`list*`.
+  if (is.cons(form) || is.lazySeq(form)) {
+    return macroExpandAllWithContext(v.list(toSeq(form)), env, ctx)
   }
 
   // Atoms (number, string, boolean, keyword, nil, symbol, regex, functions, etc.)

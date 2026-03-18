@@ -293,12 +293,6 @@ export const seqFunctions: Record<string, CljValue> = {
     .nativeFn(
       'nth',
       function nthImpl(coll: CljValue, n: CljValue, notFound?: CljValue) {
-        if (coll === undefined || (!is.list(coll) && !is.vector(coll))) {
-          throw new EvaluationError(
-            `nth expects a list or vector${coll !== undefined ? `, got ${printString(coll)}` : ''}`,
-            { coll }
-          )
-        }
         if (n === undefined || n.kind !== 'number') {
           throw new EvaluationError(
             `nth expects a number index${n !== undefined ? `, got ${printString(n)}` : ''}`,
@@ -306,6 +300,34 @@ export const seqFunctions: Record<string, CljValue> = {
           )
         }
         const index = (n as CljNumber).value
+        // nil: out-of-bounds semantics (return notFound or throw)
+        if (coll === undefined || is.nil(coll)) {
+          if (notFound !== undefined) return notFound
+          throw new EvaluationError(
+            `nth index ${index} is out of bounds for collection of length 0`,
+            { coll, n }
+          )
+        }
+        // Lazy/cons seqs: materialize to array
+        if (is.lazySeq(coll) || is.cons(coll)) {
+          const items = toSeq(coll)
+          if (index < 0 || index >= items.length) {
+            if (notFound !== undefined) return notFound
+            const err = new EvaluationError(
+              `nth index ${index} is out of bounds for collection of length ${items.length}`,
+              { coll, n }
+            )
+            err.data = { argIndex: 1 }
+            throw err
+          }
+          return items[index]
+        }
+        if (!is.list(coll) && !is.vector(coll)) {
+          throw new EvaluationError(
+            `nth expects a list or vector, got ${printString(coll)}`,
+            { coll }
+          )
+        }
         const items = coll.value
         if (index < 0 || index >= items.length) {
           if (notFound !== undefined) return notFound
