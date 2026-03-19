@@ -32,6 +32,7 @@ export type Arity = {
   restParam: DestructurePattern | null
   body: CljValue[]
   compiledBody?: CompiledExpr
+  paramSlots?: SlotRef[] // Phase 4b: set when body compiled with param slots
 }
 
 export type CljFunction = {

@@ -22,12 +22,12 @@ import type {
   CljMap,
   CljMultiMethod,
   CljNativeFunction,
+  CljSymbol,
   CljValue,
   Env,
   EvaluationContext,
 } from '../types'
 import { parseArities, RecurSignal } from './arity'
-import { destructureBindings } from './destructure'
 import {
   matchesDiscriminator,
   parseTryStructure,
@@ -37,7 +37,7 @@ import { evaluateDot, evaluateNew } from './js-interop'
 import { evaluateQuasiquote } from './quasiquote'
 import { assertRecurInTailPosition } from './recur-check'
 
-import { compile } from '../compiler/index.ts'
+import { compile, compileFnBody } from '../compiler/index.ts'
 
 function hasDynamicMeta(meta: CljMap | undefined): boolean {
   if (!meta) return false
@@ -232,69 +232,6 @@ function evaluateDo(list: CljList, env: Env, ctx: EvaluationContext): CljValue {
   return ctx.evaluateForms(list.value.slice(1), env)
 }
 
-function evaluateLet(
-  list: CljList,
-  env: Env,
-  ctx: EvaluationContext
-): CljValue {
-  const bindings = list.value[1]
-  validateBindingVector(bindings, 'let', env)
-  const body = list.value.slice(2)
-  let localEnv = env
-  for (let i = 0; i < bindings.value.length; i += 2) {
-    const pattern = bindings.value[i]
-    const value = ctx.evaluate(bindings.value[i + 1], localEnv)
-    const pairs = destructureBindings(pattern, value, ctx, localEnv)
-    localEnv = extend(
-      pairs.map(([n]) => n),
-      pairs.map(([, v]) => v),
-      localEnv
-    )
-  }
-
-  return ctx.evaluateForms(body, localEnv)
-}
-
-function evaluateFn(
-  list: CljList,
-  env: Env,
-  _ctx: EvaluationContext
-): CljValue {
-  const rest = list.value.slice(1)
-  // (fn name [...] ...) — optional name symbol before the param vector/arities
-  let fnName: string | undefined
-  let arityForms = rest
-  if (rest[0] && is.symbol(rest[0])) {
-    fnName = rest[0].name
-    arityForms = rest.slice(1)
-  }
-  const arities = parseArities(arityForms, env)
-  for (const arity of arities) {
-    assertRecurInTailPosition(arity.body)
-    // Try to compile this arity
-    // store the compiled body if successful
-    // wrap the body in a do form so the compiler can handle it
-    // at the top level dispatcher
-    const compiled = compile(
-      v.list([v.symbol(specialFormKeywords.do), ...arity.body])
-    )
-    if (compiled !== null) {
-      arity.compiledBody = compiled
-    }
-  }
-  const fn = v.multiArityFunction(arities, env)
-  if (fnName) {
-    fn.name = fnName
-    // Bind the name in the fn's closure env so the body can call itself by name.
-    // We wrap the captured env in a new frame containing name → fn, then point
-    // fn.env at that frame so the binding is visible during application.
-    const selfEnv = makeEnv(env)
-    selfEnv.bindings.set(fnName, fn)
-    fn.env = selfEnv
-  }
-  return fn
-}
-
 function evaluateLetStar(
   list: CljList,
   env: Env,
@@ -347,11 +284,26 @@ function evaluateFnStar(
       )
     }
     assertRecurInTailPosition(arity.body)
-    const compiled = compile(
-      v.list([v.symbol(specialFormKeywords.do), ...arity.body])
-    )
-    if (compiled !== null) {
-      arity.compiledBody = compiled
+    // Phase 4b: params are all guaranteed simple symbols (validated above).
+    // For no-rest-param arities, compile with param slots to eliminate
+    // both bindParams env allocation and lookup chain walks for params.
+    if (arity.restParam === null) {
+      const result = compileFnBody(
+        arity.params as CljSymbol[],
+        arity.body,
+        compile
+      )
+      if (result !== null) {
+        arity.compiledBody = result.compiledBody
+        arity.paramSlots = result.paramSlots
+      }
+    } else {
+      const compiled = compile(
+        v.list([v.symbol(specialFormKeywords.do), ...arity.body])
+      )
+      if (compiled !== null) {
+        arity.compiledBody = compiled
+      }
     }
   }
   const fn = v.multiArityFunction(arities, env)
@@ -494,69 +446,6 @@ function evaluateDefmacro(
   const finalMeta = docstring ? mergeDocIntoMeta(varMeta, docstring) : varMeta
   internVar(name.name, macro, getNamespaceEnv(env), finalMeta)
   return v.nil()
-}
-
-function evaluateLoop(
-  list: CljList,
-  env: Env,
-  ctx: EvaluationContext
-): CljValue {
-  const loopBindings = list.value[1]
-  validateBindingVector(loopBindings, 'loop', env)
-  const loopBody = list.value.slice(2)
-  assertRecurInTailPosition(loopBody)
-
-  // Collect top-level patterns and initial values.
-  // recur rebinds at the top-level pattern granularity (not individual symbols).
-  const patterns: CljValue[] = []
-  const initValues: CljValue[] = []
-  let initEnv = env
-  for (let i = 0; i < loopBindings.value.length; i += 2) {
-    const pattern = loopBindings.value[i]
-    const value = ctx.evaluate(loopBindings.value[i + 1], initEnv)
-    patterns.push(pattern)
-    initValues.push(value)
-    const pairs = destructureBindings(pattern, value, ctx, initEnv)
-    initEnv = extend(
-      pairs.map(([n]) => n),
-      pairs.map(([, v]) => v),
-      initEnv
-    )
-  }
-
-  let currentValues = initValues
-
-  while (true) {
-    let loopEnv = env
-    for (let i = 0; i < patterns.length; i++) {
-      const pairs = destructureBindings(
-        patterns[i],
-        currentValues[i],
-        ctx,
-        loopEnv
-      )
-      loopEnv = extend(
-        pairs.map(([n]) => n),
-        pairs.map(([, v]) => v),
-        loopEnv
-      )
-    }
-    try {
-      return ctx.evaluateForms(loopBody, loopEnv)
-    } catch (e) {
-      if (e instanceof RecurSignal) {
-        if (e.args.length !== patterns.length) {
-          throw new EvaluationError(
-            `recur expects ${patterns.length} arguments but got ${e.args.length}`,
-            { list, env }
-          )
-        }
-        currentValues = e.args
-        continue
-      }
-      throw e
-    }
-  }
 }
 
 function evaluateRecur(
@@ -831,12 +720,9 @@ const specialFormEvaluatorEntries = {
   ns: evaluateNs,
   if: evaluateIf,
   do: evaluateDo,
-  let: evaluateLet,
   'let*': evaluateLetStar,
-  fn: evaluateFn,
   'fn*': evaluateFnStar,
   defmacro: evaluateDefmacro,
-  loop: evaluateLoop,
   'loop*': evaluateLoopStar,
   recur: evaluateRecur,
   defmulti: evaluateDefmulti,

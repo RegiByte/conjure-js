@@ -3,6 +3,19 @@
 export const clojure_coreSource = `\
 (ns clojure.core)
 
+;; Bootstrap shims: lightweight macros so the Clojure layer owns let/fn/loop
+;; from the very first line. The full destructuring-aware versions redefine
+;; these below once their dependencies (destructure, maybe-destructured, etc.)
+;; are available.
+(defmacro let [bindings & body]
+  \`(let* ~bindings ~@body))
+
+(defmacro fn [& sigs]
+  (cons 'fn* sigs))
+
+(defmacro loop [bindings & body]
+  \`(loop* ~bindings ~@body))
+
 ;; Host shims, for autocomplete only
 (def all)
 (def async)
@@ -269,10 +282,12 @@ export const clojure_coreSource = `\
 (defn assoc-in
   "Associates a value in a nested associative structure, where ks is a
   sequence of keys and v is the new value. Returns a new nested structure."
-  [m [k & ks] v]
-  (if ks
-    (assoc m k (assoc-in (get m k) ks v))
-    (assoc m k v)))
+  [m ks v]
+  (let [k    (first ks)
+        more (next ks)]
+    (if more
+      (assoc m k (assoc-in (get m k) more v))
+      (assoc m k v))))
 
 (defn update-in
   "Updates a value in a nested associative structure, where ks is a

@@ -248,8 +248,10 @@ async function evaluateSpecialFormAsync(
     case specialFormKeywords.quote:
     case specialFormKeywords.var:
     case specialFormKeywords.ns:
-    // fn/fn*: function CREATION is sync — the body is evaluated async only when called
-    case specialFormKeywords.fn:
+    // fn/fn*: function CREATION is sync — the body is evaluated async only when called.
+    // fn is now a macro (expands to fn*); expand then delegate to sync.
+    case 'fn':
+    case 'fn*':
       return asyncCtx.syncCtx.evaluate(list, env)
 
     // recur: evaluate args async, then throw RecurSignal
@@ -285,13 +287,22 @@ async function evaluateSpecialFormAsync(
         : v.nil()
     }
 
-    // let/let*: sequential bindings (value eval is async, pattern binding is sync)
-    case specialFormKeywords.let:
+    // let/let*: sequential bindings (value eval is async, pattern binding is sync).
+    // let is now a macro (expands to let*); macroexpand then re-eval so the
+    // expanded let* form is handled by the case below.
+    case 'let': {
+      const expanded = asyncCtx.syncCtx.expandAll(list, env)
+      return evaluateFormAsync(expanded, env, asyncCtx)
+    }
     case specialFormKeywords['let*']:
       return evaluateLetAsync(list, env, asyncCtx)
 
-    // loop/loop*: like let but supports recur
-    case specialFormKeywords.loop:
+    // loop/loop*: like let but supports recur.
+    // loop is now a macro (expands to let/loop*); macroexpand then re-eval.
+    case 'loop': {
+      const expanded = asyncCtx.syncCtx.expandAll(list, env)
+      return evaluateFormAsync(expanded, env, asyncCtx)
+    }
     case specialFormKeywords['loop*']:
       return evaluateLoopAsync(list, env, asyncCtx)
 
@@ -329,7 +340,7 @@ async function evaluateLetAsync(
   asyncCtx: AsyncEvalCtx
 ): Promise<CljValue> {
   const bindings = list.value[1]
-  validateBindingVector(bindings, specialFormKeywords.let, env)
+  validateBindingVector(bindings, 'let*', env)
 
   let currentEnv = env
   const pairs = bindings.value
@@ -359,7 +370,7 @@ async function evaluateLoopAsync(
   asyncCtx: AsyncEvalCtx
 ): Promise<CljValue> {
   const loopBindings = list.value[1]
-  validateBindingVector(loopBindings, specialFormKeywords.loop, env)
+  validateBindingVector(loopBindings, 'loop*', env)
 
   const loopBody = list.value.slice(2)
 

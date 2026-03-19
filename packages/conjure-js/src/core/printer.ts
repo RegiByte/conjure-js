@@ -336,8 +336,8 @@ const BODY_FORM_HEADER_COUNT: Record<string, number> = {
 
 // Forms whose first header arg (binding vector) should be printed as pairs.
 const BINDING_FORMS = new Set([
-  specialFormKeywords.let,
-  specialFormKeywords.loop,
+  'let',
+  'loop',
   specialFormKeywords.binding,
   'with-open',
   'for',

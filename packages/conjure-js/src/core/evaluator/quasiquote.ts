@@ -23,7 +23,7 @@ export function evaluateQuasiquote(
         is.symbol(form.value[0]) &&
         form.value[0].name === 'unquote'
       ) {
-        return ctx.evaluate(form.value[1], env)
+        return ctx.evaluate(ctx.expandAll(form.value[1], env), env)
       }
 
       // Build new collection
@@ -36,7 +36,7 @@ export function evaluateQuasiquote(
           is.symbol(elem.value[0]) &&
           elem.value[0].name === 'unquote-splicing'
         ) {
-          const toSplice = ctx.evaluate(elem.value[1], env)
+          const toSplice = ctx.evaluate(ctx.expandAll(elem.value[1], env), env)
           if (is.list(toSplice) || is.vector(toSplice)) {
             elements.push(...toSplice.value)
           } else if (is.lazySeq(toSplice) || is.cons(toSplice)) {

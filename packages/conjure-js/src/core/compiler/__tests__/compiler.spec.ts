@@ -5,10 +5,11 @@ import { v } from '../../factories'
 import { readForms } from '../../reader'
 import { createRuntime, type Runtime } from '../../runtime'
 import { tokenize } from '../../tokenizer'
-import { type CljValue } from '../../types'
+import { type CljFunction, type CljValue } from '../../types'
 import { compile } from '..'
 import { toCljValue } from '../../evaluator/__tests__/evaluator-test-utils'
 import { freshSession as session } from '../../evaluator/__tests__/evaluator-test-utils'
+import { applyFunctionWithContext } from '../../evaluator/apply'
 
 const formToNode = (code: string) =>
   readForms(tokenize(code), 'user', new Map())[0] as CljValue
@@ -116,11 +117,11 @@ describe('Compiler Phase 1', () => {
     expect(compiled).toBeNull()
   })
 
-  it('qualified symbols return null (not supported yet)', () => {
+  it('qualified symbols compile to a non-null closure (Phase 6)', () => {
     const compiled = compile(v.symbol('ns/x'))
-    expect(compiled).toBeNull()
+    expect(compiled).not.toBeNull()
     const compiled2 = compile(v.symbol('str/join'))
-    expect(compiled2).toBeNull()
+    expect(compiled2).not.toBeNull()
   })
 })
 
@@ -185,7 +186,6 @@ describe('Compiler Phase 2', () => {
 
 describe('Compiler Phase 3A', () => {
   it.each([
-    ['qualified symbol', '(clojure.core/+ 1 2)'],
     ['uncompilable arg def', '(+ (def x 1) 2)'],
     ['ns special form', '(+ (ns foo) 2)'],
   ])('function calls - unsuported cases %s -> null', (_label, code) => {
@@ -228,17 +228,17 @@ describe('Compiler Phase 3B', () => {
 
   it.each([
     // basic: single binding
-    ['(let [x 1] x)', 1],
+    ['(let* [x 1] x)', 1],
     // multiple bindings
-    ['(let [x 1 y 2] (+ x y))', 3],
+    ['(let* [x 1 y 2] (+ x y))', 3],
     // sequential dependency: y's init can see x
-    ['(let [x 1 y (+ x 1)] y)', 2],
+    ['(let* [x 1 y (+ x 1)] y)', 2],
     // nested let with shadowing (fresh slots per scope)
-    ['(let [x 1] (let [x 2] x))', 2],
+    ['(let* [x 1] (let* [x 2] x))', 2],
     // outer binding intact after inner let
-    ['(let [x 1] (let [y 2] x))', 1],
+    ['(let* [x 1] (let* [y 2] x))', 1],
     // empty binding vector
-    ['(let [] 42)', 42],
+    ['(let* [] 42)', 42],
   ])('should compile let bindings: %s -> %s', (code, expected) => {
     const compiled = compileForm(code)
     expect(compiled).toBeDefined()
@@ -313,9 +313,9 @@ describe('Compiler Phase 4', () => {
 describe('Compiler Phase 5', () => {
   it.each([
     // basic: single binding
-    ['(loop [i 0] (if (= i 5) i (recur (+ i 1))))', 5],
-    ['(loop [i 1 acc 1] (if (> i 5) acc (recur (+ i 1) (* acc i))))', 120],
-    ['(loop [] 42)', 42],
+    ['(loop* [i 0] (if (= i 5) i (recur (+ i 1))))', 5],
+    ['(loop* [i 1 acc 1] (if (> i 5) acc (recur (+ i 1) (* acc i))))', 120],
+    ['(loop* [] 42)', 42],
   ])('should compile loop - valid cases: %s -> %s', (code, expected) => {
     const compiled = compileForm(code)
     expect(compiled).toBeDefined()
@@ -346,22 +346,111 @@ describe('Compiler Phase 5', () => {
       (fn [n] (loop [i 0 acc 0] (if (= i n) acc (recur (+ i 1) (+ acc i)))))
       `)
     expect(compiledFn.kind).toBe('function')
-
-    expect(compiledFn.kind).toBe('function')
     if (compiledFn.kind === 'function') {
       expect(compiledFn.arities.length).toBe(1)
       expect(compiledFn.arities[0].compiledBody).toBeDefined()
-      expect(typeof compiledFn.arities[0].compiledBody).toBe('function')
       const userEnv = runtime.getNamespaceEnv('user')
       if (!userEnv) {
         expect.fail('user namespace should be created')
       }
-      const localEnv = extend(['n'], [v.number(5)], userEnv)
-      const result = compiledFn.arities[0].compiledBody!(
-        localEnv,
-        createEvaluationContext()
+      // Phase 4b: params are now in slots, not in env — use applyFunctionWithContext
+      const result = applyFunctionWithContext(
+        compiledFn as CljFunction,
+        [v.number(5)],
+        createEvaluationContext(),
+        userEnv
       )
       expect(result).toEqual(toCljValue(10))
     }
+  })
+})
+
+describe('Compiler Phase 6 — Qualified Symbol Compilation', () => {
+  it('compiles a qualified symbol to a non-null closure', () => {
+    const compiled = compile(formToNode('clojure.core/+'))
+    expect(compiled).not.toBeNull()
+    expect(typeof compiled).toBe('function')
+  })
+
+  it('resolves clojure.core/+ to the + function at runtime', () => {
+    const result = session().evaluate('clojure.core/+')
+    expect(result).toBeDefined()
+    // + is a native-function in the core module
+    expect(['function', 'native-function']).toContain(result.kind)
+  })
+
+  it('resolves clojure.core/map to the map function at runtime', () => {
+    const result = session().evaluate('clojure.core/map')
+    expect(result).toBeDefined()
+    expect(['function', 'native-function']).toContain(result.kind)
+  })
+
+  it('resolves a namespace alias (require + :as)', () => {
+    const result = session().evaluate(`
+      (do
+        (require '[clojure.string :as str])
+        str/join)
+    `)
+    expect(result).toBeDefined()
+    expect(['function', 'native-function']).toContain(result.kind)
+  })
+
+  it('resolves clojure.string/join by full namespace name', () => {
+    const result = session().evaluate(`
+      (do
+        (require '[clojure.string])
+        clojure.string/join)
+    `)
+    expect(result).toBeDefined()
+    expect(['function', 'native-function']).toContain(result.kind)
+  })
+
+  it('can call a qualified symbol directly — (clojure.core/+ 1 2) => 3', () => {
+    const result = session().evaluate('(clojure.core/+ 1 2)')
+    expect(result).toEqual(toCljValue(3))
+  })
+
+  it('throws at runtime for unknown namespace', () => {
+    expect(() => session().evaluate('nonexistent.ns/foo')).toThrow()
+  })
+})
+
+describe('Compiler Phase 4b — param slots', () => {
+  it('fn arity without rest param has paramSlots set', () => {
+    const fn = session().evaluate('(fn [x y] (+ x y))')
+    expect(fn.kind).toBe('function')
+    if (fn.kind !== 'function') return
+    expect(fn.arities[0].paramSlots).toBeDefined()
+    expect(fn.arities[0].paramSlots?.length).toBe(2)
+  })
+
+  it('fn with rest param does NOT have paramSlots (falls through to bindParams)', () => {
+    const fn = session().evaluate('(fn [x & rest] x)')
+    expect(fn.kind).toBe('function')
+    if (fn.kind !== 'function') return
+    expect(fn.arities[0].paramSlots).toBeUndefined()
+  })
+
+  it.each([
+    ['simple param access', '((fn [x] x) 99)', 99],
+    ['multi-param arithmetic', '((fn [a b c] (+ a b c)) 1 2 3)', 6],
+    ['fn-level recur: countdown to zero', '((fn [n] (if (= n 0) 42 (recur (- n 1)))) 5)', 42],
+    [
+      'fn-level recur: accumulator',
+      '((fn [n acc] (if (= n 0) acc (recur (- n 1) (+ acc n)))) 5 0)',
+      15,
+    ],
+    [
+      'non-tail recursion: factorial',
+      '((fn f [n] (if (= n 0) 1 (* n (f (- n 1))))) 5)',
+      120,
+    ],
+    [
+      'mutual recursion (save/restore correctness)',
+      '(do (defn my-even? [n] (if (= n 0) true (my-odd? (- n 1)))) (defn my-odd? [n] (if (= n 0) false (my-even? (- n 1)))) (my-even? 10))',
+      true,
+    ],
+  ])('%s → %s', (_, code, expected) => {
+    expect(session().evaluate(code)).toEqual(toCljValue(expected))
   })
 })

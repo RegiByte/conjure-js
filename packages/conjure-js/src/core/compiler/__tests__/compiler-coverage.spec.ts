@@ -121,9 +121,9 @@ describe('Compiler Coverage — compiles → non-null', () => {
     it('symbol in compile env resolves via direct slot access', () => {
       // When a symbol is in a CompileEnv (set by compileLet/compileLoop),
       // it reads the SlotRef directly — no lookup, no env traversal.
-      const compiled = compileForm('(let [x 7] x)')
+      const compiled = compileForm('(let* [x 7] x)')
       expect(compiled).not.toBeNull()
-      expect(run('(let [x 7] x)')).toEqual(v.number(7))
+      expect(run('(let* [x 7] x)')).toEqual(v.number(7))
     })
   })
 
@@ -214,12 +214,12 @@ describe('Compiler Coverage — compiles → non-null', () => {
   // -------------------------------------------------------------------------
   describe('Phase 3B — let (simple bindings)', () => {
     it.each([
-      ['single binding', '(let [x 1] x)', 1],
-      ['chained bindings', '(let [x 1 y 2] (+ x y))', 3],
-      ['later binding sees earlier', '(let [x 1 y (+ x 1)] y)', 2],
-      ['nested let', '(let [x 1] (let [y 2] (+ x y)))', 3],
-      ['binding shadows outer', '(let [x 1] (let [x 99] x))', 99],
-      ['empty let body is nil', '(let [])', undefined], // skip execution
+      ['single binding', '(let* [x 1] x)', 1],
+      ['chained bindings', '(let* [x 1 y 2] (+ x y))', 3],
+      ['later binding sees earlier', '(let* [x 1 y (+ x 1)] y)', 2],
+      ['nested let', '(let* [x 1] (let* [y 2] (+ x y)))', 3],
+      ['binding shadows outer', '(let* [x 1] (let* [x 99] x))', 99],
+      ['empty let body is nil', '(let* [])', undefined], // skip execution
     ])('%s', (_, code, expected) => {
       if (expected === undefined) {
         // Just check it compiles
@@ -280,7 +280,7 @@ describe('Compiler Coverage — compiles → non-null', () => {
   describe('Phase 5 — loop/recur', () => {
     it('loop form compiles to a non-null closure', () => {
       const compiled = compileForm(
-        '(loop [i 0] (if (= i 5) i (recur (+ i 1))))'
+        '(loop* [i 0] (if (= i 5) i (recur (+ i 1))))'
       )
       expect(compiled).not.toBeNull()
     })
@@ -288,7 +288,7 @@ describe('Compiler Coverage — compiles → non-null', () => {
     it('recur inside loop compiles to a non-null closure', () => {
       // We can verify by running the whole loop
       const compiled = compileForm(
-        '(loop [i 0] (if (= i 3) i (recur (+ i 1))))'
+        '(loop* [i 0] (if (= i 3) i (recur (+ i 1))))'
       )
       expect(compiled).not.toBeNull()
     })
@@ -308,6 +308,49 @@ describe('Compiler Coverage — compiles → non-null', () => {
       ],
     ])('%s → %s', (_, code, expected) => {
       expect(session().evaluate(code)).toEqual(toCljValue(expected))
+    })
+  })
+
+  // -------------------------------------------------------------------------
+  // Phase 4b — fn param slots
+  //
+  // For fn arities with no rest param and all simple symbol params, evaluateFn
+  // now calls compileFnBody which: allocates SlotRef per param, marks a loop
+  // target in fnCompileEnv (enabling compiled recur), and wraps the compiled
+  // body in a while(true) that handles fn-level recur without RecurSignal.
+  //
+  // applyFunctionWithContext uses save/restore around paramSlots for reentrancy.
+  // -------------------------------------------------------------------------
+  describe('Phase 4b — fn param slots', () => {
+    it('fn arity without rest param has paramSlots set', () => {
+      const fn = session().evaluate('(fn [x] (* x 2))')
+      expect(fn.kind).toBe('function')
+      if (fn.kind !== 'function') return
+      expect(fn.arities[0].paramSlots).toBeDefined()
+      expect(fn.arities[0].paramSlots?.length).toBe(1)
+    })
+
+    it('fn with rest param has no paramSlots (falls through to bindParams)', () => {
+      const fn = session().evaluate('(fn [x & rest] x)')
+      expect(fn.kind).toBe('function')
+      if (fn.kind !== 'function') return
+      expect(fn.arities[0].paramSlots).toBeUndefined()
+    })
+
+    it.each([
+      ['param slot call', '((fn [x] x) 99)', 99],
+      ['multi-param', '((fn [a b c] (+ a b c)) 1 2 3)', 6],
+    ])('%s', (_, code, expected) => {
+      expect(session().evaluate(code)).toEqual(toCljValue(expected))
+    })
+
+    it('fn-level recur compiles without RecurSignal', () => {
+      // If this regressed to RecurSignal path it would still work but be slower;
+      // correctness is what we verify here.
+      const result = session().evaluate(
+        '((fn [n] (if (= n 0) :done (recur (- n 1)))) 5)'
+      )
+      expect(result).toEqual(v.keyword(':done'))
     })
   })
 })
@@ -336,21 +379,21 @@ describe('Compiler Coverage — bails → null', () => {
   })
 
   // -------------------------------------------------------------------------
-  // Qualified symbols
+  // Qualified symbols — Phase 6
   //
-  // TODO: Phase 6 — qualified symbol compilation
-  //   Strategy: at compile time, resolve ns alias via ctx.resolveNs, capture
-  //   a direct reference to the var object. At runtime, deref the var.
-  //   When this lands, move these rows to "compiles".
+  // alias and localName are captured at compile time; namespace is resolved
+  // at runtime via ctx.resolveNs / ns aliases. compile() returns a non-null
+  // closure for any well-formed ns/sym, regardless of whether the namespace
+  // exists (unknown ns throws at runtime, not compile time).
   // -------------------------------------------------------------------------
-  describe('Qualified symbols — TODO: Phase 6', () => {
+  describe('Qualified symbols — Phase 6', () => {
     it.each([
       'clojure.core/+',
       'str/join',
       'my.ns/foo',
       'clojure.string/split',
-    ])('%s → null', (code) => {
-      expect(compileForm(code)).toBeNull()
+    ])('%s → compiles (non-null)', (code) => {
+      expect(compileForm(code)).not.toBeNull()
     })
   })
 

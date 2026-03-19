@@ -8,12 +8,14 @@
  * - Phase 3: let with slot indexing
  * - Phase 4: fn with compile-once caching
  * - Phase 5: loop/recur → while
+ * - Phase 6: qualified symbols (ns/sym)
  *
  * Returns null for unsupported forms (fallback to interpreter).
  * See ./evaluate.ts:evaluateWithContext for the entry point.
  */
 import { is } from '../assertions.ts'
-import { lookup } from '../env.ts'
+import { derefValue, getNamespaceEnv, lookup } from '../env.ts'
+import { EvaluationError } from '../errors.ts'
 import { specialFormKeywords, valueKeywords } from '../keywords.ts'
 import {
   type CljList,
@@ -23,7 +25,7 @@ import {
   type CompileEnv,
   type CompileFn,
 } from '../types.ts'
-import { compileLet, compileLoop, compileRecur } from './binding.ts'
+import { compileFnBody, compileLet, compileLoop, compileRecur } from './binding.ts'
 import { compileCall } from './callable.ts'
 import { findSlot } from './compile-env.ts'
 import { compileDo, compileIf } from './control-flow.ts'
@@ -33,7 +35,7 @@ import { compileDo, compileIf } from './control-flow.ts'
  * Ideally external consumers should only use the compile function,
  * not it's children!
  */
-export { compileDo, compileIf, compileLet, compileLoop, compileRecur }
+export { compileDo, compileIf, compileLet, compileLoop, compileRecur, compileFnBody }
 
 function compileList(
   node: CljList,
@@ -49,10 +51,8 @@ function compileList(
         return compileIf(node, compileEnv, compile)
       case specialFormKeywords.do:
         return compileDo(node.value.slice(1), compileEnv, compile)
-      case specialFormKeywords.let:
       case specialFormKeywords['let*']:
         return compileLet(node, compileEnv, compile)
-      case specialFormKeywords.loop:
       case specialFormKeywords['loop*']:
         return compileLoop(node, compileEnv, compile)
       case specialFormKeywords.recur:
@@ -83,8 +83,28 @@ function compileSymbol(
   const symbolName = node.name
   const slashIdx = symbolName.indexOf('/')
   if (slashIdx > 0 && slashIdx < symbolName.length - 1) {
-    // qualified symbol not supported yet
-    return null
+    // Phase 6: qualified symbol — alias/name strings captured at compile time,
+    // namespace resolved at runtime (vars are mutable; ctx not available at compile time).
+    const alias = symbolName.slice(0, slashIdx)
+    const localName = symbolName.slice(slashIdx + 1)
+    return (env, ctx) => {
+      const nsEnv = getNamespaceEnv(env)
+      const targetNs = nsEnv.ns?.aliases.get(alias) ?? ctx.resolveNs(alias) ?? null
+      if (!targetNs) {
+        throw new EvaluationError(`No such namespace or alias: ${alias}`, {
+          symbol: symbolName,
+          env,
+        })
+      }
+      const varObj = targetNs.vars.get(localName)
+      if (varObj === undefined) {
+        throw new EvaluationError(`Symbol ${symbolName} not found`, {
+          symbol: symbolName,
+          env,
+        })
+      }
+      return derefValue(varObj)
+    }
   }
   const slot = findSlot(symbolName, compileEnv)
   if (slot !== null) {

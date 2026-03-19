@@ -2,12 +2,9 @@ export const specialFormKeywords = {
   // Core forms
   def: 'def',
   do: 'do',
-  fn: 'fn',
   'fn*': 'fn*',
   if: 'if',
-  let: 'let',
   'let*': 'let*',
-  loop: 'loop',
   'loop*': 'loop*',
   recur: 'recur',
   quote: 'quote',

@@ -3,6 +3,7 @@ import { assertRecurInTailPosition } from '../evaluator/recur-check.ts'
 import { v } from '../factories.ts'
 import type {
   CljList,
+  CljSymbol,
   CljValue,
   CompiledExpr,
   CompileEnv,
@@ -161,4 +162,47 @@ export function compileRecur(
     // return value ignored, loop checks recurTarget.args
     return v.nil()
   }
+}
+
+/**
+ * Compiles an fn arity body with param slots.
+ *
+ * Allocates one SlotRef per param at compile time. The returned compiledBody
+ * wraps the inner compiled form in a while(true) loop that handles fn-level
+ * recur without throwing RecurSignal — identical to compileLoop's mechanism.
+ *
+ * At call time, applyFunctionWithContext writes args into paramSlots and calls
+ * compiledBody(fn.env, ctx). save/restore around the call handles reentrancy.
+ *
+ * Returns null if the body cannot be fully compiled (fallback to interpreter).
+ */
+export function compileFnBody(
+  params: CljSymbol[],
+  body: CljValue[],
+  compile: CompileFn
+): { compiledBody: CompiledExpr; paramSlots: SlotRef[] } | null {
+  const paramSlots: SlotRef[] = params.map(() => ({ value: null }))
+  const recurTarget: { args: CljValue[] | null } = { args: null }
+  const fnCompileEnv: CompileEnv = {
+    bindings: new Map(params.map((p, i) => [p.name, paramSlots[i]])),
+    outer: null,
+    loop: { slots: paramSlots, recurTarget },
+  }
+  const innerCompiled = compileDo(body, fnCompileEnv, compile)
+  if (innerCompiled === null) return null
+
+  const compiledBody: CompiledExpr = (env, ctx) => {
+    while (true) {
+      recurTarget.args = null
+      const result = innerCompiled(env, ctx)
+      if (recurTarget.args !== null) {
+        for (let i = 0; i < paramSlots.length; i++) {
+          paramSlots[i].value = recurTarget.args[i]
+        }
+      } else {
+        return result
+      }
+    }
+  }
+  return { compiledBody, paramSlots }
 }
