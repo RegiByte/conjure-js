@@ -186,7 +186,6 @@ const ASYNC_SPECIAL_FORMS = new Set([
   'defmulti',
   'defmethod',
   'letfn',
-  'quasiquote',
   'delay',
   'lazy-seq',
   'ns',

@@ -1,5 +1,5 @@
 // Sequence abstraction: list, seq, first, rest, cons, conj, count, empty?, empty,
-// nth, get, contains?, last, reverse, repeat*, range*
+// nth, get, contains?, last, reverse, repeat*, range*, concat*
 //
 // These are the "core sequence protocol" operations — they apply uniformly across
 // all collection types. conj lives here because it implements the sequence
@@ -516,6 +516,35 @@ export const seqFunctions: Record<string, CljValue> = {
       ['n'],
       ['start', 'end'],
       ['start', 'end', 'step'],
+    ]),
+
+  // ── Quasiquote bootstrap helper ──────────────────────────────────────────
+  // Used internally by quasiquote-expanded splice code (e.g. `(a ~@xs b)).
+  // Eager unlike the lazy clojure.core/concat — safe because the result is
+  // immediately consumed by (apply list ...). Not meant for user code.
+
+  'concat*': v
+    .nativeFn('concat*', function concatStarImpl(...args: CljValue[]) {
+      const result: CljValue[] = []
+      for (const arg of args) {
+        if (is.nil(arg)) continue
+        if (is.list(arg) || is.vector(arg)) {
+          result.push(...arg.value)
+        } else if (is.cons(arg) || is.lazySeq(arg)) {
+          result.push(...toSeq(arg))
+        } else if (is.set(arg)) {
+          result.push(...arg.values)
+        } else {
+          throw new EvaluationError(
+            `concat* expects seqable arguments, got ${printString(arg)}`,
+            { arg }
+          )
+        }
+      }
+      return v.list(result)
+    })
+    .doc('Eagerly concatenates seqable collections into a list (quasiquote bootstrap helper).', [
+      ['&', 'colls'],
     ]),
 
   count: v

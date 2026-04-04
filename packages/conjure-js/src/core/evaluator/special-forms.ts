@@ -34,7 +34,7 @@ import {
   validateBindingVector,
 } from './form-parsers'
 import { evaluateDot, evaluateNew } from './js-interop'
-import { evaluateQuasiquote } from './quasiquote'
+
 import { assertRecurInTailPosition } from './recur-check'
 
 import { compile, compileFnBody } from '../compiler/index.ts'
@@ -121,13 +121,6 @@ function evaluateQuote(
   return list.value[1]
 }
 
-function evalQuasiquote(
-  list: CljList,
-  env: Env,
-  ctx: EvaluationContext
-): CljValue {
-  return evaluateQuasiquote(list.value[1], env, new Map(), ctx)
-}
 
 /**
  * Merge reader-attached symbol metadata with source-position metadata
@@ -715,7 +708,6 @@ type SpecialFormEvaluatorFn = (
 const specialFormEvaluatorEntries = {
   try: evaluateTry,
   quote: evaluateQuote,
-  quasiquote: evalQuasiquote,
   def: evaluateDef,
   ns: evaluateNs,
   if: evaluateIf,

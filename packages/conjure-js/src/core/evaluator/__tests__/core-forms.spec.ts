@@ -118,6 +118,46 @@ describe('macros', () => {
     )
   })
 
+  describe('quasiquote — set templates', () => {
+    it('should expand a set literal with keywords', () => {
+      const s = freshSession()
+      const result = s.evaluate('`#{:a :b :c}')
+      expect(result).toMatchObject({ kind: 'set' })
+      expect((result as any).values).toHaveLength(3)
+      expect((result as any).values).toEqual(
+        expect.arrayContaining([v.keyword(':a'), v.keyword(':b'), v.keyword(':c')])
+      )
+    })
+
+    it('should unquote inside a set template', () => {
+      const s = freshSession()
+      const result = s.evaluate('(let [x 42] `#{1 ~x 3})')
+      expect(result).toMatchObject({ kind: 'set' })
+      expect((result as any).values).toHaveLength(3)
+      expect((result as any).values).toEqual(
+        expect.arrayContaining([v.number(1), v.number(42), v.number(3)])
+      )
+    })
+
+    it('should unquote-splice into a set template', () => {
+      const s = freshSession()
+      const result = s.evaluate('(let [xs [1 2]] `#{~@xs 3})')
+      expect(result).toMatchObject({ kind: 'set' })
+      expect((result as any).values).toHaveLength(3)
+      expect((result as any).values).toEqual(
+        expect.arrayContaining([v.number(1), v.number(2), v.number(3)])
+      )
+    })
+
+    it('should expand a set nested inside a list template', () => {
+      const s = freshSession()
+      // (foo #{:a :b}) — check at the Clojure level: second element is a 2-element set
+      expect(s.evaluate('(count (second (let [tags [:a :b]] `(foo #{~@tags}))))')).toMatchObject(v.number(2))
+      expect(s.evaluate('(contains? (second (let [tags [:a :b]] `(foo #{~@tags}))) :a)')).toMatchObject(v.boolean(true))
+      expect(s.evaluate('(contains? (second (let [tags [:a :b]] `(foo #{~@tags}))) :b)')).toMatchObject(v.boolean(true))
+    })
+  })
+
   it.each([
     ['(my-when true 1 2 3)', 3],
     ['(my-when false 1 2 3)', null],

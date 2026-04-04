@@ -510,7 +510,6 @@ describe('Compiler Coverage — bails → null', () => {
       ["quoted list '(1 2 3)", "'(1 2 3)"],
       ["quoted symbol 'foo", "'foo"],
       ['explicit (quote x)', '(quote x)'],
-      ['quasiquote `x', '`x'],
     ])('%s: %s → null', (_, code) => {
       expect(compileForm(code)).toBeNull()
     })

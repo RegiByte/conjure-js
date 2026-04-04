@@ -4,7 +4,7 @@
 **Author:** Claude (Session 128 analysis)
 **Relates to:** Session 127 — deferred design discussion
 
----
+***
 
 ## 1. The Problem
 
@@ -34,7 +34,7 @@ So `(js/console.log "hello")` currently **fails**.
 The user proposal was: a `$` reader dispatch that expands `$(path.join "a" "b")` to a
 `(js-resolve* path.join "a" "b")` call, similar to how `#(...)` expands to `(fn [...] ...)`.
 
----
+***
 
 ## 2. Existing Interop Vocabulary (for context)
 
@@ -52,7 +52,7 @@ Before proposing new syntax, it's worth charting what we already have:
 The `(. ...)` form covers Cases A and B completely — it's just verbose. Everything
 below is about ergonomics, not capability.
 
----
+***
 
 ## 3. My Assessment of the `js-resolve*` Approach
 
@@ -68,12 +68,13 @@ by name in the calling environment — which a function cannot do (functions don
 caller's lexical scope).
 
 The alternatives are worse:
-- Make `js-resolve*` a macro (now it needs the macro system, complicates evaluation order)
-- Pass the object separately: `(js-resolve* path "join" "a" "b")` — this is just `(. path join "a" "b")` with a different name
+
+* Make `js-resolve*` a macro (now it needs the macro system, complicates evaluation order)
+* Pass the object separately: `(js-resolve* path "join" "a" "b")` — this is just `(. path join "a" "b")` with a different name
 
 **The `js-resolve*` middleman is unnecessary.** The right tool is a pure reader transform.
 
----
+***
 
 ## 4. My Counterproposal: Pure Reader Expansion to `(.  ...)` Chains
 
@@ -87,9 +88,9 @@ Given `$(head arg1 arg2 ...)`:
 
 1. Extract the `head` expression and `args` from the list.
 2. If `head` is a symbol (qualified or unqualified), check for dots **in the name part**:
-   - Qualified `ns/name`: split only the `name` part on dots. The `ns/first-segment` is the
+   * Qualified `ns/name`: split only the `name` part on dots. The `ns/first-segment` is the
      object; remaining segments are property accesses.
-   - Unqualified `a.b.c.d`: split the whole name on dots. First segment is the object;
+   * Unqualified `a.b.c.d`: split the whole name on dots. First segment is the object;
      remaining segments are property accesses.
 3. Build a nested `(. ...)` chain from the segments.
 4. If `head` has no dots in the name (e.g. `my-ns.core/fn`), pass through as `(head args)`.
@@ -138,16 +139,16 @@ The critical edge case is `my-ns.core/fn` — a Clojure-style namespaced symbol 
 dots are in the **namespace** part, not the name part. The rule "only expand dots in the
 name part after `/`" handles this perfectly:
 
-- `js/console.log` → namespace=`js`, name=`console.log` → **expand** → `(. js/console log)`
-- `my-ns.core/fn` → namespace=`my-ns.core`, name=`fn` → **no dots in name** → pass through
-- `path.join` → no `/` → treat entire thing as dot-chain → `(. path join)`
-- `a.b.c.d` → no `/` → deep chain → `(. (. (. a b) c) d)`
+* `js/console.log` → namespace=`js`, name=`console.log` → **expand** → `(. js/console log)`
+* `my-ns.core/fn` → namespace=`my-ns.core`, name=`fn` → **no dots in name** → pass through
+* `path.join` → no `/` → treat entire thing as dot-chain → `(. path join)`
+* `a.b.c.d` → no `/` → deep chain → `(. (. (. a b) c) d)`
 
 This means `$(my-ns.core/fn arg)` is strictly equivalent to `(my-ns.core/fn arg)` — the
 `$` wrapper is a no-op. That's fine; it's not an error, and it gives users a consistent
 habit ("always use `$` for JS-ish calls").
 
----
+***
 
 ## 5. Implementation Sketch
 
@@ -244,7 +245,7 @@ function expandDotCall(head: CljValue, args: CljValue[]): CljValue {
 That's it. ~50 lines across two files. No new runtime function. No new evaluator case.
 No compiler changes. The `(. ...)` machinery already handles everything.
 
----
+***
 
 ## 6. What About Case A Alone (Without `$`)?
 
@@ -291,7 +292,7 @@ in `evaluateList`. At that point, you're doing the reader transform anyway — s
 **My recommendation: fix Case A in the evaluator as a standalone improvement, AND add
 `$()` for ergonomic call syntax.**
 
----
+***
 
 ## 7. Composition and HOF Usage
 
@@ -320,7 +321,7 @@ or `(. path join)` (zero-args = property access = function reference). That's fi
 consistent with how Clojure interop works — you don't pull `String.prototype.toUpperCase`
 out of thin air either.
 
----
+***
 
 ## 8. What I Would NOT Do
 
@@ -334,7 +335,7 @@ reader transform.
 
 ### Against automatic `js/symbol.chain` in the evaluator only
 
-Fixing `js/console.log` in the evaluator (§6) is a good standalone fix. But extending
+Fixing `js/console.log` in the evaluator is a good standalone fix. But extending
 this to ALL qualified symbols with dots (e.g. `path.join` where `path` is an alias)
 blurs the line between Clojure namespaces and JS property access. The rule
 "aliases can have dots in them" (`my-ns.core`) and "property access uses dots in the name
@@ -347,9 +348,10 @@ a dot-path call", and the expansion is visible and predictable.
 ### Against using `#.` as the dispatch character
 
 `#.(path.join "a" "b")` would be an alternative sigil. It's more "Lispy" but:
-- `#` already dispatches on the **next character** in `parseDispatch` — adding `.` is a minor change
-- But `#.` reads as "hash-dot" — could be confused with interop syntax from other languages (e.g. Kotlin's `?.`)
-- `$` is clean, visually distinct, and has existing precedent in template literal contexts as a "JS-land marker"
+
+* `#` already dispatches on the **next character** in `parseDispatch` — adding `.` is a minor change
+* But `#.` reads as "hash-dot" — could be confused with interop syntax from other languages (e.g. Kotlin's `?.`)
+* `$` is clean, visually distinct, and has existing precedent in template literal contexts as a "JS-land marker"
 
 ### Against making `$(...)` a special form
 
@@ -357,7 +359,7 @@ The power of making it a pure reader transform is that the evaluator and compile
 see `$`. They only see `(. ...)`. No new dispatch case, no new compiler phase, no new
 type in the AST. The simplicity is the feature.
 
----
+***
 
 ## 9. Open Questions
 
@@ -378,7 +380,7 @@ type in the AST. The simplicity is the feature.
    the expanded source if you print the AST. We could thread a position through from
    the original `$` token to improve error location.
 
----
+***
 
 ## 10. Recommendation
 
@@ -398,7 +400,7 @@ and explicit. Implementation is ~50 lines: tokenizer dispatch + reader transform
 Together, these two changes cover both cases from Session 127 cleanly, require zero
 runtime function additions, and leave the evaluator/compiler untouched for Phase 2.
 
----
+***
 
 ## Appendix: Side-by-Side Comparison
 

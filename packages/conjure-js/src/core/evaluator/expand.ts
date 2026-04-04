@@ -3,6 +3,7 @@ import { derefValue, getNamespaceEnv, tryLookup } from '../env'
 import { v } from '../factories'
 import { toSeq } from '../transformations'
 import type { CljValue, Env, EvaluationContext } from '../types'
+import { expandQuasiquote } from './quasiquote'
 
 /**
  * Fully expands all macros in `form` recursively.
@@ -79,8 +80,15 @@ export function macroExpandAllWithContext(
 
   const name = first.name
 
-  // Stop at quote / quasiquote — do not expand inside template literals
-  if (name === 'quote' || name === 'quasiquote') return form
+  // Stop at quote — do not expand inside quoted literals
+  if (name === 'quote') return form
+
+  // Quasiquote: purely syntactic transform → generate a code form, then
+  // further-expand the result so any macros inside unquoted expressions run.
+  if (name === 'quasiquote') {
+    const expanded = expandQuasiquote(form.value[1])
+    return macroExpandAllWithContext(expanded, env, ctx)
+  }
 
   // Check whether the head resolves to a macro in the current env.
   // tryLookup returns undefined for unknown symbols (forward refs, fn params, etc.)

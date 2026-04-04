@@ -71,8 +71,7 @@ function validateForm(form: CljValue, inTail: boolean): void {
     name === specialFormKeywords['fn*'] ||
     name === 'loop' ||
     name === specialFormKeywords['loop*'] ||
-    name === specialFormKeywords.quote ||
-    name === specialFormKeywords.quasiquote
+    name === specialFormKeywords.quote
   ) {
     return
   }

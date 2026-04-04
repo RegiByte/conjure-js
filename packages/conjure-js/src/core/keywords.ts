@@ -14,7 +14,6 @@ export const specialFormKeywords = {
   ns: 'ns',
   // Macro forms
   defmacro: 'defmacro',
-  quasiquote: 'quasiquote',
   // Multi methods
   defmulti: 'defmulti',
   defmethod: 'defmethod',
