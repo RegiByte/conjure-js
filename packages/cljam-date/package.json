@@ -1,6 +1,6 @@
 {
   "name": "@regibyte/cljam-date",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "type": "module",
   "description": "Date handling library for cljam",
@@ -26,7 +26,7 @@
     "README.md"
   ],
   "peerDependencies": {
-    "@regibyte/cljam": ">=0.0.14"
+    "@regibyte/cljam": ">=0.0.16"
   },
   "devDependencies": {
     "@regibyte/cljam": "file:../cljam",

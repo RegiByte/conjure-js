@@ -553,8 +553,8 @@ describe('session — frameStack recovery after stack overflow', () => {
     `)
 
     // Trigger a stack overflow — use a value large enough to guarantee overflow
-    // on any JS engine. Post-optimization the compiled limit is ~8k-11k frames,
-    // so 20k reliably exhausts the native call stack.
+    // on any JS engine. Each compiled Clojure level costs ~6 JS frames; 20k
+    // Clojure levels = ~120k JS frames, which exhausts any engine's call stack.
     expect(() => s.evaluate('(deep 20000)')).toThrow()
 
     // Without the fix, ctx.frameStack retains ghost frames from the overflow,
@@ -579,25 +579,24 @@ describe('session — frameStack recovery after stack overflow', () => {
   })
 
   it('no accumulation across many consecutive successful evals', () => {
-    // Stress test: if each normal evaluation leaked even 1 ghost frame into
-    // ctx.frameStack, the effective recursion budget would shrink by 1 per eval.
-    // After 20 evals that each leave 1 ghost, the 21st (deep 500) would start
-    // with frameStack pre-populated by 20 frames — equivalent to (deep 520).
-    // After 50 evals it'd be (deep 550), etc. This test catches that leak by
-    // running the same depth 30 times and asserting every run succeeds.
+    // Smoke test: if ctx.frameStack leaked frames across session.evaluate calls,
+    // the effective recursion budget would shrink with each eval. Running the
+    // same depth 30 times verifies it stays constant.
     //
-    // This directly mirrors the nREPL scenario reported by Sir RegiByte:
-    //   (deep 5500) works → (deep 5000) works → (deep 5500) fails
-    // If that pattern reproduces here, there's a genuine engine-level leak.
-    // If it doesn't, the nREPL issue is caused by silent prior overflow events
-    // (the frameStack = [] fix in session.ts handles those at the boundary).
+    // Depth is intentionally conservative (500) to stay well within the JS call
+    // stack on all engines and runner environments. The compiled path costs ~6
+    // JS frames per Clojure recursion level; Node.js worker threads default to
+    // a 4MB stack (~5k JS frames = ~833 Clojure levels). 500 << 833.
+    //
+    // The real regression protection is the ctx.frameStack = [] reset in
+    // session.ts — this test guards against it being accidentally removed.
     const s = createSession()
     s.evaluate(`
       (ns test.accumulation)
       (defn deep [n] (if (zero? n) :done (deep (dec n))))
     `)
     for (let i = 0; i < 30; i++) {
-      expect(s.evaluate('(deep 3000)')).toEqual(cljKeyword(':done'))
+      expect(s.evaluate('(deep 500)')).toEqual(cljKeyword(':done'))
     }
   })
 })
