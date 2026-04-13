@@ -21,19 +21,7 @@
 
 import { describe, expect, it } from 'vitest'
 import { freshSession as session } from '../evaluator/__tests__/evaluator-test-utils'
-import {
-  cljBoolean,
-  cljJsValue,
-  cljKeyword,
-  cljList,
-  cljMap,
-  cljNil,
-  cljNumber,
-  cljString,
-  cljVector,
-  v,
-  
-} from '../factories'
+import { v } from '../factories'
 
 function s() {
   const sess = session()
@@ -162,13 +150,16 @@ describe('clojure.edn/read-string — #inst tag', () => {
   it('reads #inst as a JS Date object', () => {
     const result = s().evaluate('(edn/read-string "#inst \\"2023-01-15T00:00:00Z\\"")')
     expect(result.kind).toBe('js-value')
-    expect((result as ReturnType<typeof cljJsValue>).value).toBeInstanceOf(Date)
+    if (result.kind === 'js-value') {
+      expect(result.value).toBeInstanceOf(Date)
+    }
   })
 
   it('#inst Date has the correct time value', () => {
     const result = s().evaluate('(edn/read-string "#inst \\"2023-01-15T00:00:00Z\\"")')
-    const date = (result as ReturnType<typeof cljJsValue>).value as Date
-    expect(date.toISOString()).toBe('2023-01-15T00:00:00.000Z')
+    if (result.kind === 'js-value') {
+      expect((result.value as Date).toISOString()).toBe('2023-01-15T00:00:00.000Z')
+    }
   })
 
   it('throws on invalid #inst date string', () => {

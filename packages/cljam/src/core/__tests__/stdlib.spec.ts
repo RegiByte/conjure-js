@@ -233,12 +233,13 @@ describe('stdlib macros', () => {
     })
 
     it('expands and once — binding symbol is a hygienic gensym', () => {
-      // The exact gensym name is non-deterministic; verify structure via pattern
+      // The exact gensym name is non-deterministic; verify structure via pattern.
+      // With auto-qualification, let and and are qualified to clojure.core.
       const expanded = printString(
         session().evaluate("(macroexpand-1 '(and 1 2 3))")
       )
       expect(expanded).toMatch(
-        /^\(let \[v__\d+ 1\] \(if v__\d+ \(and 2 3\) v__\d+\)\)$/
+        /^\(clojure\.core\/let \[v__\d+ 1\] \(if v__\d+ \(clojure\.core\/and 2 3\) v__\d+\)\)$/
       )
     })
 
@@ -261,17 +262,19 @@ describe('stdlib macros', () => {
     })
 
     it('expands chained macros all the way', () => {
-      // Define a macro that expands to another macro call
+      // Define a macro that expands to another macro call.
+      // With auto-qualification, when and not are qualified to clojure.core in
+      // the expansion output (macro defined in user ns resolves them via lookupVar).
       const s = session()
       s.evaluate('(defmacro my-when-not [c & b] `(when (not ~c) ~@b))')
-      // macroexpand-1: my-when-not → (when (not c) ...) — still a macro
+      // macroexpand-1: my-when-not → one step; when/not are auto-qualified
       expect(
         printString(s.evaluate("(macroexpand-1 '(my-when-not false 1))"))
-      ).toEqual('(when (not false) 1)')
-      // macroexpand: keeps going until when → (if ...) — no longer a macro
+      ).toEqual('(clojure.core/when (clojure.core/not false) 1)')
+      // macroexpand: follows clojure.core/when → (if ...) — special form, stops
       expect(
         printString(s.evaluate("(macroexpand '(my-when-not false 1))"))
-      ).toEqual('(if (not false) (do 1) nil)')
+      ).toEqual('(if (clojure.core/not false) (do 1) nil)')
     })
 
     it('returns form unchanged when head is not a macro', () => {

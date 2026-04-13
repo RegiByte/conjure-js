@@ -1,9 +1,26 @@
 import { is } from '../assertions'
+import { getNamespaceEnv, lookupVar } from '../env'
 import { EvaluationError } from '../errors'
 import { v } from '../factories'
 import { makeGensym } from '../gensym'
-import { valueKeywords } from '../keywords'
-import { type CljValue } from '../types'
+import { specialFormKeywords, valueKeywords } from '../keywords'
+import { type CljValue, type Env } from '../types'
+
+/**
+ * Symbols that must NEVER be auto-qualified in quasiquote templates.
+ *
+ * - All special forms (if, do, let*, fn*, def, try, binding, ...) — handled
+ *   by the special-form evaluator, not as var lookups.
+ * - `catch` and `finally` — sub-keywords of `try`, checked by exact string
+ *   comparison in parseTryStructure, not in specialFormKeywords.
+ * - `&` — rest-parameter marker, checked by exact string in parseParamVector.
+ */
+const NEVER_QUALIFY_SYMBOLS = new Set<string>([
+  ...Object.keys(specialFormKeywords),
+  'catch',
+  'finally',
+  '&',
+])
 
 function isUnquoteSplicing(elem: CljValue): boolean {
   return (
@@ -22,7 +39,8 @@ function isUnquoteSplicing(elem: CljValue): boolean {
  */
 function buildConcatSegments(
   elems: CljValue[],
-  autoGensyms: Map<string, string>
+  autoGensyms: Map<string, string>,
+  env?: Env
 ): CljValue[] {
   const segments: CljValue[] = []
   let chunk: CljValue[] = []
@@ -36,7 +54,7 @@ function buildConcatSegments(
       // elem is (unquote-splicing expr) — push the expr itself
       segments.push((elem as { value: CljValue[] }).value[1])
     } else {
-      chunk.push(expandQuasiquote(elem, autoGensyms))
+      chunk.push(expandQuasiquote(elem, autoGensyms, env))
     }
   }
 
@@ -66,10 +84,17 @@ function buildConcatSegments(
  *   `#{a b}     → (hash-set (quote a) (quote b))
  *   `#{a ~@xs}  → (apply hash-set (concat* (list (quote a)) xs))
  *   foo#        → (quote foo__<n>)             (auto-gensym, stable within one template)
+ *
+ * Auto-qualification (when env is provided, mirrors JVM Clojure):
+ *   - Special forms and structural sub-keywords (catch, finally, &) → never qualified
+ *   - Already-qualified symbols (ns/sym) → left as-is
+ *   - Symbols resolving to a var → qualified to var.ns/sym
+ *   - Unknown symbols → qualified to currentNs/sym (forward-ref fallback)
  */
 export function expandQuasiquote(
   form: CljValue,
-  autoGensyms: Map<string, string> = new Map()
+  autoGensyms: Map<string, string> = new Map(),
+  env?: Env
 ): CljValue {
   switch (form.kind) {
     // Self-evaluating literals — embed directly in the generated code
@@ -89,6 +114,22 @@ export function expandQuasiquote(
         }
         return v.list([v.symbol('quote'), v.symbol(autoGensyms.get(form.name)!)])
       }
+
+      // Auto-qualification (JVM Clojure semantics):
+      // - already qualified or in the never-qualify set → leave as-is
+      // - resolves to a var → qualify to var.ns/sym
+      // - unknown → qualify to currentNs/sym (forward-ref fallback)
+      if (env && !form.name.includes('/') && !NEVER_QUALIFY_SYMBOLS.has(form.name)) {
+        const varEntry = lookupVar(form.name, env)
+        if (varEntry) {
+          return v.list([v.symbol('quote'), v.symbol(`${varEntry.ns}/${form.name}`)])
+        }
+        const nsName = getNamespaceEnv(env).ns?.name
+        if (nsName) {
+          return v.list([v.symbol('quote'), v.symbol(`${nsName}/${form.name}`)])
+        }
+      }
+
       return v.list([v.symbol('quote'), form])
     }
 
@@ -106,10 +147,10 @@ export function expandQuasiquote(
       if (!hasSplice) {
         return v.list([
           v.symbol('list'),
-          ...form.value.map((e) => expandQuasiquote(e, autoGensyms)),
+          ...form.value.map((e) => expandQuasiquote(e, autoGensyms, env)),
         ])
       }
-      const segs = buildConcatSegments(form.value, autoGensyms)
+      const segs = buildConcatSegments(form.value, autoGensyms, env)
       return v.list([
         v.symbol('apply'),
         v.symbol('list'),
@@ -122,10 +163,10 @@ export function expandQuasiquote(
       if (!hasSplice) {
         return v.list([
           v.symbol('vector'),
-          ...form.value.map((e) => expandQuasiquote(e, autoGensyms)),
+          ...form.value.map((e) => expandQuasiquote(e, autoGensyms, env)),
         ])
       }
-      const segs = buildConcatSegments(form.value, autoGensyms)
+      const segs = buildConcatSegments(form.value, autoGensyms, env)
       return v.list([
         v.symbol('apply'),
         v.symbol('vector'),
@@ -136,8 +177,8 @@ export function expandQuasiquote(
     case valueKeywords.map: {
       const args: CljValue[] = []
       for (const [key, value] of form.entries) {
-        args.push(expandQuasiquote(key, autoGensyms))
-        args.push(expandQuasiquote(value, autoGensyms))
+        args.push(expandQuasiquote(key, autoGensyms, env))
+        args.push(expandQuasiquote(value, autoGensyms, env))
       }
       return v.list([v.symbol('hash-map'), ...args])
     }
@@ -147,10 +188,10 @@ export function expandQuasiquote(
       if (!hasSplice) {
         return v.list([
           v.symbol('hash-set'),
-          ...form.values.map((e) => expandQuasiquote(e, autoGensyms)),
+          ...form.values.map((e) => expandQuasiquote(e, autoGensyms, env)),
         ])
       }
-      const segs = buildConcatSegments(form.values, autoGensyms)
+      const segs = buildConcatSegments(form.values, autoGensyms, env)
       return v.list([
         v.symbol('apply'),
         v.symbol('hash-set'),

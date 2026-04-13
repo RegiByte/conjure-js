@@ -90,12 +90,15 @@ describe('macros', () => {
     expect(s.evaluate(code)).toMatchObject(toCljValue(expected))
   })
 
+  // Auto-qualification (JVM Clojure semantics): bare symbols in quasiquote are
+  // qualified to the current namespace. In freshSession() the active ns is 'user'.
+  // Keywords and map literals are unaffected (they are not symbols).
   it.each([
-    ['`x', v.symbol('x')],
-    ['`(a b c)', v.list([v.symbol('a'), v.symbol('b'), v.symbol('c')])],
-    ['`[a b c]', v.vector([v.symbol('a'), v.symbol('b'), v.symbol('c')])],
+    ['`x', v.symbol('user/x')],
+    ['`(a b c)', v.list([v.symbol('user/a'), v.symbol('user/b'), v.symbol('user/c')])],
+    ['`[a b c]', v.vector([v.symbol('user/a'), v.symbol('user/b'), v.symbol('user/c')])],
     ['`{:a 1}', v.map([[v.keyword(':a'), v.number(1)]])],
-  ])('should pass symbols through as symbols: %s → %s', (code, expected) => {
+  ])('should auto-qualify symbols to current namespace: %s → %s', (code, expected) => {
     const s = freshSession()
     expect(s.evaluate(code)).toMatchObject(expected)
   })
@@ -107,13 +110,14 @@ describe('macros', () => {
 
   it('should evaluate unquote splicing', () => {
     const s = freshSession()
+    // ~@xs passes through unqualified (unquoted); bare a and b auto-qualify
     expect(s.evaluate('(let [xs [1 2 3]] `(a ~@xs b))')).toMatchObject(
       v.list([
-        v.symbol('a'),
+        v.symbol('user/a'),
         v.number(1),
         v.number(2),
         v.number(3),
-        v.symbol('b'),
+        v.symbol('user/b'),
       ])
     )
   })

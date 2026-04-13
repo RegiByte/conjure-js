@@ -1,7 +1,7 @@
 // Miscellaneous utilities: str, type, gensym, eval, macroexpand-1, macroexpand,
 // namespace, name, keyword
 import { is } from '../../../assertions'
-import { tryLookup } from '../../../env'
+import { derefValue, getNamespaceEnv, tryLookup } from '../../../env'
 import { EvaluationError } from '../../../errors'
 import { v } from '../../../factories'
 import { makeGensym } from '../../../gensym'
@@ -10,6 +10,29 @@ import { readForms } from '../../../reader'
 import { tokenize } from '../../../tokenizer'
 import { valueToString } from '../../../transformations'
 import type { CljValue, Env, EvaluationContext } from '../../../types'
+
+/**
+ * Resolves a symbol (qualified or unqualified) to a macro value, or undefined
+ * if the symbol doesn't resolve to a macro. Mirrors the logic in expand.ts so
+ * that macroexpand-1/macroexpand correctly handle auto-qualified forms.
+ */
+function lookupMacroValue(
+  name: string,
+  callEnv: Env,
+  ctx: EvaluationContext
+): CljValue | undefined {
+  const slashIdx = name.indexOf('/')
+  if (slashIdx > 0 && slashIdx < name.length - 1) {
+    const nsPrefix = name.slice(0, slashIdx)
+    const localName = name.slice(slashIdx + 1)
+    const nsEnv = getNamespaceEnv(callEnv)
+    const targetNs = nsEnv.ns?.aliases.get(nsPrefix) ?? ctx.resolveNs(nsPrefix) ?? null
+    if (!targetNs) return undefined
+    const varEntry = targetNs.vars.get(localName)
+    return varEntry !== undefined ? derefValue(varEntry) : undefined
+  }
+  return tryLookup(name, callEnv)
+}
 
 export const utilFunctions: Record<string, CljValue> = {
   str: v
@@ -157,7 +180,7 @@ export const utilFunctions: Record<string, CljValue> = {
         if (!is.list(form) || form.value.length === 0) return form
         const head = form.value[0]
         if (!is.symbol(head)) return form
-        const macroValue = tryLookup(head.name, callEnv)
+        const macroValue = lookupMacroValue(head.name, callEnv, ctx)
         if (macroValue === undefined) return form
         if (!is.macro(macroValue)) return form
         return ctx.applyMacro(macroValue, form.value.slice(1))
@@ -181,7 +204,7 @@ export const utilFunctions: Record<string, CljValue> = {
           if (!is.list(current) || current.value.length === 0) return current
           const head = current.value[0]
           if (!is.symbol(head)) return current
-          const macroValue = tryLookup(head.name, callEnv)
+          const macroValue = lookupMacroValue(head.name, callEnv, ctx)
           if (macroValue === undefined) return current
           if (!is.macro(macroValue)) return current
           current = ctx.applyMacro(macroValue, current.value.slice(1))

@@ -169,23 +169,29 @@ function evaluateDef(
   // clojure-lsp can resolve them, without clobbering the native binding.
   if (list.value[2] === undefined) return v.nil()
 
+  // 3-arg form: (def name "docstring" val) — middle string is a doc annotation.
+  const hasDocstring = list.value.length === 4 && list.value[2].kind === 'string'
+  const docstring = hasDocstring ? (list.value[2] as { kind: 'string'; value: string }).value : undefined
+  const valueIdx = hasDocstring ? 3 : 2
+
   const nsEnv = getNamespaceEnv(env)
   const cljNs = nsEnv.ns!
-  const newValue = ctx.evaluate(list.value[2], env)
+  const newValue = ctx.evaluate(list.value[valueIdx], env)
 
   // Compute source position metadata (:line/:column/:file) if available.
   const varMeta = buildVarMeta(name.meta, ctx, name)
+  const finalMeta = docstring ? mergeDocIntoMeta(varMeta, docstring) : varMeta
 
   const existing = cljNs.vars.get(name.name)
   if (existing) {
     existing.value = newValue
-    if (varMeta) {
-      existing.meta = varMeta
-      if (hasDynamicMeta(varMeta)) existing.dynamic = true
+    if (finalMeta) {
+      existing.meta = finalMeta
+      if (hasDynamicMeta(finalMeta)) existing.dynamic = true
     }
   } else {
-    const newVar = v.var(cljNs.name, name.name, newValue, varMeta)
-    if (hasDynamicMeta(varMeta)) newVar.dynamic = true
+    const newVar = v.var(cljNs.name, name.name, newValue, finalMeta)
+    if (hasDynamicMeta(finalMeta)) newVar.dynamic = true
     cljNs.vars.set(name.name, newVar)
   }
   return v.nil()
@@ -515,7 +521,22 @@ function evaluateBinding(
       }, getPos(sym) ?? getPos(list))
     }
     const newVal = ctx.evaluate(bindings.value[i + 1], env)
-    const v = lookupVar(sym.name, env)
+    // Support both unqualified (*my-var*) and qualified (my.ns/*my-var*) symbols.
+    const slashIdx = sym.name.indexOf('/')
+    let targetVar: import('../types').CljVar | undefined
+    if (slashIdx > 0 && slashIdx < sym.name.length - 1) {
+      const nsPrefix = sym.name.slice(0, slashIdx)
+      const localName = sym.name.slice(slashIdx + 1)
+      const nsEnv = getNamespaceEnv(env)
+      const targetNs = nsEnv.ns?.aliases.get(nsPrefix) ?? ctx.resolveNs(nsPrefix) ?? null
+      if (!targetNs) {
+        throw new EvaluationError(`No such namespace: ${nsPrefix}`, { sym }, getPos(sym))
+      }
+      targetVar = targetNs.vars.get(localName)
+    } else {
+      targetVar = lookupVar(sym.name, env)
+    }
+    const v = targetVar
     if (!v) {
       throw new EvaluationError(
         `No var found for symbol '${sym.name}' in binding form`,

@@ -888,8 +888,10 @@ describe('readFormsEdn', () => {
       const readers = new Map<string, (form: CljValue) => CljValue>([
         [
           'double',
-          (form) =>
-            v.number((form as { kind: 'number'; value: number }).value * 2),
+          (form) => {
+            if (form.kind !== 'number') throw new Error('Expected number')
+            return v.number(form.value * 2)
+          },
         ],
       ])
       const result = readFormsEdn(tokenize('#double 21'), {

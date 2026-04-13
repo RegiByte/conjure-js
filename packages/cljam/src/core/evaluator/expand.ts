@@ -85,8 +85,9 @@ export function macroExpandAllWithContext(
 
   // Quasiquote: purely syntactic transform → generate a code form, then
   // further-expand the result so any macros inside unquoted expressions run.
+  // Pass env so symbols auto-qualify to their defining namespace (JVM Clojure semantics).
   if (name === 'quasiquote') {
-    const expanded = expandQuasiquote(form.value[1])
+    const expanded = expandQuasiquote(form.value[1], new Map(), env)
     return macroExpandAllWithContext(expanded, env, ctx)
   }
 

@@ -129,7 +129,7 @@ export const multimethodFunctions: Record<string, CljValue> = {
           updated = v.multiMethod(existing.name, existing.dispatchFn, [
             ...filtered,
             { dispatchVal, fn: methodFn },
-          ])
+          ], existing.defaultMethod)
         }
         varVal.value = updated
         return v.nil()
