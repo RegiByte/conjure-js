@@ -430,9 +430,10 @@ export const clojure_coreSource = `\
           (recur (conj left y) (rest right)))))))
 
 (defn sort
-  "Returns the items in coll in sorted order. With no comparator, sorts
-  ascending using <. Comparator may return boolean or number."
-  ([coll] (sort < coll))
+  "Returns the items in coll in sorted order. With no comparator, uses
+  compare (works on numbers, strings, keywords, chars). Comparator may
+  return boolean or number."
+  ([coll] (sort compare coll))
   ([cmp coll]
    (if (nil? coll)
      []
@@ -444,8 +445,8 @@ export const clojure_coreSource = `\
 
 (defn sort-by
   "Returns a sorted sequence of items in coll, where the sort order is
-  determined by comparing (keyfn item)."
-  ([keyfn coll] (sort-by keyfn < coll))
+  determined by comparing (keyfn item). Default comparator is compare."
+  ([keyfn coll] (sort-by keyfn compare coll))
   ([keyfn cmp coll]
    (sort
     (fn [a b]

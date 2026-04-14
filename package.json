@@ -3,11 +3,6 @@
   "workspaces": [
     "packages/*"
   ],
-  "cljam": {
-    "sourceRoots": [
-      "packages/cljam/src/clojure"
-    ]
-  },
   "scripts": {
     "test:cljam": "bun run --filter '@regibyte/cljam' test",
     "test:cljam-date": "bun run --filter '@regibyte/cljam-date' test",

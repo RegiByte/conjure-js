@@ -193,6 +193,63 @@ export const predicateFunctions: Record<string, CljValue> = {
       ['x'],
     ]),
 
+  'ident?': v
+    .nativeFn('ident?', function identPredImpl(x: CljValue) {
+      return v.boolean(x !== undefined && (is.keyword(x) || is.symbol(x)))
+    })
+    .doc('Returns true if x is a symbol or keyword.', [['x']]),
+
+  'simple-ident?': v
+    .nativeFn('simple-ident?', function simpleIdentPredImpl(x: CljValue) {
+      return v.boolean(
+        x !== undefined &&
+          ((is.keyword(x) && !x.name.includes('/')) ||
+            (is.symbol(x) && !x.name.includes('/')))
+      )
+    })
+    .doc(
+      'Returns true if x is a symbol or keyword with no namespace component.',
+      [['x']]
+    ),
+
+  'qualified-ident?': v
+    .nativeFn(
+      'qualified-ident?',
+      function qualifiedIdentPredImpl(x: CljValue) {
+        return v.boolean(
+          x !== undefined &&
+            ((is.keyword(x) && x.name.includes('/')) ||
+              (is.symbol(x) && x.name.includes('/')))
+        )
+      }
+    )
+    .doc(
+      'Returns true if x is a symbol or keyword with a namespace component.',
+      [['x']]
+    ),
+
+  'simple-keyword?': v
+    .nativeFn('simple-keyword?', function simpleKeywordPredImpl(x: CljValue) {
+      return v.boolean(
+        x !== undefined && is.keyword(x) && !x.name.includes('/')
+      )
+    })
+    .doc(
+      'Returns true if x is a keyword with no namespace component.',
+      [['x']]
+    ),
+
+  'simple-symbol?': v
+    .nativeFn('simple-symbol?', function simpleSymbolPredImpl(x: CljValue) {
+      return v.boolean(
+        x !== undefined && is.symbol(x) && !x.name.includes('/')
+      )
+    })
+    .doc(
+      'Returns true if x is a symbol with no namespace component.',
+      [['x']]
+    ),
+
   'fn?': v
     .nativeFn('fn?', function fnPredImpl(x: CljValue) {
       return v.boolean(x !== undefined && is.aFunction(x))
@@ -255,9 +312,9 @@ export const predicateFunctions: Record<string, CljValue> = {
         pred: CljValue,
         coll: CljValue
       ): CljValue {
-        if (pred === undefined || !is.aFunction(pred)) {
+        if (pred === undefined || !is.callable(pred)) {
           throw EvaluationError.atArg(
-            `every? expects a function as first argument${pred !== undefined ? `, got ${printString(pred)}` : ''}`,
+            `every? expects a callable as first argument${pred !== undefined ? `, got ${printString(pred)}` : ''}`,
             { pred },
             0
           )
@@ -270,7 +327,7 @@ export const predicateFunctions: Record<string, CljValue> = {
           )
         }
         for (const item of toSeq(coll)) {
-          if (is.falsy(ctx.applyFunction(pred, [item], callEnv))) {
+          if (is.falsy(ctx.applyCallable(pred, [item], callEnv))) {
             return v.boolean(false)
           }
         }
@@ -337,6 +394,42 @@ export const predicateFunctions: Record<string, CljValue> = {
     })
     .doc('Return true if x is a fixed precision integer.', [['x']]),
 
+  'pos-int?': v
+    .nativeFn('pos-int?', function posIntPredImpl(x: CljValue) {
+      return v.boolean(
+        x !== undefined &&
+          x.kind === 'number' &&
+          Number.isInteger((x as CljNumber).value) &&
+          (x as CljNumber).value > 0
+      )
+    })
+    .doc('Return true if x is a positive fixed precision integer.', [['x']]),
+
+  'neg-int?': v
+    .nativeFn('neg-int?', function negIntPredImpl(x: CljValue) {
+      return v.boolean(
+        x !== undefined &&
+          x.kind === 'number' &&
+          Number.isInteger((x as CljNumber).value) &&
+          (x as CljNumber).value < 0
+      )
+    })
+    .doc('Return true if x is a negative fixed precision integer.', [['x']]),
+
+  'nat-int?': v
+    .nativeFn('nat-int?', function natIntPredImpl(x: CljValue) {
+      return v.boolean(
+        x !== undefined &&
+          x.kind === 'number' &&
+          Number.isInteger((x as CljNumber).value) &&
+          (x as CljNumber).value >= 0
+      )
+    })
+    .doc(
+      'Return true if x is a non-negative fixed precision integer.',
+      [['x']]
+    ),
+
   'double?': v
     .nativeFn('double?', function doublePredImpl(x: CljValue) {
       return v.boolean(x !== undefined && x.kind === 'number')
@@ -358,7 +451,8 @@ export const predicateFunctions: Record<string, CljValue> = {
       return v.boolean(
         x !== undefined &&
           x.kind === 'number' &&
-          !isFinite((x as CljNumber).value)
+          !isFinite((x as CljNumber).value) &&
+          !isNaN((x as CljNumber).value)
       )
     })
     .doc('Returns true if num is positive or negative infinity, else false.', [

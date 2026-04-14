@@ -7,11 +7,116 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js'
-import { printString } from '@regibyte/cljam'
+import { printString, type CljamLibrary } from '@regibyte/cljam'
 import { readFileSync } from 'node:fs'
 import { resolve, isAbsolute } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { SessionManager, type Preset } from './session-manager.js'
 import { ConnectionManager } from './nrepl-bridge.js'
+
+// ---------------------------------------------------------------------------
+// Library loading helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Read the `cljam.libraries` array from `root_dir/package.json`.
+ * Returns an empty array if the file is missing, unparseable, or has no entry.
+ */
+function readPackageLibraries(rootDir: string): string[] {
+  try {
+    const pkgPath = resolve(rootDir, 'package.json')
+    const content = readFileSync(pkgPath, 'utf-8')
+    const pkg = JSON.parse(content) as Record<string, unknown>
+    const cljamField = pkg?.cljam as Record<string, unknown> | undefined
+    const specs = cljamField?.libraries
+    if (!Array.isArray(specs)) return []
+    return specs.filter((s): s is string => typeof s === 'string')
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Resolve the entry point of a package (either a relative local path or an npm package name)
+ * from the context of root_dir by reading its package.json exports/main field.
+ *
+ * This manual resolution is necessary because createRequire (CJS resolver) does not
+ * understand ESM `exports` fields, and import.meta.resolve requires Node 20.6+.
+ */
+function resolvePackageEntry(spec: string, rootDir: string): string {
+  // Determine the package directory
+  const pkgDir = spec.startsWith('.')
+    ? resolve(rootDir, spec)                           // local: ./packages/my-lib
+    : resolve(rootDir, 'node_modules', spec)           // npm:   @scope/pkg or pkg
+
+  // Read the package's own package.json to find its entry point
+  const pkgJsonPath = resolve(pkgDir, 'package.json')
+  const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8')) as {
+    exports?: string | Record<string, unknown>
+    main?: string
+  }
+
+  // Prefer exports["."] (ESM-standard), fall back to main
+  if (pkgJson.exports) {
+    const dotExport =
+      typeof pkgJson.exports === 'string' ? pkgJson.exports : pkgJson.exports['.']
+
+    if (typeof dotExport === 'string') {
+      return resolve(pkgDir, dotExport)
+    }
+    // Conditional exports: { import: ..., default: ... }
+    if (dotExport && typeof dotExport === 'object') {
+      const cond = dotExport as Record<string, unknown>
+      const entry = cond['import'] ?? cond['default'] ?? cond['require']
+      if (typeof entry === 'string') return resolve(pkgDir, entry)
+    }
+  }
+
+  if (pkgJson.main) return resolve(pkgDir, pkgJson.main)
+
+  // Last resort: conventional index file
+  return resolve(pkgDir, 'index.js')
+}
+
+/**
+ * Dynamically import each library spec from the context of `root_dir`.
+ * Each package must export a `library` named export conforming to CljamLibrary.
+ *
+ * Returns the loaded libraries and any load errors (for diagnostic reporting).
+ */
+async function loadLibraries(
+  rootDir: string,
+  specs: string[]
+): Promise<{ libs: CljamLibrary[]; errors: string[] }> {
+  if (specs.length === 0) return { libs: [], errors: [] }
+
+  const libs: CljamLibrary[] = []
+  const errors: string[] = []
+
+  for (const spec of specs) {
+    try {
+      const entryPath = resolvePackageEntry(spec, rootDir)
+      // pathToFileURL is required for import() to treat the path as a file URL,
+      // which works across platforms and avoids bare-specifier confusion
+      const mod = await import(pathToFileURL(entryPath).href) as Record<string, unknown>
+      const lib = mod.library as CljamLibrary | undefined
+
+      if (!lib || typeof lib.id !== 'string') {
+        errors.push(
+          `${spec}: module does not export a \`library\` CljamLibrary object (exports: ${JSON.stringify(Object.keys(mod))})`
+        )
+        continue
+      }
+
+      libs.push(lib)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      errors.push(`${spec}: ${msg}`)
+    }
+  }
+
+  return { libs, errors }
+}
 
 // ---------------------------------------------------------------------------
 // Tool result helpers
@@ -45,6 +150,9 @@ const TOOL_DEFINITIONS = [
       'root_dir: absolute path to the project root. When set:',
       '  - load_file accepts paths relative to root_dir',
       '  - (:require [ns]) can resolve .clj files under root_dir',
+      '  - cljam.libraries in root_dir/package.json are auto-loaded:',
+      '    { "cljam": { "libraries": ["@regibyte/cljam-schema"] } }',
+      '    Each listed package must export a `library` CljamLibrary object.',
       '',
       'IMPORTANT — cljam diverges from JVM Clojure in these ways:',
       '  - No Java interop: (.method obj), (new Class), import do not exist.',
@@ -145,6 +253,36 @@ const TOOL_DEFINITIONS = [
         },
       },
       required: ['session_id', 'path'],
+    },
+  },
+  {
+    name: 'handbook',
+    description: [
+      'Look up a cljam quick-reference entry by topic.',
+      '',
+      'Returns a dense, example-heavy reference for a specific topic.',
+      'Designed for LLM agents — use this to quickly understand cljam behaviour',
+      'that differs from JVM Clojure, or to find the idiomatic way to do something.',
+      '',
+      'If topic is omitted, returns the list of all available topic keys.',
+      '',
+      'Available topics include:',
+      '  sort, char-literals, dynamic-vars, require, jvm-gaps, types,',
+      '  records, protocols, schema-primitives, schema-compound, schema-api,',
+      '  describe, sessions, pair-programming, handbook',
+      '',
+      'Example:',
+      '  handbook { topic: "sort" }',
+      '  → "Default comparator is `compare`, NOT `<` ..."',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Topic key (e.g. "sort", "schema-api"). Omit to list all topics.',
+        },
+      },
     },
   },
 ]
@@ -272,6 +410,15 @@ export function createMcpServer(): Server {
   const manager = new SessionManager()
   const connManager = new ConnectionManager()
 
+  // Lazy sandbox session for handbook lookups — created on first use, reused after.
+  let handbookReady = false
+  const handbookRecord = manager.create('sandbox')
+  async function ensureHandbook(): Promise<void> {
+    if (handbookReady) return
+    await handbookRecord.session.evaluateAsync("(require '[cljam.handbook :as h])")
+    handbookReady = true
+  }
+
   const server = new Server(
     { name: 'cljam-mcp', version: '0.1.0' },
     { capabilities: { tools: {} } }
@@ -289,14 +436,29 @@ export function createMcpServer(): Server {
       case 'new_session': {
         const preset = (a.preset as Preset | undefined) ?? 'sandbox'
         const rootDir = a.root_dir as string | undefined
-        const record = manager.create(preset, rootDir)
+
+        // Auto-load libraries declared in root_dir/package.json under cljam.libraries
+        let libraries: CljamLibrary[] = []
+        const libraryErrors: string[] = []
+        if (rootDir) {
+          const specs = readPackageLibraries(rootDir)
+          if (specs.length > 0) {
+            const result = await loadLibraries(rootDir, specs)
+            libraries = result.libs
+            libraryErrors.push(...result.errors)
+          }
+        }
+
+        const record = manager.create(preset, rootDir, libraries)
         return ok({
           session_id: record.id,
           ns: record.session.currentNs,
           preset,
           root_dir: rootDir ?? null,
+          libraries: record.libraryIds,
           created_at: record.createdAt.toISOString(),
           capabilities: record.session.capabilities,
+          ...(libraryErrors.length > 0 ? { library_load_errors: libraryErrors } : {}),
         })
       }
 
@@ -339,6 +501,7 @@ export function createMcpServer(): Server {
             ns: r.session.currentNs,
             preset: r.preset,
             root_dir: r.rootDir ?? null,
+            libraries: r.libraryIds,
             created_at: r.createdAt.toISOString(),
           }))
         )
@@ -466,6 +629,28 @@ export function createMcpServer(): Server {
           const message = e instanceof Error ? e.message : String(e)
           return fail(`Failed to list server sessions: ${message}`)
         }
+      }
+
+      case 'handbook': {
+        await ensureHandbook()
+        const topic = a.topic as string | undefined
+
+        if (!topic) {
+          // No topic given — return sorted list of all topic keys.
+          // printString on a seq/vector uses EDN format (space-separated, no commas),
+          // so we return it as a plain string rather than trying to JSON.parse it.
+          const result = await handbookRecord.session.evaluateAsync(
+            '(sort (map name (h/topics)))'
+          )
+          return ok({ topics: printString(result) })
+        }
+
+        // Lookup: pass topic as a keyword (strip any leading colon the caller might include)
+        const kw = topic.startsWith(':') ? topic : `:${topic}`
+        const result = await handbookRecord.session.evaluateAsync(`(h/lookup ${kw})`)
+        // printString wraps strings in EDN quotes — JSON.parse unwraps them cleanly
+        const entry = JSON.parse(printString(result))
+        return ok({ topic, entry })
       }
 
       default:

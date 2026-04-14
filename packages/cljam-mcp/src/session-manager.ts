@@ -3,6 +3,7 @@ import {
   nodePreset,
   sandboxPreset,
   type Session,
+  type CljamLibrary,
 } from '@regibyte/cljam'
 import { readFileSync } from 'node:fs'
 import { resolve, isAbsolute } from 'node:path'
@@ -19,6 +20,8 @@ export type SessionRecord = {
   session: Session
   preset: Preset
   rootDir?: string
+  /** IDs of libraries installed into this session (for display). */
+  libraryIds: string[]
   createdAt: Date
   /** Mutable buffer — the session's output callback appends here. Reset before each eval. */
   outputBuffer: string[]
@@ -36,7 +39,12 @@ function makeReadFile(rootDir?: string) {
   }
 }
 
-function makeSessionOptions(preset: Preset, rootDir: string | undefined, outputBuffer: string[]) {
+function makeSessionOptions(
+  preset: Preset,
+  rootDir: string | undefined,
+  outputBuffer: string[],
+  libraries?: CljamLibrary[]
+) {
   const base = preset === 'node' ? nodePreset() : sandboxPreset()
   return {
     ...base,
@@ -49,6 +57,7 @@ function makeSessionOptions(preset: Preset, rootDir: string | undefined, outputB
           sourceRoots: [rootDir],
         }
       : {}),
+    ...(libraries && libraries.length > 0 ? { libraries } : {}),
   }
 }
 
@@ -59,16 +68,17 @@ function makeSessionOptions(preset: Preset, rootDir: string | undefined, outputB
 export class SessionManager {
   private sessions = new Map<string, SessionRecord>()
 
-  create(preset: Preset = 'sandbox', rootDir?: string): SessionRecord {
+  create(preset: Preset = 'sandbox', rootDir?: string, libraries?: CljamLibrary[]): SessionRecord {
     const id = randomUUID()
     const outputBuffer: string[] = []
-    const session = createSession(makeSessionOptions(preset, rootDir, outputBuffer))
+    const session = createSession(makeSessionOptions(preset, rootDir, outputBuffer, libraries))
 
     const record: SessionRecord = {
       id,
       session,
       preset,
       rootDir,
+      libraryIds: (libraries ?? []).map((l) => l.id),
       createdAt: new Date(),
       outputBuffer,
     }

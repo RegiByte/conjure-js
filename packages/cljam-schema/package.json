@@ -38,5 +38,13 @@
     "test": "vitest run",
     "gen:sources": "cljam gen-lib-source src/clojure src/generated/sources.ts",
     "prepublishOnly": "npm run gen:sources"
+  },
+  "cljam": {
+    "sourceRoots": [
+      "src/clojure"
+    ],
+    "libraries": [
+      "."
+    ]
   }
 }
