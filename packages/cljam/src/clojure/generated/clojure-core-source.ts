@@ -40,8 +40,8 @@ export const clojure_coreSource = `\
 ;; defmulti / defmethod: multimethod sugar over native make-multimethod! / add-method!
 ;; defmulti uses a re-eval guard in make-multimethod! — re-loading a namespace
 ;; preserves all registered methods.
-(defmacro defmulti [name dispatch-fn]
-  \`(make-multimethod! ~(str name) ~dispatch-fn))
+(defmacro defmulti [name dispatch-fn & opts]
+  \`(make-multimethod! ~(str name) ~dispatch-fn ~@opts))
 
 (defmacro defmethod [mm-name dispatch-val & fn-tail]
   \`(add-method! (var ~mm-name) ~dispatch-val (fn ~@fn-tail)))

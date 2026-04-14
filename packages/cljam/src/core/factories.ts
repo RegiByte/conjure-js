@@ -288,13 +288,15 @@ export const cljMultiMethod = (
     dispatchVal: CljValue
     fn: CljFunction | CljNativeFunction
   }>,
-  defaultMethod?: CljFunction | CljNativeFunction
+  defaultMethod?: CljFunction | CljNativeFunction,
+  defaultDispatchVal?: CljValue
 ): CljMultiMethod => ({
   kind: 'multi-method',
   name,
   dispatchFn,
   methods,
   defaultMethod,
+  defaultDispatchVal,
 })
 
 // ---------------------------------------------------------------------------

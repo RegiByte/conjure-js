@@ -103,6 +103,8 @@ export type CljMultiMethod = {
   dispatchFn: CljFunction | CljNativeFunction
   methods: Array<{ dispatchVal: CljValue; fn: CljFunction | CljNativeFunction }>
   defaultMethod?: CljFunction | CljNativeFunction
+  /** Custom sentinel for the "no method found" fallback. Defaults to :default. */
+  defaultDispatchVal?: CljValue
 }
 
 export type CljProtocolMethod = {

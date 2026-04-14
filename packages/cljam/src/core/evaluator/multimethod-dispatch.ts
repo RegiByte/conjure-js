@@ -91,13 +91,10 @@ export function dispatchMultiMethod(
     }
   }
 
-  // 3. :default fallback
-  // TODO: Clojure supports a custom default-dispatch-val per multimethod:
-  //   (defmulti foo identity :default ::no-match)
-  // This lets :default be a real dispatchable value while ::no-match is the
-  // fallback sentinel. Currently :default is hardcoded as the only sentinel.
-  // Low priority — add CljMultiMethod.defaultDispatchVal and thread it through
-  // defmulti, defmethod detection, and here.
+  // 3. Fallback — the defaultMethod field holds the handler registered for
+  // the sentinel dispatch value (defaultDispatchVal ?? :default).
+  // add-method! is responsible for routing the sentinel to defaultMethod;
+  // dispatch only needs to check that field.
   if (mm.defaultMethod) return ctx.applyFunction(mm.defaultMethod, args, env)
 
   throw new EvaluationError(
