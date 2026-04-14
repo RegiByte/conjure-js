@@ -174,6 +174,31 @@ export class NreplConnection {
     return Array.from(this._sessions.values())
   }
 
+  /**
+   * List ALL sessions on the nREPL server (all connections, including Calva).
+   * Calls the `ls-sessions` op — requires a cljam nREPL server v0.0.15+.
+   * Use the returned session IDs to eval directly into another client's session.
+   */
+  async lsServerSessions(): Promise<NreplSessionInfo[]> {
+    // ls-sessions needs at least one session to route through
+    const ourSession = this._sessions.values().next().value as NreplSessionInfo | undefined
+    if (!ourSession) throw new Error('No session available — call newSession() first')
+
+    const response = await this._op({
+      op: 'ls-sessions',
+      session: ourSession.id,
+    })
+
+    const ids = response['session-ids'] as unknown
+    const namespaces = response['session-namespaces'] as unknown
+    if (!Array.isArray(ids)) return []
+
+    return (ids as string[]).map((id, i) => ({
+      id,
+      ns: Array.isArray(namespaces) ? ((namespaces as string[])[i] ?? 'user') : 'user',
+    }))
+  }
+
   /** Close the TCP connection and reject all pending operations. */
   close(): void {
     for (const op of this.pending.values()) {

@@ -239,6 +239,26 @@ const NREPL_TOOL_DEFINITIONS = [
       required: ['connection_id'],
     },
   },
+  {
+    name: 'nrepl_server_sessions',
+    description: [
+      'List ALL sessions on the nREPL server — every connected client (including Calva).',
+      '',
+      'Use this to find Calva\'s session ID for true shared pair-programming:',
+      '  1. Call nrepl_server_sessions to see all sessions',
+      '  2. Identify the Calva session (by ns or process of elimination)',
+      '  3. Pass that session_id to nrepl_eval — you are now in the same session as Calva',
+      '',
+      'Requires a cljam nREPL server (startNreplServer from @regibyte/cljam/nrepl).',
+    ].join('\n'),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        connection_id: { type: 'string', description: 'Connection ID from connect_nrepl.' },
+      },
+      required: ['connection_id'],
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -418,6 +438,19 @@ export function createMcpServer(): Server {
         return connManager.close(connectionId)
           ? ok({ ok: true })
           : fail(`Connection not found: ${connectionId}`)
+      }
+
+      case 'nrepl_server_sessions': {
+        const connectionId = a.connection_id as string
+        const conn = connManager.get(connectionId)
+        if (!conn) return fail(`Connection not found: ${connectionId}`)
+        try {
+          const sessions = await conn.lsServerSessions()
+          return ok(sessions.map((s) => ({ session_id: s.id, ns: s.ns })))
+        } catch (e) {
+          const message = e instanceof Error ? e.message : String(e)
+          return fail(`Failed to list server sessions: ${message}`)
+        }
       }
 
       default:
