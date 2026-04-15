@@ -1,0 +1,17 @@
+{
+  "name": "docs",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "vitepress build",
+    "preview": "vitepress preview"
+  },
+  "devDependencies": {
+    "vitepress": "^1.5.0",
+    "@regibyte/cljam": "workspace:*",
+    "monaco-editor": "^0.55.1",
+    "@bithero/monaco-editor-vite-plugin": "^1.0.3"
+  }
+}

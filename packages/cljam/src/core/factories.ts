@@ -40,7 +40,10 @@ export const cljNumber = <T extends number>(value: T) =>
   ({ kind: 'number', value }) as const satisfies CljNumber
 export const cljString = <T extends string>(value: T) =>
   ({ kind: 'string', value }) as const satisfies CljString
-export const cljChar = (value: string): CljChar => ({ kind: 'character', value })
+export const cljChar = (value: string): CljChar => ({
+  kind: 'character',
+  value,
+})
 export const cljBoolean = <T extends boolean>(value: T) =>
   ({ kind: 'boolean', value }) as const satisfies CljBoolean
 export const cljKeyword = <T extends string>(name: T) =>

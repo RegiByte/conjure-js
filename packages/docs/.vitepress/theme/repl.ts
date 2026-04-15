@@ -1,0 +1,92 @@
+import { EvaluationError, printString, createSession } from '@regibyte/cljam'
+import type { Session } from '@regibyte/cljam'
+
+export type ReplEntrySource = {
+  kind: 'source'
+  text: string
+}
+
+export type ReplEntryResult = {
+  kind: 'result'
+  output: string
+  durationMs: number
+}
+
+export type ReplEntryError = {
+  kind: 'error'
+  source: string
+  message: string
+  durationMs: number
+}
+
+export type ReplEntryOutput = {
+  kind: 'output'
+  text: string
+}
+
+export type ReplEntry =
+  | ReplEntrySource
+  | ReplEntryResult
+  | ReplEntryError
+  | ReplEntryOutput
+
+export interface ReplState {
+  session: Session
+  history: string[]
+  entries: ReplEntry[]
+  outputs: string[]
+}
+
+function makeSession(addOutput: (text: string) => void): Session {
+  return createSession({ output: addOutput })
+}
+
+export function makeRepl(): ReplState {
+  const state: ReplState = {
+    session: undefined as unknown as Session,
+    history: [],
+    entries: [],
+    outputs: [],
+  }
+  state.session = makeSession((text) => state.outputs.push(text))
+  return state
+}
+
+export async function evalSource(state: ReplState, source: string): Promise<ReplEntry[]> {
+  const trimmed = source.trim()
+  if (!trimmed) return []
+
+  state.history.push(trimmed)
+  state.outputs = []
+  const start = performance.now()
+
+  try {
+    const result = await state.session.evaluateAsync(trimmed)
+    const end = performance.now()
+    const entries: ReplEntry[] = []
+
+    entries.push({ kind: 'source', text: trimmed })
+    for (const text of state.outputs) {
+      entries.push({ kind: 'output', text })
+    }
+    entries.push({
+      kind: 'result',
+      output: printString(result),
+      durationMs: end - start,
+    })
+
+    state.entries.push(...entries)
+    return entries
+  } catch (e) {
+    const end = performance.now()
+    const entry = makeErrorEntry(trimmed, e, end - start)
+    state.entries.push(entry)
+    return [entry]
+  }
+}
+
+function makeErrorEntry(source: string, e: unknown, durationMs: number): ReplEntryError {
+  const message =
+    e instanceof EvaluationError || e instanceof Error ? e.message : String(e)
+  return { kind: 'error', source, message, durationMs }
+}

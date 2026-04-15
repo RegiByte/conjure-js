@@ -21,12 +21,24 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      - name: Build docs (VitePress)
+        working-directory: packages/docs
+        run: bun run build
+
       - name: Build playground
         working-directory: packages/playground
         run: bun run build
+
+      # Merge playground into the docs output under /playground/
+      # VitePress outputs to packages/docs/.vitepress/dist/
+      # Playground builds with base /cljam/playground/ so its assets self-reference correctly
+      - name: Merge playground into docs output
+        run: |
+          mkdir -p packages/docs/.vitepress/dist/playground
+          cp -r packages/playground/dist/. packages/docs/.vitepress/dist/playground/
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./packages/playground/dist
+          publish_dir: ./packages/docs/.vitepress/dist

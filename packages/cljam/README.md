@@ -167,28 +167,51 @@ Source roots control how `require` resolves namespace files. Falls back to the c
 * Threading macros: `->`, `->>`
 * Anonymous function shorthand: `#(+ % 1)`
 * `try/catch/finally` with predicate-based discriminators (no class hierarchy)
+* Protocols and records: `defprotocol`, `defrecord`, `extend-protocol`, `extend-type`
+* Multimethods: `defmulti`, `defmethod`, keyword hierarchy (`derive`, `isa?`)
+* Character literals: `\a`, `\space`, `\newline`, `\uXXXX`
+* EDN reader: `clojure.edn/read-string`, reader tags `#inst` and `#uuid`
 * JS interop: `js/` namespace, `.` member access, `js/new`
 
-`clojure.core` and `clojure.string` are implemented in Clojure itself and loaded at session startup — the standard library is readable, forkable, and patchable.
+**Standard namespaces** bundled at startup: `clojure.core` `clojure.string` `clojure.edn` `clojure.math` `clojure.test` — all implemented in Clojure itself and readable in the source tree.
 
 ***
 
 ## JS Interop
 
-Call any JavaScript value from Clojure using the `js/` namespace:
+Inject host values with `hostBindings`, then access them as `js/<key>` in Clojure:
+
+```typescript
+createSession({
+  ...nodePreset(),
+  hostBindings: { Math, console, myLib: require('./my-lib') },
+})
+```
 
 ```clojure
-;; Global objects
+;; Method call: (. obj method args...)
 (. js/Math pow 2 10)            ;; => 1024.0
 (. js/console log "hello")
 
 ;; Constructors
 (def now (js/new js/Date))
-(. now toISOString)
+(. now toISOString)             ;; => "2026-04-14T..."
 
-;; Values from importMap
-;; Given importMap: { path: require('node:path') }
-(. js/path join "a" "b" "c")   ;; => "a/b/c"
+;; Injected objects — hostBindings: { myLib: require('./my-lib') }
+(. js/myLib greet "world")      ;; => calls myLib.greet("world")
+
+;; Call a bare function with no this binding
+(js/call js/myFn 1 2 3)
+
+;; Load a Node/npm module via (:require ["specifier" :as alias])
+;; Requires importModule: (s) => import(s) in session options
+```
+
+```clojure
+(ns demo
+  (:require ["node:path" :as path]))
+
+(. path join "a" "b" "c")      ;; => "a/b/c"
 ```
 
 ***
@@ -238,16 +261,80 @@ For libraries with native TypeScript modules (wrapping JS APIs), see `@regibyte/
 
 ***
 
+## Protocols and Records
+
+`defprotocol`, `defrecord`, `extend-protocol`, and `extend-type` work as in JVM Clojure. Dispatch uses keyword type tags instead of Java class names:
+
+```clojure
+(require '[clojure.math :as math])
+
+(defprotocol IArea
+  (area [shape] "Compute the area"))
+
+(defrecord Circle [radius])
+(defrecord Rect [w h])
+
+(extend-protocol IArea
+  :user/Circle (area [c] (* math/PI (:radius c) (:radius c)))
+  :user/Rect   (area [r] (* (:w r) (:h r))))
+
+(area (->Circle 5))   ;; => 78.53981633974483
+(area (->Rect 4 6))   ;; => 24
+```
+
+Type tags are keywords of the form `:ns/RecordName` for records, and `:string` `:int` `:boolean` etc. for built-in types. Use `(type x)` to get the tag for any value.
+
+***
+
+## Testing with `clojure.test`
+
+`clojure.test` is built in. `*.test.clj` and `*.spec.clj` files run natively in Vitest via `cljTestPlugin()`:
+
+```clojure
+(ns my-app.core-test
+  (:require [clojure.test :refer [deftest is testing run-tests]]))
+
+(deftest arithmetic-works
+  (testing "addition"
+    (is (= 4 (+ 2 2))))
+  (testing "strings"
+    (is (= "hello" (str "hel" "lo")))))
+
+(run-tests 'my-app.core-test)
+;; {:test 1 :pass 2 :fail 0 :error 0}
+```
+
+To enable `*.test.clj` → Vitest integration:
+
+```typescript
+// vite.config.ts
+import { cljTestPlugin } from '@regibyte/cljam'
+
+export default { plugins: [cljTestPlugin()] }
+```
+
+***
+
 ## Key Differences from JVM Clojure
 
 | JVM Clojure | cljam |
 |---|---|
 | Java interop (`.method`, `new Foo`, `java.lang.*`) | Not available — use `js/` namespace |
-| `deftype`, `defrecord`, `defprotocol` | Not available |
-| `future`, `promise`, `agent`, `ref`, STM | Not available — use `atom` |
-| `Long`, `BigDecimal`, ratio literals (`1/3`) | Numbers are JS floats |
+| `defrecord`, `defprotocol`, `extend-protocol` | Available — dispatch on keyword type tags, not Java classes |
+| `deftype` | Not available |
+| `future`, `agent`, STM (`ref`, `dosync`) | Not available — use `(async ...)` with `@deref` as await |
+| `Long`, `BigDecimal`, ratio literals (`1/3`) | Numbers are IEEE-754 floats |
 | Class-based `catch` (`catch Exception e`) | Predicate/keyword discriminators only |
 | `import`, Java class hierarchy | Not available |
+| `##NaN`, `##Inf`, `##-Inf` reader literals | Not yet — use `(clojure.math/sqrt -1)` for NaN, `(clojure.math/log 0)` for -∞ |
+
+***
+
+## LLM Integration
+
+`@regibyte/cljam-mcp` is an [MCP](https://modelcontextprotocol.io/) server that exposes a persistent cljam REPL to LLM agents. Eval code, load files, introspect with `describe`, and pair-program with a human developer in Calva — sharing the same live runtime.
+
+See [`@regibyte/cljam-mcp`](https://www.npmjs.com/package/@regibyte/cljam-mcp) for setup instructions.
 
 ***
 
