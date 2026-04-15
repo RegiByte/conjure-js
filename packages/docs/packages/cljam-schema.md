@@ -122,12 +122,3 @@ Custom messages:
 
 `:TYPE/wrong-type` — `:map/missing-key` — `:map/extra-key` — `:enum/no-match` — `:or/no-match` — `:tuple/wrong-length` — `:fn/predicate-failed`
 
-## Known limitations
-
-**`[:and ...]` short-circuit:** When a type branch fails inside `[:and :type [:fn pred]]`, the predicate still runs on the wrong-typed value and may throw `:fn/predicate-threw` instead of stopping at the type failure. Workaround: inline the type check in the predicate:
-
-```clojure
-;; Instead of:  [:and :int [:fn pos?]]
-;; Use:
-[:fn #(and (int? %) (pos? %))]
-```

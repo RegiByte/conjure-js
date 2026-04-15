@@ -21,7 +21,11 @@
     "mcp.ts",
     "src/**/*.ts",
     "bin/**/*.ts",
-    "tsconfig.json"
+    "!src/**/__tests__/**",
+    "!src/**/*.spec.ts",
+    "!src/**/*.test.ts",
+    "tsconfig.json",
+    "README.md"
   ],
   "peerDependencies": {
     "@regibyte/cljam": ">=0.0.17"
@@ -36,6 +40,6 @@
     "@types/node": "^25.3.5"
   },
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   }
 }

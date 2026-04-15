@@ -673,12 +673,14 @@ function validateAnd(
       { schema }
     )
   }
-  const issues: Issue[] = []
+  // Short-circuit: stop at the first failing branch.
+  // This prevents [:fn] predicates from running on wrong-type values and
+  // emitting spurious :fn/predicate-threw alongside the real type error.
   for (const child of children) {
     const result = validateSchema(child, value, path, ctx, callEnv)
-    if (!result.ok && result.issues) issues.push(...result.issues)
+    if (!result.ok) return result
   }
-  return issues.length > 0 ? fail(issues) : ok(value)
+  return ok(value)
 }
 
 function validateEnum(

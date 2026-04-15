@@ -105,7 +105,7 @@
     [:tuple s1 s2 s3]           ;; fixed-length, positional
     [:maybe schema]             ;; nil or schema
     [:or s1 s2 ...]             ;; first match wins
-    [:and s1 s2 ...]            ;; all must pass (no short-circuit on type fail!)
+    [:and s1 s2 ...]            ;; all must pass (short-circuits at first failure)
     [:enum v1 v2 ...]           ;; value must be one of these
     [:fn pred]                  ;; arbitrary predicate fn
     Constraints map (second el): {:min n :max n :pattern \"regex\"}"
@@ -145,12 +145,55 @@
     Workflow: human defines fns, AI calls them (or vice versa)."
 
    :and-short-circuit
-   "[:and s1 s2 ...] does NOT short-circuit on type failure.
-    If s1 is a type schema (:int) and s2 is [:fn pred], the pred still runs
-    on the wrong-type value and emits :fn/predicate-threw alongside s1's error.
-    Discovered: Session 172, validating [:and :int [:fn pos?]] with a string value.
-    Workaround: use a single [:fn] that guards both: [:fn #(and (int? %) (pos? %))]
-    This is a known gap — fix pending."
+   "[:and s1 s2 ...] short-circuits at the first failing branch (fixed in Session 176).
+    If s1 is a type schema (:int) and s2 is [:fn pred], and the value fails :int,
+    the [:fn] branch is never evaluated — only :int/wrong-type is reported.
+    This means [:and :int [:fn pos?]] is safe: the predicate never runs on a non-int.
+    Contrast with old behavior (pre-fix): both :int/wrong-type AND :fn/predicate-threw."
+
+   :async
+   "cljam async: (async ...) returns a CljPending immediately — NOT the evaluated value.
+    @ (deref) inside an async block awaits a CljPending. @ outside async THROWS.
+    (async 42)                 ;; → CljPending (type :pending), not 42
+    (pending? (async 42))      ;; → true
+    (async @(promise-of 10))   ;; → CljPending that resolves to 10
+    (promise-of v)             ;; wrap any value in a CljPending
+    (then p f)                 ;; chain: apply f to resolved value, returns new CljPending
+    (catch* p f)               ;; error handling: f called with thrown value if p rejects
+    (all [p1 p2 p3])           ;; fan-out: resolves when all resolve → vector of results
+    ;; WRONG: @(promise-of 42) at top level → throws 'requires an (async ...) context'
+    ;; RIGHT: (async @(promise-of 42))  — deref inside async block
+    evaluateAsync              ;; embedding API: auto-unwraps CljPending, surfaces errors
+    No clojure.core futures, no raw JS Promise interop — use (async ...) + (then ...)."
+
+   :js-interop
+   "cljam JS interop — NOT ClojureScript. Different dot syntax.
+    Property access:  (. obj field)            ;; e.g. (. \"hello\" length) → 5
+    Method with args: (. obj method arg...)    ;; e.g. (. \"hello\" indexOf \"l\") → 2
+    Zero-arg method:  ((. obj method))         ;; e.g. ((. \"hello\" toUpperCase)) → \"HELLO\"
+    Dot-chain symbol: js/Math.floor, js/Math.PI  ;; walk property chain from hostBinding
+    Dot-chain call:   (js/Math.floor 3.7) → 3    ;; call result of dot-chain walk
+    Dynamic access:   (js/get obj \"key\") or (js/get obj :key)
+    Dynamic set:      (js/set! obj \"key\" value)
+    Construct:        (js/new Constructor args...)  ;; Constructor must be a js-value
+    Inject globals:   createSession({ hostBindings: { Math, console, fetch } })
+    String requires:  (ns my.ns (:require [\"react\" :as React])) — needs importModule option
+    Sandbox preset has Math pre-injected as js/Math.
+    Caveat: JS globals are NOT available by default — inject via hostBindings explicitly."
+
+   :testing
+   "clojure.test requires an explicit require — deftest is NOT auto-loaded.
+    (require '[clojure.test :refer [deftest is testing run-tests]])
+    (deftest my-test
+      (is (= 1 1))
+      (testing \"edge case\"
+        (is (nil? nil))))
+    (run-tests)  ;; → {:test 1 :pass 2 :fail 0 :error 0}
+    thrown? / thrown-with-msg?: (is (thrown? js/Error (boom!)))
+    use-fixtures: (use-fixtures :each {:before setup-fn :after teardown-fn})
+    Vitest integration: add cljTestPlugin to vite.config.ts.
+    IMPORTANT: import { cljTestPlugin } from '@regibyte/cljam/vite-plugin' (NOT '@regibyte/cljam')
+    Each (deftest ...) becomes a Vitest test — failures surface in vitest output."
 
    :handbook
    "This namespace. An atom registry of machine-readable tips for LLM agents.

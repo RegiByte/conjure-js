@@ -52,8 +52,10 @@
   (current)
   (describe (find-ns 'schema.dev))
   (all-users)
-  (def regibyte-was-here {:author "Sir Regibyte" :age 30, :session 172})
+  (def regibyte-was-here {:author "Sir Regibyte" :age 26, :collaborator "Claude"})
   regibyte-was-here
+
+  user-schema
 
   claude-was-here
   (greet-user {:name "Sir Regibyte" :age 30})
@@ -65,6 +67,8 @@
               :session 172,
               :name "Regibyte" 
               :email "foo@bar.com"})
+  
+  claude-was-here
   
   (h/topics)
   (h/lookup :sort)

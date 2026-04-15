@@ -612,11 +612,18 @@ describe('cljam-schema — [:and ...] schema', () => {
     },
   ])('$label', expectValidate)
 
-  it('collects issues from all failing branches', () => {
+  it('returns issues from the first failing branch only (short-circuits)', () => {
     const r = withS(
       '(s/validate [:and [:string {:min 5}] [:string {:max 3}]] "abc")'
     )
     expect(r.issues).toHaveLength(1)
+  })
+
+  it('short-circuits on type failure — does not run [:fn] after type error', () => {
+    // Before the fix, this would emit both :int/wrong-type AND :fn/predicate-threw
+    const r = withS('(s/validate [:and :int [:fn pos?]] "hello")')
+    expect(r.issues).toHaveLength(1)
+    expect(r.issues[0]['error-code']).toBe('int/wrong-type')
   })
 })
 
