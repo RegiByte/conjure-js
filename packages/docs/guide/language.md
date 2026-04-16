@@ -154,7 +154,7 @@ No exception class hierarchy — `catch` uses keywords or predicates:
 (try
   (risky-fn)
   (catch :validation/error e
-    (println "validation failed:" (ex-data e)))
+    (println "validation failed:" (:field e)))
   (catch :not-found e
     (println "not found:" (:id e)))
   (catch :default e
@@ -165,17 +165,39 @@ No exception class hierarchy — `catch` uses keywords or predicates:
 
 ### Throwing structured errors
 
-```clojure
-;; ex-info creates a structured ExceptionInfo value
-(throw (ex-info "Validation failed" {:type :validation/error :field :age :value -1}))
+There are two complementary patterns:
 
-;; catch and inspect
+**Pattern 1 — plain map throw + typed catch**
+
+Put `:type` at the top level of the map. The `catch` discriminator matches against it directly:
+
+```clojure
+(throw {:type :validation/error :message "Validation failed" :field :age :value -1})
+
 (try
   (validate! user)
   (catch :validation/error e
+    (println (:message e))  ;; => "Validation failed"
+    (println (:field e))))  ;; => :age
+```
+
+**Pattern 2 — `ex-info` throw + `:default` catch**
+
+`ex-info` stores data under `:data`, so use `ex-message`/`ex-data` to inspect it:
+
+```clojure
+(throw (ex-info "Validation failed" {:field :age :value -1}))
+
+(try
+  (validate! user)
+  (catch :default e
     (println (ex-message e))         ;; => "Validation failed"
     (println (:field (ex-data e))))) ;; => :age
 ```
+
+:::info ex-info structure
+`(ex-info msg data)` returns `{:message msg :data data}`. The keyword `catch` discriminator checks for `:type` at the **top level** of the thrown value — it does not look inside `:data`. Use Pattern 1 when you need typed catching, Pattern 2 when you want the message/data split.
+:::
 
 ### Async error handling
 

@@ -3,7 +3,7 @@
 [![npm](https://img.shields.io/npm/v/%40regibyte%2Fcljam)](https://www.npmjs.com/package/@regibyte/cljam)
 [![license](https://img.shields.io/npm/l/%40regibyte%2Fcljam)](LICENSE)
 
-A Clojure interpreter written in TypeScript. Embeds in any JS/TS project as a library, runs as a standalone CLI on Bun, and exposes a full nREPL server compatible with Calva, Cursive, and CIDER.
+A Clojure interpreter written in TypeScript. Embeds in any JS/TS project as a library, runs as a standalone CLI on Node.js 18+ or Bun, and exposes a full nREPL server compatible with Calva, Cursive, and CIDER.
 
 **[Try it in the browser →](https://regibyte.github.io/cljam/)**
 
@@ -27,7 +27,7 @@ bun add @regibyte/cljam
 ```
 
 ```bash
-# As a CLI (Bun required)
+# As a CLI (Node.js 18+ or Bun)
 npm install -g @regibyte/cljam
 # or
 bun install -g @regibyte/cljam
@@ -52,26 +52,32 @@ console.log(printString(result)) // => (2 3 4)
 
 ### Injecting host capabilities
 
+`hostBindings` makes any TypeScript value available as `js/<key>` in Clojure:
+
 ```typescript
 import { createSession, sandboxPreset } from '@regibyte/cljam'
 
 const session = createSession({
   ...sandboxPreset(),
-  importMap: {
-    myApi: {
-      fetchUser: async (id: number) => ({ id, name: 'Alice' }),
+  hostBindings: {
+    db: {
+      findUser: (id: number) => ({ id, name: 'Alice' }),
     },
   },
 })
+```
 
-// In Clojure: (def u @(js/call js/myApi "fetchUser" 42))
+```clojure
+;; Method call: (. obj method args...)
+(. js/db findUser 42)
+;; => {:id 42 :name "Alice"}
 ```
 
 ### Using libraries
 
 ```typescript
 import { createSession, nodePreset } from '@regibyte/cljam'
-import { dateLib } from '@regibyte/cljam-date'
+import { library as dateLib } from '@regibyte/cljam-date'
 
 const session = createSession({
   ...nodePreset(),
@@ -80,7 +86,7 @@ const session = createSession({
 
 session.evaluate(`
   (require '[cljam.date :as d])
-  (d/format-date (d/now) "yyyy-MM-dd")
+  (d/to-iso (d/now))
 `)
 ```
 
@@ -308,7 +314,7 @@ To enable `*.test.clj` → Vitest integration:
 
 ```typescript
 // vite.config.ts
-import { cljTestPlugin } from '@regibyte/cljam'
+import { cljTestPlugin } from '@regibyte/cljam/vite-plugin'
 
 export default { plugins: [cljTestPlugin()] }
 ```

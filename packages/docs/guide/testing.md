@@ -6,7 +6,7 @@ cljam ships `clojure.test` as a built-in namespace. You can run tests with the n
 
 ```clojure
 (ns my-app.core-test
-  (:require [clojure.test :refer [deftest is testing run-tests]]))
+  (:require [clojure.test :refer [deftest is testing run-tests thrown? thrown-with-msg?]]))
 
 (deftest addition-works
   (is (= 4 (+ 2 2)))

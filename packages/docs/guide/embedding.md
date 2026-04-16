@@ -48,7 +48,7 @@ const session = createSession({
 Objects, functions, arrays, and primitives all work. Non-primitive JS values are boxed as `CljJsValue` and cross back out automatically at call boundaries.
 
 :::warning Reserved names
-`hostBindings` keys cannot shadow built-in `js/` functions: `get`, `set!`, `call`, `merge`, `get-in`, `apply`, `obj`, `array`, `seq`, `prop`, `method`, `typeof`. Attempting to do so throws at session creation time.
+`hostBindings` keys cannot shadow built-in `js/` functions: `get`, `set!`, `call`, `merge`, `get-in`, `obj`, `array`, `seq`, `prop`, `method`, `typeof`, `instanceof?`, `array?`, `null?`, `undefined?`, `some?`, `keys`, `values`, `entries`. Attempting to do so throws at session creation time.
 :::
 
 ## JS namespace utilities

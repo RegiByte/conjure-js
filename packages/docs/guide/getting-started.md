@@ -10,7 +10,9 @@ bun add @regibyte/cljam
 ```
 
 ```bash
-# As a global CLI (Bun required)
+# As a global CLI (Node.js 18+ or Bun)
+npm install -g @regibyte/cljam
+# or
 bun install -g @regibyte/cljam
 ```
 
