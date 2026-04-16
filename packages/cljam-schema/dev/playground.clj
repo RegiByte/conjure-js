@@ -51,26 +51,18 @@
   (tick!)
   (current)
   (describe (find-ns 'schema.dev))
-  (all-users)
-  (def regibyte-was-here {:author "Sir Regibyte" :age 26, :collaborator "Claude"})
-  regibyte-was-here
 
   user-schema
 
-  claude-was-here
-  (greet-user {:name "Sir Regibyte" :age 30})
-  (greet-user {:name "Sir Regibyte" :age "foo"})
-
-  (register! :the-real-regibyte 
-             {:author "Regibyte", 
-              :age 26, 
-              :session 172,
-              :name "Regibyte" 
-              :email "foo@bar.com"})
-  
-  claude-was-here
-  
   (h/topics)
   (h/lookup :sort)
+  hash
+  (describe hash)
+  (hash "hello?")
+  (hash 1)
+  (hash 2)
+  (hash 2)
+
+  (inc 2)
   ;
   )

@@ -205,8 +205,8 @@ describe('async deftest — testing context', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Async deftest — binding inside async (Session 159 fix)
-// Before this fix, (binding [...] body) inside (async ...) ran the body
+// Async deftest — binding inside async
+// (binding [...] body) inside (async ...) must run the body
 // synchronously — making @deref inside any binding-body fail. That included
 // (testing ...) which expands to a (binding [*testing-contexts* ...] (thunk)).
 // ---------------------------------------------------------------------------

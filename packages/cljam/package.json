@@ -1,7 +1,7 @@
 {
   "name": "@regibyte/cljam",
   "private": false,
-  "version": "0.0.17",
+  "version": "0.0.18",
   "type": "module",
   "repository": {
     "type": "git",
@@ -11,23 +11,30 @@
   "homepage": "https://github.com/RegiByte/cljam",
   "license": "MIT",
   "bin": {
-    "cljam": "./scripts/cljam-bin.mjs"
+    "cljam": "./dist-cli/cljam.mjs"
+  },
+  "browser": {
+    "./src/clojure/generated/builtin-namespace-registry.ts": "./src/clojure/generated/builtin-namespace-registry.browser.ts"
   },
   "exports": {
     ".": "./src/core/index.ts",
-    "./nrepl": "./src/bin/nrepl.ts",
+    "./nrepl": {
+      "bun": "./src/bin/nrepl.ts",
+      "default": "./dist-nrepl/index.mjs"
+    },
     "./vite-plugin": {
       "bun": "./src/vite-plugin-cljam/index.ts",
       "default": "./dist-vite-plugin/index.mjs"
     },
-"./scripts/gen-library-sources": "./scripts/gen-library-sources.mjs"
+    "./scripts/gen-library-sources": "./scripts/gen-library-sources.mjs"
   },
   "files": [
+    "dist-cli/**/*",
+    "dist-nrepl/**/*",
     "dist-vite-plugin/**/*",
     "src/**/*.ts",
     "src/**/*.clj",
     "scripts/gen-library-sources.mjs",
-    "scripts/cljam-bin.mjs",
     "!src/**/__tests__/**",
     "!src/**/*.spec.ts",
     "!src/**/*.test.ts",
@@ -49,10 +56,10 @@
     "repl": "bun run src/bin/cli.ts repl",
     "run": "bun run src/bin/cli.ts run",
     "nrepl": "bun run src/bin/cli.ts nrepl-server",
-    "build-cli": "node scripts/gen-version.mjs && bun build --compile src/bin/cli.ts --outfile cljam",
     "build-npm-bin": "node scripts/gen-version.mjs && node scripts/build-npm-bin.mjs",
+    "build-nrepl": "node scripts/build-nrepl.mjs",
     "build-vite-plugin": "node scripts/build-vite-plugin.mjs",
-    "prepublishOnly": "bun run gen:core-source && node scripts/build-vite-plugin.mjs && node scripts/gen-version.mjs",
+    "prepublishOnly": "bun run gen:core-source && node scripts/gen-version.mjs && node scripts/build-npm-bin.mjs && node scripts/build-nrepl.mjs && node scripts/build-vite-plugin.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "gen:core-source": "bun run scripts/gen-core-source.mjs",
@@ -63,6 +70,7 @@
     "@types/node": "^25.3.5",
     "@vitest/coverage-v8": "^4.0.18",
     "@vitest/ui": "^4.0.18",
+    "esbuild": "^0.27.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.3",
     "vite": "^7.3.1",

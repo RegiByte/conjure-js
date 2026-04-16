@@ -1,6 +1,5 @@
 /**
  * Tests for async evaluation: (async ...), CljPending, then, catch*, pending?, promise-of
- * EXPERIMENTAL — part of Session 87 async foundation.
  */
 
 import { describe, expect, test } from 'vitest'

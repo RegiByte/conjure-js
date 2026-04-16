@@ -7,13 +7,14 @@
       "name": "@regibyte/cljam",
       "version": "0.0.17",
       "bin": {
-        "cljam": "./scripts/cljam-bin.mjs",
+        "cljam": "./dist-cli/cljam.mjs",
       },
       "devDependencies": {
         "@types/bun": "^1.3.10",
         "@types/node": "^25.3.5",
         "@vitest/coverage-v8": "^4.0.18",
         "@vitest/ui": "^4.0.18",
+        "esbuild": "^0.27.0",
         "prettier": "^3.8.1",
         "typescript": "~5.9.3",
         "vite": "^7.3.1",
@@ -523,7 +524,7 @@
 
     "hast-util-whitespace": ["hast-util-whitespace@3.0.0", "", { "dependencies": { "@types/hast": "^3.0.0" } }, "sha512-88JUN06ipLwsnv+dVn+OIYOvAuvBMy/Qoi6O7mQHxdPXpjy+Cd6xRkWwux7DKO+4sYILtLBRIKgsdpS2gQc7qw=="],
 
-    "hono": ["hono@4.12.12", "", {}, "sha512-p1JfQMKaceuCbpJKAPKVqyqviZdS0eUxH9v82oWo1kb9xjQ5wA6iP3FNVAPDFlz5/p7d45lO+BpSk1tuSZMF4Q=="],
+    "hono": ["hono@4.12.14", "", {}, "sha512-am5zfg3yu6sqn5yjKBNqhnTX7Cv+m00ox+7jbaKkrLMRJ4rAdldd1xPd/JzbBWspqaQv6RSTrgFN95EsfhC+7w=="],
 
     "hookable": ["hookable@5.5.3", "", {}, "sha512-Yc+BQe8SvoXH1643Qez1zqLRmbA5rCL+sSmk6TVos0LWVfNIB7PGncdlId77WzLGSIB5KaWgTaNTs2lNVEI6VQ=="],
 
@@ -637,11 +638,11 @@
 
     "playground": ["playground@workspace:packages/playground"],
 
-    "postcss": ["postcss@8.5.9", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-7a70Nsot+EMX9fFU3064K/kdHWZqGVY+BADLyXc8Dfv+mTLLVl6JzJpPaCZ2kQL9gIJvKXSLMHhqdRRjwQeFtw=="],
+    "postcss": ["postcss@8.5.10", "", { "dependencies": { "nanoid": "^3.3.11", "picocolors": "^1.1.1", "source-map-js": "^1.2.1" } }, "sha512-pMMHxBOZKFU6HgAZ4eyGnwXF/EvPGGqUr0MnZ5+99485wwW41kW91A4LOGxSHhgugZmSChL5AlElNdwlNgcnLQ=="],
 
     "preact": ["preact@10.29.1", "", {}, "sha512-gQCLc/vWroE8lIpleXtdJhTFDogTdZG9AjMUpVkDf2iTCNwYNWA+u16dL41TqUDJO4gm2IgrcMv3uTpjd4Pwmg=="],
 
-    "prettier": ["prettier@3.8.2", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-8c3mgTe0ASwWAJK+78dpviD+A8EqhndQPUBpNUIPt6+xWlIigCwfN01lWr9MAede4uqXGTEKeQWTvzb3vjia0Q=="],
+    "prettier": ["prettier@3.8.3", "", { "bin": { "prettier": "bin/prettier.cjs" } }, "sha512-7igPTM53cGHMW8xWuVTydi2KO233VFiTNyF5hLJqpilHfmn8C8gPf+PS7dUT64YcXFbiMGZxS9pCSxL/Dxm/Jw=="],
 
     "property-information": ["property-information@7.1.0", "", {}, "sha512-TwEZ+X+yCJmYfL7TPUOcvBZ4QfoT5YenQiJuX//0th53DE6w0xxLEtfK3iyryQFddXuvkIk51EEgrJQ0WJkOmQ=="],
 
@@ -707,7 +708,7 @@
 
     "statuses": ["statuses@2.0.2", "", {}, "sha512-DvEy55V3DB7uknRo+4iOGT5fP1slR8wQohVdknigZPMpMstaKJQWhwiYBACJE3Ul2pTnATihhBYnRhZQHGBiRw=="],
 
-    "std-env": ["std-env@4.0.0", "", {}, "sha512-zUMPtQ/HBY3/50VbpkupYHbRroTRZJPRLvreamgErJVys0ceuzMkD44J/QjqhHjOzK42GQ3QZIeFG1OYfOtKqQ=="],
+    "std-env": ["std-env@4.1.0", "", {}, "sha512-Rq7ybcX2RuC55r9oaPVEW7/xu3tj8u4GeBYHBWCychFtzMIr86A7e3PPEBPT37sHStKX3+TiX/Fr/ACmJLVlLQ=="],
 
     "stringify-entities": ["stringify-entities@4.0.4", "", { "dependencies": { "character-entities-html4": "^2.0.0", "character-entities-legacy": "^3.0.0" } }, "sha512-IwfBptatlO+QCJUo19AqvrPNqlVMpW9YEL2LIVY+Rpv2qsjCGxaDLNRgeGsQWJhfItebuJhsGSLjaBbNSQ+ieg=="],
 
@@ -775,29 +776,11 @@
 
     "zwitch": ["zwitch@2.0.4", "", {}, "sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A=="],
 
-    "@regibyte/cljam-date/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
-    "@regibyte/cljam-date/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
-    "@regibyte/cljam-integrant/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
-    "@regibyte/cljam-integrant/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
-    "@regibyte/cljam-mcp/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
-    "@regibyte/cljam-mcp/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
-    "@regibyte/cljam-schema/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
-    "@regibyte/cljam-schema/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
-
     "@vitejs/plugin-vue/vite": ["vite@5.4.21", "", { "dependencies": { "esbuild": "^0.21.3", "postcss": "^8.4.43", "rollup": "^4.20.0" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^18.0.0 || >=20.0.0", "less": "*", "lightningcss": "^1.21.0", "sass": "*", "sass-embedded": "*", "stylus": "*", "sugarss": "*", "terser": "^5.4.0" }, "optionalPeers": ["@types/node", "less", "lightningcss", "sass", "sass-embedded", "stylus", "sugarss", "terser"], "bin": { "vite": "bin/vite.js" } }, "sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw=="],
 
     "@vue/compiler-core/estree-walker": ["estree-walker@2.0.2", "", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
 
     "@vue/compiler-sfc/estree-walker": ["estree-walker@2.0.2", "", {}, "sha512-Rfkk/Mp/DL7JVje3u18FxFujQlTNR2q6QfMSMB7AvCBx91NGj/ba3kCfza0f6dVDbw7YlRf/nDrn7pQrCCyQ/w=="],
-
-    "docs/@regibyte/cljam": ["@regibyte/cljam@file:packages/cljam", { "devDependencies": { "@types/bun": "^1.3.10", "@types/node": "^25.3.5", "@vitest/coverage-v8": "^4.0.18", "@vitest/ui": "^4.0.18", "prettier": "^3.8.1", "typescript": "~5.9.3", "vite": "^7.3.1", "vitest": "^4.0.18" }, "bin": { "cljam": "./scripts/cljam-bin.mjs" } }],
 
     "vitepress/vite": ["vite@5.4.21", "", { "dependencies": { "esbuild": "^0.21.3", "postcss": "^8.4.43", "rollup": "^4.20.0" }, "optionalDependencies": { "fsevents": "~2.3.3" }, "peerDependencies": { "@types/node": "^18.0.0 || >=20.0.0", "less": "*", "lightningcss": "^1.21.0", "sass": "*", "sass-embedded": "*", "stylus": "*", "sugarss": "*", "terser": "^5.4.0" }, "optionalPeers": ["@types/node", "less", "lightningcss", "sass", "sass-embedded", "stylus", "sugarss", "terser"], "bin": { "vite": "bin/vite.js" } }, "sha512-o5a9xKjbtuhY6Bi5S3+HvbRERmouabWbyUcpXXUA1u+GNUKoROi9byOJ8M0nHbHYHkYICiMlqxkg1KkYmm25Sw=="],
 

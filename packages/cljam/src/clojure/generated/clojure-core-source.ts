@@ -21,6 +21,9 @@ export const clojure_coreSource = `\
 (def async)
 (def catch*)
 (def then)
+(def repeat*)
+(def range*)
+
 
 (defmacro defn [name & fdecl]
   (let [doc       (if (string? (first fdecl)) (first fdecl) nil)
@@ -504,8 +507,8 @@ export const clojure_coreSource = `\
        ([result input] (rf result (f input))))))
   ([f coll]
    (lazy-seq
-     (when-let [s (seq coll)]
-       (cons (f (first s)) (map f (rest s))))))
+    (when-let [s (seq coll)]
+      (cons (f (first s)) (map f (rest s))))))
   ([f c1 c2]
    (loop [s1 (seq c1)
           s2 (seq c2)
@@ -539,10 +542,10 @@ export const clojure_coreSource = `\
           result)))))
   ([pred coll]
    (lazy-seq
-     (when-let [s (seq coll)]
-       (if (pred (first s))
-         (cons (first s) (filter pred (rest s)))
-         (filter pred (rest s)))))))
+    (when-let [s (seq coll)]
+      (if (pred (first s))
+        (cons (first s) (filter pred (rest s)))
+        (filter pred (rest s)))))))
 
 (defn remove
   "Returns a lazy sequence of the items in coll for which
@@ -577,9 +580,9 @@ export const clojure_coreSource = `\
               result)))))))
   ([n coll]
    (lazy-seq
-     (when (pos? n)
-       (when-let [s (seq coll)]
-         (cons (first s) (take (dec n) (rest s))))))))
+    (when (pos? n)
+      (when-let [s (seq coll)]
+        (cons (first s) (take (dec n) (rest s))))))))
 
 ;; take-while: stateless transducer; emits reduced when pred fails
 (defn take-while
@@ -597,9 +600,9 @@ export const clojure_coreSource = `\
           (reduced result))))))
   ([pred coll]
    (lazy-seq
-     (when-let [s (seq coll)]
-       (when (pred (first s))
-         (cons (first s) (take-while pred (rest s))))))))
+    (when-let [s (seq coll)]
+      (when (pred (first s))
+        (cons (first s) (take-while pred (rest s))))))))
 
 ;; drop: stateful transducer; skips first n items
 ;; r >= 0 → still skipping; r < 0 → past the drop zone, start taking
@@ -656,10 +659,10 @@ export const clojure_coreSource = `\
               (rf result input))))))))
   ([pred coll]
    (lazy-seq
-     (let [s (seq coll)]
-       (if (and s (pred (first s)))
-         (drop-while pred (rest s))
-         s)))))
+    (let [s (seq coll)]
+      (if (and s (pred (first s)))
+        (drop-while pred (rest s))
+        s)))))
 
 ;; letfn: expands to letfn* (the primitive), which takes a flat vector of
 ;; [name fn-form name fn-form ...] pairs and evaluates each fn-form in a
@@ -667,8 +670,8 @@ export const clojure_coreSource = `\
 (defmacro letfn [fnspecs & body]
   (cons 'letfn*
         (cons (reduce (fn* [acc spec]
-                        (conj (conj acc (first spec))
-                              (cons 'fn* (rest spec))))
+                           (conj (conj acc (first spec))
+                                 (cons 'fn* (rest spec))))
                       []
                       fnspecs)
               body)))
@@ -691,8 +694,8 @@ export const clojure_coreSource = `\
   ([f coll]
    (letfn [(step [i s]
              (lazy-seq
-               (when-let [xs (seq s)]
-                 (cons (f i (first xs)) (step (inc i) (rest xs))))))]
+              (when-let [xs (seq s)]
+                (cons (f i (first xs)) (step (inc i) (rest xs))))))]
      (step 0 coll))))
 
 ;; dedupe: stateful transducer; removes consecutive duplicates
@@ -855,11 +858,11 @@ export const clojure_coreSource = `\
             (rf result v)))))))
   ([f coll]
    (lazy-seq
-     (when-let [s (seq coll)]
-       (let [v (f (first s))]
-         (if (nil? v)
-           (keep f (rest s))
-           (cons v (keep f (rest s)))))))))
+    (when-let [s (seq coll)]
+      (let [v (f (first s))]
+        (if (nil? v)
+          (keep f (rest s))
+          (cons v (keep f (rest s)))))))))
 
 (defn keep-indexed
   "Returns a sequence of the non-nil results of (f index item). Note,
@@ -879,11 +882,11 @@ export const clojure_coreSource = `\
   ([f coll]
    (letfn [(step [i s]
              (lazy-seq
-               (when-let [xs (seq s)]
-                 (let [v (f i (first xs))]
-                   (if (nil? v)
-                     (step (inc i) (rest xs))
-                     (cons v (step (inc i) (rest xs))))))))]
+              (when-let [xs (seq s)]
+                (let [v (f i (first xs))]
+                  (if (nil? v)
+                    (step (inc i) (rest xs))
+                    (cons v (step (inc i) (rest xs))))))))]
      (step 0 coll))))
 
 (defn mapcat
@@ -900,8 +903,8 @@ export const clojure_coreSource = `\
        inner)))
   ([f coll]
    (lazy-seq
-     (when-let [s (seq coll)]
-       (concat (f (first s)) (mapcat f (rest s))))))
+    (when-let [s (seq coll)]
+      (concat (f (first s)) (mapcat f (rest s))))))
   ([f coll & more]
    (apply concat (apply map f coll more))))
 
@@ -910,14 +913,14 @@ export const clojure_coreSource = `\
   Stops as soon as any coll is exhausted."
   ([c1 c2]
    (lazy-seq
-     (let [s1 (seq c1) s2 (seq c2)]
-       (when (and s1 s2)
-         (cons (first s1) (cons (first s2) (interleave (rest s1) (rest s2))))))))
+    (let [s1 (seq c1) s2 (seq c2)]
+      (when (and s1 s2)
+        (cons (first s1) (cons (first s2) (interleave (rest s1) (rest s2))))))))
   ([c1 c2 & colls]
    (lazy-seq
-     (let [seqs (map seq (cons c1 (cons c2 colls)))]
-       (when (every? some? seqs)
-         (concat (map first seqs) (apply interleave (map rest seqs))))))))
+    (let [seqs (map seq (cons c1 (cons c2 colls)))]
+      (when (every? some? seqs)
+        (concat (map first seqs) (apply interleave (map rest seqs))))))))
 
 (defn interpose
   "Returns a sequence of the elements of coll separated by sep.
@@ -948,18 +951,18 @@ export const clojure_coreSource = `\
   ([x] (lazy-seq (seq x)))
   ([x y]
    (lazy-seq
-     (let [s (seq x)]
-       (if s
-         (cons (first s) (concat (rest s) y))
-         (seq y)))))
+    (let [s (seq x)]
+      (if s
+        (cons (first s) (concat (rest s) y))
+        (seq y)))))
   ([x y & zs]
    (let [cat (fn cat [xy zs]
                (lazy-seq
-                 (let [xys (seq xy)]
-                   (if xys
-                     (cons (first xys) (cat (rest xys) zs))
-                     (when (seq zs)
-                       (cat (first zs) (next zs)))))))]
+                (let [xys (seq xy)]
+                  (if xys
+                    (cons (first xys) (cat (rest xys) zs))
+                    (when (seq zs)
+                      (cat (first zs) (next zs)))))))]
      (cat (concat x y) zs))))
 
 (defn iterate
@@ -989,8 +992,8 @@ export const clojure_coreSource = `\
   With 2 args (n coll), returns a finite sequence (backwards compat)."
   ([coll]
    (lazy-seq
-     (when (seq coll)
-       (concat coll (cycle coll)))))
+    (when (seq coll)
+      (concat coll (cycle coll)))))
   ([n coll]
    (let [s (into [] coll)]
      (loop [i 0 acc []]
@@ -1098,11 +1101,11 @@ export const clojure_coreSource = `\
                 (rf result b)))))))))
   ([f coll]
    (lazy-seq
-     (when-let [s (seq coll)]
-       (let [fv        (f (first s))
-             run       (into [] (cons (first s) (take-while #(= (f %) fv) (next s))))
-             remaining (drop-while #(= (f %) fv) (next s))]
-         (cons run (partition-by f remaining)))))))
+    (when-let [s (seq coll)]
+      (let [fv        (f (first s))
+            run       (into [] (cons (first s) (take-while #(= (f %) fv) (next s))))
+            remaining (drop-while #(= (f %) fv) (next s))]
+        (cons run (partition-by f remaining)))))))
 
 (defn reductions
   "Returns a sequence of the intermediate values of the reduction (as
@@ -1395,22 +1398,23 @@ export const clojure_coreSource = `\
 ;;   - (keyword nil name) → guarded to 1-arity (keyword name) when ns is nil
 ;;   - (key entry) / (val entry) → (first entry) / (second entry)
 (defn destructure [bindings]
-  (let* [bents (partition 2 bindings)
-         pb    (fn pb [bvec b v]
-                 (let* [;; ── vector pattern ───────────────────────────────────
-                        pvec
-                        (fn [bvec b val]
-                          (let* [gvec     (gensym "vec__")
-                                 gseq     (gensym "seq__")
-                                 gfirst   (gensym "first__")
-                                 has-rest (some #{'&} b)]
-                            (loop* [ret        (let* [ret (conj bvec gvec val)]
-                                                 (if has-rest
-                                                   (conj ret gseq (list 'seq gvec))
-                                                   ret))
-                                    n          0
-                                    bs         b
-                                    seen-rest? false]
+  (let*
+   [bents (partition 2 bindings)
+    pb    (fn pb [bvec b v]
+            (let* [;; ── vector pattern ───────────────────────────────────
+                   pvec
+                   (fn [bvec b val]
+                     (let* [gvec     (gensym "vec__")
+                            gseq     (gensym "seq__")
+                            gfirst   (gensym "first__")
+                            has-rest (some #{'&} b)]
+                       (loop* [ret (let* [ret (conj bvec gvec val)]
+                                     (if has-rest
+                                       (conj ret gseq (list 'seq gvec))
+                                       ret))
+                               n          0
+                               bs         b
+                               seen-rest? false]
                               (if (seq bs)
                                 (let* [firstb (first bs)]
                                   (cond
@@ -1427,72 +1431,72 @@ export const clojure_coreSource = `\
                                     (if seen-rest?
                                       (throw (ex-info "Unsupported binding form, only :as can follow & parameter" {}))
                                       (recur (pb (if has-rest
-                                                    (-> ret
-                                                        (conj gfirst) (conj (list 'first gseq))
-                                                        (conj gseq)   (conj (list 'next gseq)))
-                                                    ret)
-                                                  firstb
-                                                  (if has-rest
-                                                    gfirst
-                                                    (list 'nth gvec n nil)))
+                                                   (-> ret
+                                                       (conj gfirst) (conj (list 'first gseq))
+                                                       (conj gseq)   (conj (list 'next gseq)))
+                                                   ret)
+                                                 firstb
+                                                 (if has-rest
+                                                   gfirst
+                                                   (list 'nth gvec n nil)))
                                              (inc n)
                                              (next bs)
                                              seen-rest?))))
                                 ret))))
 
-                        ;; ── map pattern ──────────────────────────────────────
-                        pmap
-                        (fn [bvec b v]
-                          (let* [gmap     (gensym "map__")
-                                 defaults (:or b)
-                                 ;; Expand :keys/:strs/:syms shorthands into direct
-                                 ;; {sym lookup-key} entries before the main loop.
-                                 bes      (reduce
-                                            (fn [acc mk]
-                                              (let* [mkn  (name mk)
-                                                     mkns (namespace mk)]
-                                                (cond
-                                                  (= mkn "keys")
-                                                  (reduce
-                                                    (fn [a sym]
-                                                      (assoc (dissoc a mk)
-                                                             sym
-                                                             (let* [ns-part (or mkns (namespace sym))]
-                                                               (if ns-part
-                                                                 (keyword ns-part (name sym))
-                                                                 (keyword (name sym))))))
-                                                    acc (mk acc))
+                   ;; ── map pattern ──────────────────────────────────────
+                   pmap
+                   (fn [bvec b v]
+                     (let* [gmap     (gensym "map__")
+                            defaults (:or b)
+                            ;; Expand :keys/:strs/:syms shorthands into direct
+                            ;; {sym lookup-key} entries before the main loop.
+                            bes      (reduce
+                                      (fn [acc mk]
+                                        (let* [mkn  (name mk)
+                                               mkns (namespace mk)]
+                                          (cond
+                                            (= mkn "keys")
+                                            (reduce
+                                             (fn [a sym]
+                                               (assoc (dissoc a mk)
+                                                      sym
+                                                      (let* [ns-part (or mkns (namespace sym))]
+                                                        (if ns-part
+                                                          (keyword ns-part (name sym))
+                                                          (keyword (name sym))))))
+                                             acc (mk acc))
 
-                                                  (= mkn "strs")
-                                                  (reduce
-                                                    (fn [a sym]
-                                                      (assoc (dissoc a mk) sym (name sym)))
-                                                    acc (mk acc))
+                                            (= mkn "strs")
+                                            (reduce
+                                             (fn [a sym]
+                                               (assoc (dissoc a mk) sym (name sym)))
+                                             acc (mk acc))
 
-                                                  (= mkn "syms")
-                                                  (reduce
-                                                    (fn [a sym]
-                                                      (assoc (dissoc a mk) sym
-                                                             (list 'quote (symbol (name sym)))))
-                                                    acc (mk acc))
+                                            (= mkn "syms")
+                                            (reduce
+                                             (fn [a sym]
+                                               (assoc (dissoc a mk) sym
+                                                      (list 'quote (symbol (name sym)))))
+                                             acc (mk acc))
 
-                                                  :else acc)))
-                                            (dissoc b :as :or)
-                                            (filter keyword? (keys (dissoc b :as :or))))]
-                            ;; Coerce seq values (kwargs-style) to a map.
-                            ;; When & is followed by a map pattern, the rest args
-                            ;; arrive as a flat seq (:k1 v1 :k2 v2 ...) and must
-                            ;; be turned into a map before we can do key lookups.
-                            (loop* [ret     (-> bvec
-                                               (conj gmap)
-                                               (conj (list 'if (list 'map? v) v
-                                                           (list 'if (list 'nil? v) (hash-map)
-                                                                 (list 'apply 'hash-map v))))
-                                               ((fn [r]
-                                                  (if (:as b)
-                                                    (conj r (:as b) gmap)
-                                                    r))))
-                                    entries (seq bes)]
+                                            :else acc)))
+                                      (dissoc b :as :or)
+                                      (filter keyword? (keys (dissoc b :as :or))))]
+                       ;; Coerce seq values (kwargs-style) to a map.
+                       ;; When & is followed by a map pattern, the rest args
+                       ;; arrive as a flat seq (:k1 v1 :k2 v2 ...) and must
+                       ;; be turned into a map before we can do key lookups.
+                       (loop* [ret     (-> bvec
+                                           (conj gmap)
+                                           (conj (list 'if (list 'map? v) v
+                                                       (list 'if (list 'nil? v) (hash-map)
+                                                             (list 'apply 'hash-map v))))
+                                           ((fn [r]
+                                              (if (:as b)
+                                                (conj r (:as b) gmap)
+                                                r))))
+                               entries (seq bes)]
                               (if entries
                                 (let* [entry (first entries)
                                        bb    (first entry)
@@ -1515,12 +1519,12 @@ export const clojure_coreSource = `\
                                            (pb ret bb bv))
                                          (next entries)))
                                 ret))))]
-                   (cond
-                     (symbol? b) (-> bvec (conj b) (conj v))
-                     (vector? b) (pvec bvec b v)
-                     (map? b)    (pmap bvec b v)
-                     :else (throw (ex-info (str "Unsupported binding form: " b) {})))))
-         process-entry (fn [bvec b] (pb bvec (first b) (second b)))]
+              (cond
+                (symbol? b) (-> bvec (conj b) (conj v))
+                (vector? b) (pvec bvec b v)
+                (map? b)    (pmap bvec b v)
+                :else (throw (ex-info (str "Unsupported binding form: " b) {})))))
+    process-entry (fn [bvec b] (pb bvec (first b) (second b)))]
     (if (every? symbol? (map first bents))
       bindings
       (reduce process-entry [] bents))))
@@ -1532,24 +1536,24 @@ export const clojure_coreSource = `\
     (loop* [params params
             new-params []
             lets []]
-      (if params
-        (if (symbol? (first params))
-          (recur (next params) (conj new-params (first params)) lets)
-          (let* [gparam (gensym "p__")]
-            (recur (next params)
-                   (conj new-params gparam)
-                   (-> lets (conj (first params)) (conj gparam)))))
-        (list (vec new-params)
-              (cons 'let (cons (vec lets) body)))))))
+           (if params
+             (if (symbol? (first params))
+               (recur (next params) (conj new-params (first params)) lets)
+               (let* [gparam (gensym "p__")]
+                 (recur (next params)
+                        (conj new-params gparam)
+                        (-> lets (conj (first params)) (conj gparam)))))
+             (list (vec new-params)
+                   (cons 'let (cons (vec lets) body)))))))
 
 (defmacro fn [& sigs]
   (let* [name    (if (symbol? (first sigs)) (first sigs) nil)
          sigs    (if name (next sigs) sigs)
          sigs    (if (vector? (first sigs)) (list sigs) sigs)
          psig    (fn* [sig]
-                   (let* [params (first sig)
-                          body   (rest sig)]
-                     (maybe-destructured params body)))
+                      (let* [params (first sig)
+                             body   (rest sig)]
+                        (maybe-destructured params body)))
          new-sigs (map psig sigs)]
     (if name
       (list* 'fn* name new-sigs)
@@ -1574,17 +1578,17 @@ export const clojure_coreSource = `\
                  bs  (take-nth 2 bindings)
                  gs  (map (fn* [b] (if (symbol? b) b (gensym))) bs)
                  bfs (reduce (fn* [ret bvg]
-                               (let* [b (first bvg)
-                                      v (second bvg)
-                                      g (nth bvg 2)]
-                                 (if (symbol? b)
-                                   (conj ret g v)
-                                   (conj ret g v b g))))
+                                  (let* [b (first bvg)
+                                         v (second bvg)
+                                         g (nth bvg 2)]
+                                    (if (symbol? b)
+                                      (conj ret g v)
+                                      (conj ret g v b g))))
                              [] (map vector bs vs gs))]
             \`(let ~bfs
                (loop* ~(vec (interleave gs gs))
-                 (let ~(vec (interleave bs gs))
-                   ~@body)))))))))
+                      (let ~(vec (interleave bs gs))
+                        ~@body)))))))))
 
 
 
