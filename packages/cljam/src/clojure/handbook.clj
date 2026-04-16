@@ -33,19 +33,27 @@
 
    :dynamic-vars
    "^:dynamic vars + binding = thread-local scope.
-    Atoms = shared mutable state (visible across sessions sharing the same atom ref).
-    (def ^:dynamic *db* (atom nil))
-    (binding [*db* my-conn]     ;; shadow for this scope only
-      (do-work))
-    @*db*                       ;; still nil after binding exits
-    Difference: (swap! *db* f) mutates in place; (binding ...) replaces the reference."
+    Atoms = shared mutable state (swap!/reset! mutate in place).
+    ;; Dynamic var — binding temporarily shadows the var
+    (def ^:dynamic *level* :info)
+    (binding [*level* :debug]   ;; lexical shadow — only visible inside this block
+      *level*)                  ;; => :debug
+    *level*                     ;; => :info (restored after binding exits)
+    ;; Atom — mutation persists globally
+    (def counter (atom 0))
+    (swap! counter inc)         ;; => 1
+    @counter                    ;; => 1 (visible everywhere)
+    Difference: swap!/reset! on atoms mutates shared state; binding only affects
+    the current dynamic scope and restores the original value on exit."
 
    :require
    "(require '[clojure.string :as str])
     (require '[cljam.schema.core :as s])
+    (require '[clojure.test :refer [deftest is run-tests]])
     Works for: built-in clojure.* namespaces, cljam.* built-ins, library namespaces
     registered via CljamLibrary.sources.
-    No :use. No :refer-all. Aliased requires only.
+    :refer [specific-names] works — :refer :all does NOT (error).
+    :use is not available — use :require with :as or :refer instead.
     Lazy: namespace source is loaded on first require, cached after."
 
    :jvm-gaps
@@ -60,11 +68,14 @@
     - clojure.java.* namespaces: not available"
 
    :types
-   "CljValue kinds (value.kind):
+   "CljValue kinds — what (type x) returns:
     :nil :boolean :number :string :keyword :symbol :char
     :list :vector :map :set
-    :fn :macro :multimethod :protocol :record
-    :atom :var :namespace :js-object
+    :function          ;; NOT :fn — (type (fn [x] x)) => :function
+    :protocol          ;; (type IFoo) => :protocol
+    :ns/RecordName     ;; records return :ns/RecordName, e.g. :user/Point
+    :atom :var :namespace :lazy-seq :cons
+    Note: (type multimethod) throws — use (instance? ...) checks instead.
     (type x) returns the kind keyword.
     (char? x) (string? x) (map? x) etc. — standard predicates all work."
 
@@ -75,7 +86,9 @@
     (:x p)                 ;; field access
     (record? p)            ;; => true
     (type p)               ;; => :user/Point (or :ns/Point)
-    Records implement map semantics: assoc, get, keys all work.
+    Records implement map semantics: get, keys work.
+    CAVEAT: (assoc record :field val) returns a plain map, NOT a record.
+    Use map->RecordName to reconstruct a record after modifying fields.
     Use with defprotocol + extend-protocol for polymorphic dispatch."
 
    :protocols
@@ -84,11 +97,13 @@
       (perimeter [this]))
     (extend-protocol IShape
       :user/Circle
-        (area [c] (* Math/PI (:r c) (:r c)))
-        (perimeter [c] (* 2 Math/PI (:r c))))
+        (area [c] (* clojure.math/PI (:r c) (:r c)))
+        (perimeter [c] (* 2 clojure.math/PI (:r c))))
     (satisfies? IShape my-circle)  ;; => true
     (protocols my-circle)          ;; list all protocols it satisfies
-    Dispatch key = (type value) = :ns/RecordName for records, :string/:number/... for primitives."
+    Dispatch key = (type value) = :ns/RecordName for records, :string/:number/... for primitives.
+    Note: Math/PI is JVM Java interop — does NOT work in cljam.
+    Use clojure.math/PI or js/Math.PI instead."
 
    :schema-primitives
    "Primitive schemas: :string :int :number :boolean :keyword :symbol :nil :any :uuid :char
@@ -145,7 +160,7 @@
     Workflow: human defines fns, AI calls them (or vice versa)."
 
    :and-short-circuit
-   "[:and s1 s2 ...] short-circuits at the first failing branch (fixed in Session 176).
+   "[:and s1 s2 ...] short-circuits at the first failing branch.
     If s1 is a type schema (:int) and s2 is [:fn pred], and the value fails :int,
     the [:fn] branch is never evaluated — only :int/wrong-type is reported.
     This means [:and :int [:fn pos?]] is safe: the predicate never runs on a non-int.
@@ -183,13 +198,16 @@
 
    :testing
    "clojure.test requires an explicit require — deftest is NOT auto-loaded.
-    (require '[clojure.test :refer [deftest is testing run-tests]])
+    (require '[clojure.test :refer [deftest is testing run-tests thrown? thrown-with-msg?]])
     (deftest my-test
       (is (= 1 1))
       (testing \"edge case\"
         (is (nil? nil))))
     (run-tests)  ;; → {:test 1 :pass 2 :fail 0 :error 0}
-    thrown? / thrown-with-msg?: (is (thrown? js/Error (boom!)))
+    thrown? takes a KEYWORD error type (NOT a class like JVM Clojure):
+      (is (thrown? :default (boom!)))           ;; catches anything
+      (is (thrown? :error/runtime (/ 1 0)))     ;; catches runtime errors only
+      (is (thrown-with-msg? :default #\"oops\" (boom!)))
     use-fixtures: (use-fixtures :each {:before setup-fn :after teardown-fn})
     Vitest integration: add cljTestPlugin to vite.config.ts.
     IMPORTANT: import { cljTestPlugin } from '@regibyte/cljam/vite-plugin' (NOT '@regibyte/cljam')

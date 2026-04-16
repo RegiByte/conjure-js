@@ -100,12 +100,15 @@ export const utilFunctions: Record<string, CljValue> = {
         nil: ':nil',
         keyword: ':keyword',
         symbol: ':symbol',
+        char: ':char',
         list: ':list',
         vector: ':vector',
         map: ':map',
         set: ':set',
         function: ':function',
         'native-function': ':function',
+        macro: ':macro',
+        'multi-method': ':multimethod',
         regex: ':regex',
         var: ':var',
         delay: ':delay',
@@ -459,4 +462,63 @@ export const utilFunctions: Record<string, CljValue> = {
       ['name'],
       ['ns', 'name'],
     ]),
+
+  // Clojure 1.11 safe-parse functions — return nil instead of throwing on invalid input.
+
+  'parse-long': v
+    .nativeFn('parse-long', function parseLongImpl(s: CljValue) {
+      if (s === undefined || s.kind !== 'string') {
+        throw EvaluationError.atArg(
+          `parse-long expects a string${s !== undefined ? `, got ${printString(s)}` : ''}`,
+          { s },
+          0
+        )
+      }
+      if (!/^[+-]?\d+$/.test(s.value)) return v.nil()
+      const n = Number.parseInt(s.value, 10)
+      return Number.isFinite(n) ? v.number(n) : v.nil()
+    })
+    .doc(
+      'Parses string s as a long integer. Returns nil if s is not a valid integer string.',
+      [['s']]
+    ),
+
+  'parse-double': v
+    .nativeFn('parse-double', function parseDoubleImpl(s: CljValue) {
+      if (s === undefined || s.kind !== 'string') {
+        throw EvaluationError.atArg(
+          `parse-double expects a string${s !== undefined ? `, got ${printString(s)}` : ''}`,
+          { s },
+          0
+        )
+      }
+      const trimmed = s.value.trim()
+      if (trimmed === '') return v.nil()
+      const n = Number(trimmed)
+      // Number("NaN") → NaN — that's a valid double in JVM Clojure too
+      if (Number.isNaN(n) && trimmed !== 'NaN') return v.nil()
+      return v.number(n)
+    })
+    .doc(
+      'Parses string s as a double. Returns nil if s is not a valid number string.',
+      [['s']]
+    ),
+
+  'parse-boolean': v
+    .nativeFn('parse-boolean', function parseBooleanImpl(s: CljValue) {
+      if (s === undefined || s.kind !== 'string') {
+        throw EvaluationError.atArg(
+          `parse-boolean expects a string${s !== undefined ? `, got ${printString(s)}` : ''}`,
+          { s },
+          0
+        )
+      }
+      if (s.value === 'true') return v.boolean(true)
+      if (s.value === 'false') return v.boolean(false)
+      return v.nil()
+    })
+    .doc(
+      'Parses string s as a boolean. Returns true for "true", false for "false", nil for anything else.',
+      [['s']]
+    ),
 }

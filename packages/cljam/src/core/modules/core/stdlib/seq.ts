@@ -314,19 +314,56 @@ export const seqFunctions: Record<string, CljValue> = {
             { coll, n }
           )
         }
-        // Lazy/cons seqs: materialize to array
+        // Lazy/cons seqs: walk lazily so nth on infinite sequences doesn't hang.
+        // toSeq would try to materialize the entire sequence — fatal for (range), (iterate ...), etc.
         if (is.lazySeq(coll) || is.cons(coll)) {
-          const items = toSeq(coll)
-          if (index < 0 || index >= items.length) {
+          let current: CljValue = coll
+          let i = 0
+          while (true) {
+            // Peel any lazy-seq wrappers before inspecting the head
+            while (is.lazySeq(current)) {
+              current = realizeLazySeq(current)
+            }
+            if (is.nil(current)) {
+              // Sequence ended before reaching index
+              if (notFound !== undefined) return notFound
+              const err = new EvaluationError(
+                `nth index ${index} is out of bounds`,
+                { coll, n }
+              )
+              err.data = { argIndex: 1 }
+              throw err
+            }
+            if (is.cons(current)) {
+              if (i === index) return current.head
+              current = current.tail
+              i++
+              continue
+            }
+            // Sequence terminated in a realized list or vector — index into it directly
+            if (is.list(current) || is.vector(current)) {
+              const relativeIndex = index - i
+              const items = current.value
+              if (relativeIndex < 0 || relativeIndex >= items.length) {
+                if (notFound !== undefined) return notFound
+                const err = new EvaluationError(
+                  `nth index ${index} is out of bounds for collection of length ${i + items.length}`,
+                  { coll, n }
+                )
+                err.data = { argIndex: 1 }
+                throw err
+              }
+              return items[relativeIndex]
+            }
+            // Non-sequential terminal (shouldn't happen in well-formed sequences)
             if (notFound !== undefined) return notFound
             const err = new EvaluationError(
-              `nth index ${index} is out of bounds for collection of length ${items.length}`,
+              `nth index ${index} is out of bounds`,
               { coll, n }
             )
             err.data = { argIndex: 1 }
             throw err
           }
-          return items[index]
         }
         if (!is.list(coll) && !is.vector(coll)) {
           throw new EvaluationError(

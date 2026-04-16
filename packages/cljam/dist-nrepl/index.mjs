@@ -1,9 +1,154 @@
-// src/vite-plugin-cljam/index.ts
-import { execFileSync } from "node:child_process";
-import { readFileSync, writeFileSync as writeFileSync2, readdirSync, statSync } from "node:fs";
-import { resolve as resolve2, relative, join as join2, dirname as dirname2 } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-import { createRequire } from "node:module";
+// src/bin/nrepl.ts
+import * as net from "net";
+import { readFileSync as readFileSync2, writeFileSync as writeFileSync2, unlinkSync, existsSync as existsSync2 } from "node:fs";
+import { join } from "node:path";
+
+// src/bin/bencode.ts
+import * as stream from "stream";
+import { Buffer as Buffer2 } from "buffer";
+var bencode = (value) => {
+  if (value === null || value === void 0) {
+    value = 0;
+  }
+  if (typeof value == "boolean") {
+    value = value ? 1 : 0;
+  }
+  if (typeof value == "number") {
+    return "i" + value + "e";
+  }
+  if (typeof value == "string") {
+    return Buffer2.byteLength(value, "utf8") + ":" + value;
+  }
+  if (value instanceof Array) {
+    return "l" + value.map(bencode).join("") + "e";
+  }
+  let out = "d";
+  for (const prop in value) {
+    out += bencode(prop) + bencode(value[prop]);
+  }
+  return out + "e";
+};
+var BEncoderStream = class extends stream.Transform {
+  data = [];
+  constructor() {
+    super({ objectMode: true });
+  }
+  _transform(object, _encoding, cb) {
+    const enc = bencode(object);
+    this.push(enc);
+    cb();
+  }
+};
+var BIncrementalDecoder = class {
+  state = { id: "ready" };
+  stack = [];
+  complete(data) {
+    if (this.stack.length) {
+      this.state = this.stack.pop();
+      if (this.state.id == "list") {
+        this.state.accum.push(data);
+        this.stack.push(this.state);
+        this.state = { id: "ready" };
+      } else if (this.state.id == "dict") {
+        if (this.state.key !== null) {
+          this.state.accum[this.state.key] = data;
+          this.state.key = null;
+        } else {
+          this.state.key = data;
+        }
+        this.stack.push(this.state);
+        this.state = { id: "ready" };
+      }
+    } else {
+      this.state = { id: "ready" };
+      return data;
+    }
+  }
+  write(byte) {
+    const ch = String.fromCharCode(byte);
+    if (this.state.id == "ready") {
+      switch (ch) {
+        case "i":
+          this.state = { id: "int", accum: "" };
+          break;
+        case "d":
+          this.stack.push({ id: "dict", accum: {}, key: null });
+          break;
+        case "l":
+          this.stack.push({ id: "list", accum: [] });
+          break;
+        case "e":
+          if (!this.stack.length) {
+            throw "unexpected end";
+          }
+          this.state = this.stack.pop();
+          if (this.state.id == "dict") {
+            if (this.state.key !== null) {
+              throw "Missing value in dict";
+            }
+            return this.complete(this.state.accum);
+          } else if (this.state.id == "list") {
+            return this.complete(this.state.accum);
+          }
+          break;
+        default:
+          if (ch >= "0" && ch <= "9") {
+            this.state = { id: "string-start", accum: ch };
+          } else {
+            throw "Malformed input in bencode";
+          }
+      }
+    } else if (this.state.id == "int") {
+      if (ch == "e") {
+        return this.complete(parseInt(this.state.accum));
+      } else {
+        this.state.accum += ch;
+      }
+    } else if (this.state.id == "string-start") {
+      if (ch == ":") {
+        if (!isFinite(+this.state.accum)) {
+          throw new Error("Invalid string length: " + this.state.accum);
+        }
+        if (+this.state.accum == 0) {
+          return this.complete("");
+        }
+        this.state = {
+          id: "string-body",
+          accum: [],
+          length: +this.state.accum
+        };
+      } else {
+        this.state.accum += ch;
+      }
+    } else if (this.state.id == "string-body") {
+      this.state.accum.push(byte);
+      if (this.state.accum.length >= this.state.length) {
+        return this.complete(Buffer2.from(this.state.accum).toString("utf8"));
+      }
+    } else if (this.state.id == "list") {
+      return this.complete(this.state.accum);
+    } else if (this.state.id == "dict") {
+      return this.complete(this.state.accum);
+    } else {
+      throw "Junk in bencode";
+    }
+  }
+};
+var BDecoderStream = class extends stream.Transform {
+  decoder = new BIncrementalDecoder();
+  constructor() {
+    super({ objectMode: true });
+  }
+  _transform(data, _encoding, cb) {
+    for (let i = 0; i < data.length; i++) {
+      const res = this.decoder.write(data[i]);
+      if (res) {
+        this.push(res);
+      }
+    }
+    cb();
+  }
+};
 
 // src/clojure/generated/cljam-handbook-source.ts
 var cljam_handbookSource = `(ns cljam.handbook
@@ -3483,6 +3628,7 @@ var cljMultiArityFunction = (arities, env) => ({
   arities,
   env
 });
+var cljNativeFunction = (name, fn) => ({ kind: "native-function", name, fn });
 var cljMacro = (params, restParam, body, env) => ({
   kind: "macro",
   arities: [{ params, restParam, body }],
@@ -14839,6 +14985,12 @@ function createRuntime(options) {
   runtime.installModules([makeCoreModule(), makeJsModule()]);
   return runtime;
 }
+function restoreRuntime(snapshot, options) {
+  const registry = cloneRegistry(snapshot.registry);
+  const coreEnv = registry.get("clojure.core");
+  const runtime = buildRuntime(registry, coreEnv, options);
+  return runtime;
+}
 
 // src/core/session.ts
 function buildSessionFacade(runtime, initialNs, options) {
@@ -15138,69 +15290,50 @@ function createSession(options) {
   }
   return session;
 }
+function snapshotSession(session) {
+  return {
+    runtimeSnapshot: session.runtime.snapshot(),
+    currentNs: session.currentNs,
+    libraries: session.libraries
+  };
+}
+function createSessionFromSnapshot(snapshot, options) {
+  const libraries = [
+    ...snapshot.libraries,
+    ...options?.libraries ?? []
+  ];
+  const registeredSources = /* @__PURE__ */ new Map();
+  for (const lib of libraries) {
+    for (const [nsName, source] of Object.entries(lib.sources ?? {})) {
+      registeredSources.set(nsName, source);
+    }
+  }
+  const runtime = restoreRuntime(snapshot.runtimeSnapshot, {
+    sourceRoots: options?.sourceRoots,
+    readFile: options?.readFile,
+    registeredSources: registeredSources.size > 0 ? registeredSources : void 0
+  });
+  const libraryModules = libraries.flatMap((lib) => lib.module ? [lib.module] : []);
+  if (libraryModules.length > 0) {
+    runtime.installModules(libraryModules);
+  }
+  const mergedOptions = { ...options, libraries };
+  const session = buildSessionFacade(runtime, snapshot.currentNs, mergedOptions);
+  for (const source of options?.entries ?? []) {
+    session.loadFile(source);
+  }
+  return session;
+}
+
+// src/core/index.ts
+function readString(source) {
+  const tokens = tokenize(source);
+  const forms = readForms(tokens);
+  if (forms.length === 0) throw new Error("readString: empty input");
+  return forms[0];
+}
 
 // src/vite-plugin-cljam/namespace-utils.ts
-import { resolve, dirname } from "node:path";
-function pathToNs(filePath, sourceRoots) {
-  const normalized = filePath.replace(/\\/g, "/");
-  for (const root of sourceRoots) {
-    const normalizedRoot = root.replace(/\\/g, "/").replace(/\/$/, "") + "/";
-    if (normalized.startsWith(normalizedRoot)) {
-      return normalized.slice(normalizedRoot.length).replace(/\.clj$/, "").replace(/\//g, ".");
-    }
-  }
-  throw new Error(
-    `File ${filePath} is not under any configured source root: ${sourceRoots.join(", ")}`
-  );
-}
-function nsToPath(nsName, sourceRoot) {
-  const root = sourceRoot.replace(/\/$/, "");
-  return `${root}/${nsName.replace(/\./g, "/")}.clj`;
-}
-function extractNsRequires(source) {
-  const forms = readForms(tokenize(source));
-  const nsForm = forms.find(
-    (f) => isList(f) && isSymbol(f.value[0]) && f.value[0].name === "ns"
-  );
-  if (!nsForm || !isList(nsForm)) return [];
-  const requires = [];
-  for (let i = 2; i < nsForm.value.length; i++) {
-    const clause = nsForm.value[i];
-    if (isList(clause) && isKeyword(clause.value[0]) && clause.value[0].name === ":require") {
-      for (let j = 1; j < clause.value.length; j++) {
-        const spec = clause.value[j];
-        if (isVector(spec) && spec.value.length > 0 && isSymbol(spec.value[0])) {
-          requires.push(spec.value[0].name);
-        }
-      }
-    }
-  }
-  return requires;
-}
-function extractStringRequires(source, filePath) {
-  const forms = readForms(tokenize(source));
-  const nsForm = forms.find(
-    (f) => isList(f) && isSymbol(f.value[0]) && f.value[0].name === "ns"
-  );
-  if (!nsForm || !isList(nsForm)) return [];
-  const specifiers = [];
-  for (let i = 2; i < nsForm.value.length; i++) {
-    const clause = nsForm.value[i];
-    if (isList(clause) && isKeyword(clause.value[0]) && clause.value[0].name === ":require") {
-      for (let j = 1; j < clause.value.length; j++) {
-        const spec = clause.value[j];
-        const first = isVector(spec) && spec.value.length > 0 ? spec.value[0] : null;
-        if (!first || first.kind !== "string") continue;
-        let specifier = first.value;
-        if (filePath && (specifier.startsWith("./") || specifier.startsWith("../"))) {
-          specifier = resolve(dirname(filePath), specifier);
-        }
-        specifiers.push(specifier);
-      }
-    }
-  }
-  return [...new Set(specifiers)];
-}
 function extractNsName(source) {
   const forms = readForms(tokenize(source));
   const nsForm = forms.find(
@@ -15211,524 +15344,17 @@ function extractNsName(source) {
   return isSymbol(nameSymbol) ? nameSymbol.name : null;
 }
 
-// src/vite-plugin-cljam/static-analysis.ts
-function readNamespaceVars(source) {
-  const forms = readForms(tokenize(source));
-  const descriptors = [];
-  for (const form of forms) {
-    if (!isList(form) || form.value.length < 2) continue;
-    const head = form.value[0];
-    if (!isSymbol(head)) continue;
-    const descriptor = parseTopLevelDef(form, head.name);
-    if (descriptor) descriptors.push(descriptor);
-  }
-  return descriptors;
-}
-function hasPrivateMeta(meta) {
-  return (meta?.entries ?? []).some(
-    ([k, val]) => k.kind === "keyword" && k.name === ":private" && val.kind === "boolean" && val.value === true
-  );
-}
-function parseTopLevelDef(form, op) {
-  switch (op) {
-    case "defn":
-      return parseDefn(form, false, false);
-    case "defn-":
-      return parseDefn(form, true, false);
-    case "defmacro":
-      return parseDefn(form, false, true);
-    case "def":
-    case "defonce":
-      return parseDef(form);
-    case "declare":
-      return parseDeclare(form);
-    default:
-      return null;
-  }
-}
-function parseDefn(form, isPrivate, isMacro2) {
-  const nameSym = form.value[1];
-  if (!isSymbol(nameSym)) return null;
-  const private_ = isPrivate || hasPrivateMeta(nameSym.meta);
-  const rest = form.value.slice(2);
-  const start = rest.length > 0 && rest[0].kind === "string" ? 1 : 0;
-  const bodyForms = rest.slice(start);
-  if (bodyForms.length === 0) {
-    return { name: nameSym.name, kind: "fn", arities: [], isPrivate: private_, isMacro: isMacro2 };
-  }
-  const arities = isList(bodyForms[0]) ? (
-    // Multi-arity: each clause is a list whose first element is the params vector
-    bodyForms.filter(isList).map(parseArityClause)
-  ) : (
-    // Single-arity: bodyForms[0] is the params vector
-    isVector(bodyForms[0]) ? [vectorToArity(bodyForms[0])] : []
-  );
-  return { name: nameSym.name, kind: "fn", arities, isPrivate: private_, isMacro: isMacro2 };
-}
-function parseArityClause(clause) {
-  const paramVec = clause.value[0];
-  return isVector(paramVec) ? vectorToArity(paramVec) : { params: [], restParam: null, body: [] };
-}
-function vectorToArity(paramVec) {
-  const params = [];
-  let restParam = null;
-  for (let i = 0; i < paramVec.value.length; i++) {
-    const p = paramVec.value[i];
-    if (isSymbol(p) && p.name === "&") {
-      const next = paramVec.value[i + 1];
-      if (next) restParam = next;
-      break;
-    }
-    params.push(p);
-  }
-  return { params, restParam, body: [] };
-}
-function parseDef(form) {
-  const nameSym = form.value[1];
-  if (!isSymbol(nameSym)) return null;
-  const isPrivate = hasPrivateMeta(nameSym.meta);
-  const value = form.value[2];
-  if (!value) {
-    return { name: nameSym.name, kind: "unknown", isPrivate, isMacro: false };
-  }
-  const fnArities = tryExtractFnArities(value);
-  if (fnArities !== null) {
-    return { name: nameSym.name, kind: "fn", arities: fnArities, isPrivate, isMacro: false };
-  }
-  const tsType = inferLiteralTsType(value);
-  if (tsType !== null) {
-    return { name: nameSym.name, kind: "const", tsType, isPrivate, isMacro: false };
-  }
-  return { name: nameSym.name, kind: "unknown", isPrivate, isMacro: false };
-}
-function inferLiteralTsType(value) {
-  switch (value.kind) {
-    case "number":
-      return "number";
-    case "string":
-      return "string";
-    case "boolean":
-      return "boolean";
-    case "nil":
-      return "null";
-    case "keyword":
-      return "string";
-    case "vector":
-    case "set":
-      return "unknown[]";
-    case "map":
-      return "Record<string, unknown>";
-    default:
-      return null;
-  }
-}
-function parseDeclare(form) {
-  const nameSym = form.value[1];
-  if (!isSymbol(nameSym)) return null;
-  return { name: nameSym.name, kind: "unknown", isPrivate: false, isMacro: false };
-}
-function readDeftestNames(source) {
-  const forms = readForms(tokenize(source));
-  const names = [];
-  for (const form of forms) {
-    if (!isList(form) || form.value.length < 2) continue;
-    const head = form.value[0];
-    if (!isSymbol(head) || !isDeftestHead(head.name)) continue;
-    const nameSym = form.value[1];
-    if (isSymbol(nameSym)) names.push(nameSym.name);
-  }
-  return names;
-}
-function isDeftestHead(name) {
-  return name === "deftest" || name.endsWith("/deftest");
-}
-function tryExtractFnArities(value) {
-  if (!isList(value)) return null;
-  const head = value.value[0];
-  if (!isSymbol(head) || head.name !== "fn") return null;
-  let rest = value.value.slice(1);
-  if (rest.length > 0 && isSymbol(rest[0])) rest = rest.slice(1);
-  if (rest.length === 0) return [];
-  if (isVector(rest[0])) {
-    return [vectorToArity(rest[0])];
-  }
-  return rest.filter(isList).map(parseArityClause);
-}
-
-// src/vite-plugin-cljam/codegen.ts
-function generateModuleCode(ctx, nsNameFromPath, source, filePath) {
-  const nsName = extractNsName(source) ?? nsNameFromPath;
-  const hasStringRequires = extractStringRequires(source, filePath).length > 0;
-  const requires = extractNsRequires(source);
-  const depImports = requires.map((depNs) => {
-    const depPath = ctx.resolveDepPath(depNs);
-    if (depPath) return `import ${JSON.stringify(depPath)};`;
+// src/bin/nrepl-utils.ts
+function inferSourceRoot(filePath, source) {
+  const nsName = extractNsName(source);
+  if (!nsName) return null;
+  const normalizedPath = filePath.replace(/\\/g, "/");
+  const nsSuffix = `/${nsName.replace(/\./g, "/")}.clj`;
+  if (!normalizedPath.endsWith(nsSuffix)) {
     return null;
-  }).filter(Boolean).join("\n");
-  const vars = readNamespaceVars(source);
-  const exportLines = [];
-  for (const descriptor of vars) {
-    if (descriptor.isMacro) continue;
-    if (descriptor.isPrivate) continue;
-    const safeName = safeJsIdentifier(descriptor.name);
-    const deref2 = `__ns.vars.get(${JSON.stringify(descriptor.name)}).value`;
-    if (descriptor.kind === "fn") {
-      exportLines.push(
-        `export function ${safeName}(...args) {  const fn = ${deref2};  const cljArgs = args.map(jsToClj);  const result = __session.applyFunction(fn, cljArgs);  return cljToJs(result, __session);}`
-      );
-    } else {
-      exportLines.push(
-        `export const ${safeName} = cljToJs(${deref2}, __session);`
-      );
-    }
   }
-  const escapedSource = JSON.stringify(source);
-  const loadCall = hasStringRequires ? `await __session.loadFileAsync(${escapedSource}, ${JSON.stringify(nsName)});` : `__session.loadFile(${escapedSource}, ${JSON.stringify(nsName)});`;
-  if (exportLines.length === 0) {
-    return [
-      `import { getSession } from ${JSON.stringify(ctx.virtualSessionId)};`,
-      depImports,
-      ``,
-      `const __session = getSession();`,
-      loadCall,
-      ``,
-      `if (import.meta.hot) { import.meta.hot.accept() }`
-    ].join("\n");
-  }
-  return [
-    `import { getSession } from ${JSON.stringify(ctx.virtualSessionId)};`,
-    `import { cljToJs, jsToClj } from ${JSON.stringify(ctx.coreIndexPath)};`,
-    depImports,
-    ``,
-    `const __session = getSession();`,
-    loadCall,
-    `const __ns = __session.getNs(${JSON.stringify(nsName)});`,
-    ``,
-    ...exportLines,
-    ``,
-    `// Self-accept HMR: re-execute this module on save (updates browser session)`,
-    `// without propagating to parent modules \u2014 prevents full page reload.`,
-    `if (import.meta.hot) { import.meta.hot.accept() }`
-  ].join("\n");
+  return normalizedPath.slice(0, -nsSuffix.length) || "/";
 }
-function generateDts(_ctx, nsNameFromPath, source) {
-  const nsName = extractNsName(source) ?? nsNameFromPath;
-  const vars = readNamespaceVars(source);
-  const declarations = [];
-  for (const descriptor of vars) {
-    if (descriptor.isMacro) continue;
-    if (descriptor.isPrivate) continue;
-    const safeName = safeJsIdentifier(descriptor.name);
-    if (descriptor.kind === "fn") {
-      if (descriptor.arities && descriptor.arities.length > 0) {
-        for (const arity of descriptor.arities) {
-          declarations.push(`export function ${safeName}${arityToSignature(arity)};`);
-        }
-      } else {
-        declarations.push(`export function ${safeName}(...args: unknown[]): unknown;`);
-      }
-    } else {
-      const tsType = descriptor.tsType ?? "unknown";
-      declarations.push(`export const ${safeName}: ${tsType};`);
-    }
-  }
-  void nsName;
-  return declarations.join("\n");
-}
-function generateTestModuleCode(ctx, nsNameFromPath, source, testOptions = {}) {
-  const { testFramework = "vitest", entrypointPath = null } = testOptions;
-  const nsName = extractNsName(source) ?? nsNameFromPath;
-  const deftestNames = readDeftestNames(source);
-  const hasStringRequires = extractStringRequires(source).length > 0;
-  const escapedSource = JSON.stringify(source);
-  const loadCall = hasStringRequires ? `await __session.loadFileAsync(${escapedSource}, ${JSON.stringify(nsName)});` : `__session.loadFile(${escapedSource}, ${JSON.stringify(nsName)});`;
-  const testImport = testFramework === "bun:test" ? `import { test } from 'bun:test';` : `import { test } from 'vitest';`;
-  const failOverride = [
-    "(defmethod clojure.test/report :fail [m]",
-    "  (swap! __vt_failures conj",
-    "    (str",
-    '      (when (:message m) (str (:message m) "\\n"))',
-    '      "expected: " (pr-str (:expected m)) "\\n"',
-    '      "  actual: " (pr-str (:actual m)))))'
-  ].join(" ");
-  const errorOverride = [
-    "(defmethod clojure.test/report :error [m]",
-    "  (swap! __vt_failures conj",
-    '    (str "error: " (pr-str (:actual m)))))'
-  ].join(" ");
-  const sessionLines = entrypointPath ? [
-    `const __session = createSession({`,
-    `  ...(__sessionFactory() ?? {}),`,
-    `  output: (t) => process.stdout.write(t),`,
-    `});`
-  ] : [
-    `const __session = createSession({ output: (t) => process.stdout.write(t) });`
-  ];
-  const lines = [
-    testImport,
-    `import { createSession, cljToJs } from ${JSON.stringify(ctx.coreIndexPath)};`,
-    ...entrypointPath ? [`import __sessionFactory from ${JSON.stringify(entrypointPath)};`] : [],
-    ``,
-    `// Isolated session \u2014 one per test file so state doesn't leak between files.`,
-    ...sessionLines,
-    `// loadFile evaluates the source but doesn't update session.currentNs.`,
-    `// setNs syncs it so subsequent evaluate() calls run in the right namespace.`,
-    `const __loadedNs = ${loadCall.replace(/;$/, "")};`,
-    `__session.setNs(__loadedNs);`,
-    ``,
-    `// Ensure clojure.test is available for override installation.`,
-    `__session.evaluate("(require '[clojure.test])");`,
-    ``,
-    `// Test-framework failure bridge: override :fail/:error to accumulate strings in an atom.`,
-    `// All other report methods are silenced \u2014 the test runner controls the output.`,
-    `__session.evaluate("(def __vt_failures (atom []))");`,
-    `__session.evaluate(${JSON.stringify(failOverride)});`,
-    `__session.evaluate(${JSON.stringify(errorOverride)});`,
-    `__session.evaluate("(defmethod clojure.test/report :pass [_] nil)");`,
-    `__session.evaluate("(defmethod clojure.test/report :begin-test-var [_] nil)");`,
-    `__session.evaluate("(defmethod clojure.test/report :end-test-var [_] nil)");`,
-    `__session.evaluate("(defmethod clojure.test/report :begin-test-ns [_] nil)");`,
-    `__session.evaluate("(defmethod clojure.test/report :end-test-ns [_] nil)");`,
-    `__session.evaluate("(defmethod clojure.test/report :summary [_] nil)");`,
-    ``,
-    `// Compose the :each fixture chain once for this file.`,
-    `// join-fixtures of [] \u2192 default-fixture \u2192 (fn [f] (f)), so zero-fixture files pay no overhead.`,
-    `// use-fixtures calls populate fixture-registry at loadFile time, so this runs after registration.`,
-    `__session.evaluate(${JSON.stringify(`(def __vt_each_fixture (clojure.test/join-fixtures (get @clojure.test/fixture-registry [${JSON.stringify(nsName)} :each] [])))`)}); `,
-    ``
-  ];
-  for (const testName of deftestNames) {
-    lines.push(
-      `test(${JSON.stringify(testName)}, async () => {`,
-      `  __session.evaluate("(reset! __vt_failures [])");`,
-      `  // evaluateAsync awaits CljPending results (returned by (async ...) blocks),`,
-      `  // and returns synchronously for ordinary deftests \u2014 no overhead either way.`,
-      `  // __vt_each_fixture applies any :each fixtures registered via (use-fixtures :each ...).`,
-      `  await __session.evaluateAsync(${JSON.stringify(`(__vt_each_fixture (fn [] (${testName})))`)});`,
-      `  const __failures = cljToJs(__session.evaluate("@__vt_failures"), __session);`,
-      `  if (Array.isArray(__failures) && __failures.length > 0) {`,
-      `    throw new Error(__failures.join('\\n\\n'));`,
-      `  }`,
-      `});`,
-      ``
-    );
-  }
-  return lines.join("\n");
-}
-function patternName(p, index) {
-  if (p.kind === "symbol") return safeJsIdentifier(p.name);
-  return `arg${index}`;
-}
-function arityToSignature(arity) {
-  const fixedParams = arity.params.map((p, i) => `${patternName(p, i)}: unknown`).join(", ");
-  if (arity.restParam) {
-    const restName = arity.restParam.kind === "symbol" ? safeJsIdentifier(arity.restParam.name) : "rest";
-    const params = fixedParams ? `${fixedParams}, ...${restName}: unknown[]` : `...${restName}: unknown[]`;
-    return `(${params}): unknown`;
-  }
-  return `(${fixedParams}): unknown`;
-}
-var JS_RESERVED_WORDS = /* @__PURE__ */ new Set([
-  "break",
-  "case",
-  "catch",
-  "class",
-  "const",
-  "continue",
-  "debugger",
-  "default",
-  "delete",
-  "do",
-  "else",
-  "export",
-  "extends",
-  "false",
-  "finally",
-  "for",
-  "function",
-  "if",
-  "import",
-  "in",
-  "instanceof",
-  "let",
-  "new",
-  "null",
-  "return",
-  "static",
-  "super",
-  "switch",
-  "this",
-  "throw",
-  "true",
-  "try",
-  "typeof",
-  "var",
-  "void",
-  "while",
-  "with",
-  "yield",
-  "enum",
-  "await"
-]);
-function safeJsIdentifier(name) {
-  const transformed = name.replace(/(?<=[a-zA-Z0-9])-(?=[a-zA-Z0-9])/g, "_").replace(/-/g, "_MINUS_").replace(/\//g, "_DIV_").replace(/\?/g, "_QMARK_").replace(/!/g, "_BANG_").replace(/\*/g, "_STAR_").replace(/\+/g, "_PLUS_").replace(/>/g, "_GT_").replace(/</g, "_LT_").replace(/=/g, "_EQ_").replace(/\./g, "_DOT_").replace(/'/g, "_QUOTE_");
-  return JS_RESERVED_WORDS.has(transformed) ? `$${transformed}` : transformed;
-}
-
-// src/nrepl/relay.ts
-import * as net from "node:net";
-import { writeFileSync, unlinkSync, existsSync } from "node:fs";
-import { join } from "node:path";
-
-// src/bin/bencode.ts
-import * as stream from "stream";
-import { Buffer } from "buffer";
-var bencode = (value) => {
-  if (value === null || value === void 0) {
-    value = 0;
-  }
-  if (typeof value == "boolean") {
-    value = value ? 1 : 0;
-  }
-  if (typeof value == "number") {
-    return "i" + value + "e";
-  }
-  if (typeof value == "string") {
-    return Buffer.byteLength(value, "utf8") + ":" + value;
-  }
-  if (value instanceof Array) {
-    return "l" + value.map(bencode).join("") + "e";
-  }
-  let out = "d";
-  for (const prop in value) {
-    out += bencode(prop) + bencode(value[prop]);
-  }
-  return out + "e";
-};
-var BEncoderStream = class extends stream.Transform {
-  data = [];
-  constructor() {
-    super({ objectMode: true });
-  }
-  _transform(object, _encoding, cb) {
-    const enc = bencode(object);
-    this.push(enc);
-    cb();
-  }
-};
-var BIncrementalDecoder = class {
-  state = { id: "ready" };
-  stack = [];
-  complete(data) {
-    if (this.stack.length) {
-      this.state = this.stack.pop();
-      if (this.state.id == "list") {
-        this.state.accum.push(data);
-        this.stack.push(this.state);
-        this.state = { id: "ready" };
-      } else if (this.state.id == "dict") {
-        if (this.state.key !== null) {
-          this.state.accum[this.state.key] = data;
-          this.state.key = null;
-        } else {
-          this.state.key = data;
-        }
-        this.stack.push(this.state);
-        this.state = { id: "ready" };
-      }
-    } else {
-      this.state = { id: "ready" };
-      return data;
-    }
-  }
-  write(byte) {
-    const ch = String.fromCharCode(byte);
-    if (this.state.id == "ready") {
-      switch (ch) {
-        case "i":
-          this.state = { id: "int", accum: "" };
-          break;
-        case "d":
-          this.stack.push({ id: "dict", accum: {}, key: null });
-          break;
-        case "l":
-          this.stack.push({ id: "list", accum: [] });
-          break;
-        case "e":
-          if (!this.stack.length) {
-            throw "unexpected end";
-          }
-          this.state = this.stack.pop();
-          if (this.state.id == "dict") {
-            if (this.state.key !== null) {
-              throw "Missing value in dict";
-            }
-            return this.complete(this.state.accum);
-          } else if (this.state.id == "list") {
-            return this.complete(this.state.accum);
-          }
-          break;
-        default:
-          if (ch >= "0" && ch <= "9") {
-            this.state = { id: "string-start", accum: ch };
-          } else {
-            throw "Malformed input in bencode";
-          }
-      }
-    } else if (this.state.id == "int") {
-      if (ch == "e") {
-        return this.complete(parseInt(this.state.accum));
-      } else {
-        this.state.accum += ch;
-      }
-    } else if (this.state.id == "string-start") {
-      if (ch == ":") {
-        if (!isFinite(+this.state.accum)) {
-          throw new Error("Invalid string length: " + this.state.accum);
-        }
-        if (+this.state.accum == 0) {
-          return this.complete("");
-        }
-        this.state = {
-          id: "string-body",
-          accum: [],
-          length: +this.state.accum
-        };
-      } else {
-        this.state.accum += ch;
-      }
-    } else if (this.state.id == "string-body") {
-      this.state.accum.push(byte);
-      if (this.state.accum.length >= this.state.length) {
-        return this.complete(Buffer.from(this.state.accum).toString("utf8"));
-      }
-    } else if (this.state.id == "list") {
-      return this.complete(this.state.accum);
-    } else if (this.state.id == "dict") {
-      return this.complete(this.state.accum);
-    } else {
-      throw "Junk in bencode";
-    }
-  }
-};
-var BDecoderStream = class extends stream.Transform {
-  decoder = new BIncrementalDecoder();
-  constructor() {
-    super({ objectMode: true });
-  }
-  _transform(data, _encoding, cb) {
-    for (let i = 0; i < data.length; i++) {
-      const res = this.decoder.write(data[i]);
-      if (res) {
-        this.push(res);
-      }
-    }
-    cb();
-  }
-};
-
-// src/bin/version.ts
-var VERSION = "0.0.18";
 
 // src/bin/nrepl-symbol.ts
 function resolveSymbol(sym, session, contextNs) {
@@ -15812,9 +15438,98 @@ function extractMeta(value, varMeta) {
   return { doc, arglistsStr, eldocArgs, type };
 }
 
-// src/nrepl/relay.ts
-function makeId() {
+// src/bin/version.ts
+var VERSION = "0.0.18";
+
+// src/host/node-host-module.ts
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+function makeNodeHostModule(session) {
+  return {
+    id: "conjure/host-node",
+    dependsOn: ["clojure.core"],
+    declareNs: [
+      {
+        name: "clojure.core",
+        vars(_ctx) {
+          return /* @__PURE__ */ new Map([
+            [
+              "slurp",
+              {
+                value: cljNativeFunction("slurp", (pathVal) => {
+                  const filePath = resolve(valueToString(pathVal));
+                  if (!existsSync(filePath)) {
+                    throw new Error(`slurp: file not found: ${filePath}`);
+                  }
+                  return cljString(readFileSync(filePath, "utf8"));
+                })
+              }
+            ],
+            [
+              "spit",
+              {
+                value: cljNativeFunction(
+                  "spit",
+                  (pathVal, content) => {
+                    const filePath = resolve(valueToString(pathVal));
+                    writeFileSync(filePath, valueToString(content), "utf8");
+                    return cljNil();
+                  }
+                )
+              }
+            ],
+            [
+              "load",
+              {
+                value: cljNativeFunction("load", (pathVal) => {
+                  const filePath = resolve(valueToString(pathVal));
+                  if (!existsSync(filePath)) {
+                    throw new Error(`load: file not found: ${filePath}`);
+                  }
+                  const source = readFileSync(filePath, "utf8");
+                  const inferred = inferSourceRoot(filePath, source);
+                  if (inferred) session.addSourceRoot(inferred);
+                  const loadedNs = session.loadFile(source);
+                  session.setNs(loadedNs);
+                  return cljNil();
+                })
+              }
+            ]
+          ]);
+        }
+      }
+    ]
+  };
+}
+
+// src/bin/nrepl.ts
+var CONJURE_VERSION = VERSION;
+function makeSessionId() {
   return crypto.randomUUID();
+}
+function createManagedSession(id, snapshot, encoder, sourceRoots, onOutput, importModule) {
+  let currentMsgId = "";
+  const session = createSessionFromSnapshot(snapshot, {
+    output: (text) => {
+      send(encoder, { id: currentMsgId, session: id, out: text });
+      onOutput?.(text);
+    },
+    readFile: (filePath) => readFileSync2(filePath, "utf8"),
+    sourceRoots,
+    importModule
+  });
+  session.runtime.installModules([makeNodeHostModule(session)]);
+  return {
+    id,
+    session,
+    get currentMsgId() {
+      return currentMsgId;
+    },
+    set currentMsgId(v2) {
+      currentMsgId = v2;
+    },
+    nsToFile: /* @__PURE__ */ new Map()
+  };
 }
 function send(encoder, msg) {
   encoder.write(msg);
@@ -15827,29 +15542,14 @@ function done(encoder, id, sessionId, extra = {}) {
     ...extra
   });
 }
-async function forwardToB(event, data, ws, pending, timeoutMs = 15e3) {
-  const correlationId = makeId();
-  if (ws.clients.size === 0) {
-    return { id: correlationId, error: "No browser tab connected to Vite dev server" };
-  }
-  return new Promise((resolve3) => {
-    const timer = setTimeout(() => {
-      if (pending.has(correlationId)) {
-        pending.delete(correlationId);
-        resolve3({ id: correlationId, error: "Timed out \u2014 no response from browser (15s)" });
-      }
-    }, timeoutMs);
-    pending.set(correlationId, (result) => {
-      clearTimeout(timer);
-      resolve3(result);
-    });
-    ws.send({ type: "custom", event, data: { ...data, id: correlationId } });
-  });
-}
-function handleClone(msg, sessions, encoder) {
+function handleClone(msg, serverSessions, connectionSessionIds, snapshot, encoder, sourceRoots, onOutput, importModule) {
   const id = msg["id"] ?? "";
-  const newId = makeId();
-  sessions.set(newId, { id: newId, currentNs: "user" });
+  const newId = makeSessionId();
+  const managed = createManagedSession(newId, snapshot, encoder, sourceRoots, onOutput, importModule);
+  serverSessions.set(newId, managed);
+  connectionSessionIds.add(newId);
+  process.stderr.write(`[nREPL] New session: ${newId}
+`);
   done(encoder, id, void 0, { "new-session": newId });
 }
 function handleDescribe(msg, encoder) {
@@ -15865,22 +15565,172 @@ function handleDescribe(msg, encoder) {
       eldoc: {},
       info: {},
       lookup: {},
-      "load-file": {}
+      "load-file": {},
+      "ls-sessions": {}
     },
-    versions: { conjure: { "version-string": VERSION } }
+    versions: {
+      conjure: { "version-string": CONJURE_VERSION }
+    }
   });
 }
-function handleComplete(msg, session, encoder, serverSession) {
+async function handleEval(msg, managed, encoder, meshNode) {
+  const id = msg["id"] ?? "";
+  const code = msg["code"] ?? "";
+  managed.currentMsgId = id;
+  const lineOffset = typeof msg["line"] === "number" ? msg["line"] - 1 : 0;
+  const colOffset = typeof msg["column"] === "number" ? msg["column"] - 1 : 0;
+  const MESH_LOCAL_ONLY = /* @__PURE__ */ new Set(["set-target!", "*eval-target*"]);
+  const isMeshControl = (() => {
+    try {
+      const first = readString(code.trim());
+      if (first.kind === "symbol") {
+        const resolved2 = resolveSymbol2(first.name, managed);
+        return resolved2?.resolvedNs === "mesh" && MESH_LOCAL_ONLY.has(resolved2.localName);
+      }
+      if (first.kind !== "list" || first.value.length === 0) return false;
+      const head = first.value[0];
+      if (head.kind !== "symbol") return false;
+      const resolved = resolveSymbol2(head.name, managed);
+      return resolved?.resolvedNs === "mesh" && MESH_LOCAL_ONLY.has(resolved?.localName ?? "");
+    } catch {
+      return false;
+    }
+  })();
+  if (!isMeshControl && meshNode) {
+    const meshNs = managed.session.getNs("mesh");
+    const evalTargetVar = meshNs?.vars.get("*eval-target*");
+    const targetVal = evalTargetVar?.value;
+    if (targetVal?.kind === "string" && targetVal.value) {
+      const targetId = targetVal.value;
+      try {
+        const result = await meshNode.evalAt(
+          targetId,
+          code,
+          managed.session.currentNs,
+          void 0,
+          (chunk) => {
+            if (chunk.type === "out")
+              send(encoder, { id, session: managed.id, out: chunk.text });
+            else send(encoder, { id, session: managed.id, err: chunk.text });
+          }
+        );
+        if (result.error) {
+          done(encoder, id, managed.id, {
+            ex: result.error,
+            err: result.error + "\n",
+            ns: managed.session.currentNs,
+            status: ["eval-error", "done"]
+          });
+        } else {
+          done(encoder, id, managed.id, {
+            value: result.value ?? "nil",
+            ns: managed.session.currentNs
+          });
+        }
+      } catch (e) {
+        const msg2 = e instanceof Error ? e.message : String(e);
+        const isUnreachable = msg2.includes("not registered") || msg2.includes("Timeout");
+        if (isUnreachable) {
+          const meshNsClear = managed.session.getNs("mesh");
+          const evalTargetVarClear = meshNsClear?.vars.get("*eval-target*");
+          if (evalTargetVarClear) evalTargetVarClear.value = cljNil();
+          const errMsg = `Node '${targetId}' unreachable \u2014 *eval-target* cleared. Eval dropped. Re-send to try on this node or try another node.
+`;
+          done(encoder, id, managed.id, {
+            ex: errMsg,
+            err: errMsg,
+            ns: managed.session.currentNs,
+            status: ["eval-error", "done"]
+          });
+        } else {
+          done(encoder, id, managed.id, {
+            ex: msg2,
+            err: msg2 + "\n",
+            ns: managed.session.currentNs,
+            status: ["eval-error", "done"]
+          });
+        }
+      }
+      return;
+    }
+  }
+  try {
+    const result = await managed.session.evaluateAsync(code, {
+      lineOffset,
+      colOffset
+    });
+    const coreNs = managed.session.getNs("clojure.core");
+    const lenVar = coreNs?.vars.get("*print-length*");
+    const lvlVar = coreNs?.vars.get("*print-level*");
+    const printLen = lenVar ? derefValue(lenVar) : void 0;
+    const printLvl = lvlVar ? derefValue(lvlVar) : void 0;
+    const resultStr = withPrintContext(
+      {
+        printLength: printLen?.kind === "number" ? printLen.value : null,
+        printLevel: printLvl?.kind === "number" ? printLvl.value : null
+      },
+      () => printString(result)
+    );
+    done(encoder, id, managed.id, {
+      value: resultStr,
+      ns: managed.session.currentNs
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    done(encoder, id, managed.id, {
+      ex: message,
+      err: message + "\n",
+      ns: managed.session.currentNs,
+      status: ["eval-error", "done"]
+    });
+  }
+}
+async function handleLoadFile(msg, managed, encoder) {
+  const id = msg["id"] ?? "";
+  const source = msg["file"] ?? "";
+  const fileName = msg["file-name"] ?? "";
+  const filePath = msg["file-path"] ?? "";
+  managed.currentMsgId = id;
+  try {
+    if (filePath) {
+      const inferred = inferSourceRoot(filePath, source);
+      if (inferred) {
+        managed.session.addSourceRoot(inferred);
+      }
+    }
+    const nsHint = fileName.replace(/\.clj$/, "").replace(/\//g, ".") || void 0;
+    const loadedNs = await managed.session.loadFileAsync(
+      source,
+      nsHint,
+      filePath || void 0
+    );
+    if (filePath && loadedNs) {
+      managed.nsToFile.set(loadedNs, filePath);
+    }
+    managed.session.setNs(loadedNs);
+    done(encoder, id, managed.id, {
+      value: "nil",
+      ns: managed.session.currentNs
+    });
+  } catch (error) {
+    done(encoder, id, managed.id, {
+      ex: error instanceof Error ? error.message : String(error),
+      ns: managed.session.currentNs,
+      status: ["eval-error", "done"]
+    });
+  }
+}
+function handleComplete(msg, managed, encoder) {
   const id = msg["id"] ?? "";
   const prefix = msg["prefix"] ?? "";
-  const nsName = msg["ns"] ?? session.currentNs;
-  const names = serverSession.getCompletions(prefix, nsName);
+  const nsName = msg["ns"];
+  const names = managed.session.getCompletions(prefix, nsName);
   const completions = names.map((c) => ({
     candidate: c,
     type: "var",
-    ns: session.currentNs
+    ns: managed.session.currentNs
   }));
-  done(encoder, id, session.id, { completions });
+  done(encoder, id, managed.id, { completions });
 }
 function handleClose(msg, sessions, encoder) {
   const id = msg["id"] ?? "";
@@ -15888,560 +15738,239 @@ function handleClose(msg, sessions, encoder) {
   sessions.delete(sessionId);
   send(encoder, { id, session: sessionId, status: ["done"] });
 }
-function handleInfo(msg, session, encoder, serverSession) {
+function resolveSymbol2(sym, managed, contextNs) {
+  return resolveSymbol(sym, managed.session, contextNs);
+}
+function extractMeta2(resolved) {
+  return extractMeta(resolved.value, resolved.varObj?.meta);
+}
+function handleInfo(msg, managed, encoder) {
   const id = msg["id"] ?? "";
   const sym = msg["sym"];
   const nsOverride = msg["ns"];
   if (!sym) {
-    done(encoder, id, session.id, { status: ["no-info", "done"] });
+    done(encoder, id, managed.id, { status: ["no-info", "done"] });
     return;
   }
-  const resolved = resolveSymbol(sym, serverSession, nsOverride ?? session.currentNs);
+  const resolved = resolveSymbol2(sym, managed, nsOverride);
   if (!resolved) {
-    done(encoder, id, session.id, { status: ["no-info", "done"] });
+    const nsFile = managed.nsToFile.get(sym);
+    if (nsFile) {
+      done(encoder, id, managed.id, {
+        ns: sym,
+        name: sym,
+        type: "namespace",
+        file: nsFile
+      });
+      return;
+    }
+    done(encoder, id, managed.id, { status: ["no-info", "done"] });
     return;
   }
-  const meta = extractMeta(resolved.value, resolved.varObj?.meta);
-  done(encoder, id, session.id, {
+  const meta = extractMeta2(resolved);
+  const file = managed.nsToFile.get(resolved.resolvedNs);
+  let varLine;
+  let varColumn;
+  let varFile;
+  const varMetaEntries = resolved.varObj?.meta?.entries ?? [];
+  for (const [k, v2] of varMetaEntries) {
+    if (k.kind !== "keyword") continue;
+    if (k.name === ":line" && v2.kind === "number") varLine = v2.value;
+    if (k.name === ":column" && v2.kind === "number") varColumn = v2.value;
+    if (k.name === ":file" && v2.kind === "string") varFile = v2.value;
+  }
+  done(encoder, id, managed.id, {
     ns: resolved.resolvedNs,
     name: resolved.localName,
     doc: meta.doc,
     "arglists-str": meta.arglistsStr,
-    type: meta.type
+    type: meta.type,
+    ...varFile ?? file ? { file: varFile ?? file } : {},
+    ...varLine !== void 0 ? { line: varLine } : {},
+    ...varColumn !== void 0 ? { column: varColumn } : {}
   });
 }
-function handleEldoc(msg, session, encoder, serverSession) {
+function handleLookup(msg, managed, encoder) {
+  handleInfo(msg, managed, encoder);
+}
+function handleEldoc(msg, managed, encoder) {
   const id = msg["id"] ?? "";
   const sym = msg["sym"];
   const nsOverride = msg["ns"];
   if (!sym) {
-    done(encoder, id, session.id, { status: ["no-eldoc", "done"] });
+    done(encoder, id, managed.id, { status: ["no-eldoc", "done"] });
     return;
   }
-  const resolved = resolveSymbol(sym, serverSession, nsOverride ?? session.currentNs);
+  const resolved = resolveSymbol2(sym, managed, nsOverride);
   if (!resolved) {
-    done(encoder, id, session.id, { status: ["no-eldoc", "done"] });
+    done(encoder, id, managed.id, { status: ["no-eldoc", "done"] });
     return;
   }
-  const meta = extractMeta(resolved.value, resolved.varObj?.meta);
+  const meta = extractMeta2(resolved);
   if (!meta.eldocArgs) {
-    done(encoder, id, session.id, { status: ["no-eldoc", "done"] });
+    done(encoder, id, managed.id, { status: ["no-eldoc", "done"] });
     return;
   }
-  done(encoder, id, session.id, {
+  done(encoder, id, managed.id, {
     name: resolved.localName,
     ns: resolved.resolvedNs,
     type: meta.type,
     eldoc: meta.eldocArgs
   });
 }
+function handleLsSessions(msg, serverSessions, encoder) {
+  const id = msg["id"] ?? "";
+  const sessionId = msg["session"];
+  const ids = [];
+  const namespaces = [];
+  for (const [sid, m] of serverSessions) {
+    ids.push(sid);
+    namespaces.push(m.session.currentNs);
+  }
+  done(encoder, id, sessionId, {
+    "session-ids": ids,
+    "session-namespaces": namespaces
+  });
+}
 function handleUnknown(msg, encoder) {
   const id = msg["id"] ?? "";
   send(encoder, { id, status: ["unknown-op", "done"] });
 }
-async function handleEval(msg, session, encoder, ws, pending) {
-  const id = msg["id"] ?? "";
-  const code = msg["code"] ?? "";
-  const result = await forwardToB(
-    "conjure:eval",
-    { code, ns: session.currentNs },
-    ws,
-    pending
-  );
-  if (result.ns) session.currentNs = result.ns;
-  if (result.out) send(encoder, { id, session: session.id, out: result.out });
-  if (result.error) {
-    done(encoder, id, session.id, {
-      ex: result.error,
-      err: result.error + "\n",
-      ns: session.currentNs,
-      status: ["eval-error", "done"]
-    });
-  } else {
-    done(encoder, id, session.id, { value: result.value ?? "nil", ns: session.currentNs });
-  }
-}
-async function handleLoadFile(msg, session, encoder, ws, pending) {
-  const id = msg["id"] ?? "";
-  const source = msg["file"] ?? "";
-  const fileName = msg["file-name"] ?? "";
-  const filePath = msg["file-path"] ?? "";
-  const nsHint = fileName.replace(/\.clj$/, "").replace(/\//g, ".") || void 0;
-  const result = await forwardToB(
-    "conjure:load-file",
-    { source, nsHint, filePath },
-    ws,
-    pending
-  );
-  if (result.ns) session.currentNs = result.ns;
-  if (result.out) send(encoder, { id, session: session.id, out: result.out });
-  if (result.error) {
-    done(encoder, id, session.id, {
-      ex: result.error,
-      err: result.error + "\n",
-      ns: session.currentNs,
-      status: ["eval-error", "done"]
-    });
-  } else {
-    done(encoder, id, session.id, { value: result.value ?? "nil", ns: session.currentNs });
-  }
-}
-async function handleMessage(msg, sessions, defaultSession, encoder, ws, pending, serverSession) {
+function handleMessage(msg, serverSessions, connectionSessionIds, snapshot, encoder, defaultSession, sourceRoots, meshNode, onOutput, importModule) {
   const op = msg["op"];
   const sessionId = msg["session"];
-  const session = sessionId ? sessions.get(sessionId) ?? defaultSession : defaultSession;
+  const managed = sessionId ? serverSessions.get(sessionId) ?? defaultSession : defaultSession;
   switch (op) {
     case "clone":
-      handleClone(msg, sessions, encoder);
+      handleClone(msg, serverSessions, connectionSessionIds, snapshot, encoder, sourceRoots, onOutput, importModule);
       break;
     case "describe":
       handleDescribe(msg, encoder);
       break;
     case "eval":
-      await handleEval(msg, session, encoder, ws, pending);
+      void handleEval(msg, managed, encoder, meshNode).catch((e) => {
+        const m = e instanceof Error ? e.message : String(e);
+        done(encoder, msg["id"] ?? "", managed.id, {
+          ex: m,
+          err: m + "\n",
+          ns: managed.session.currentNs,
+          status: ["eval-error", "done"]
+        });
+      });
       break;
     case "load-file":
-      await handleLoadFile(msg, session, encoder, ws, pending);
+      void handleLoadFile(msg, managed, encoder).catch((e) => {
+        const m = e instanceof Error ? e.message : String(e);
+        done(encoder, msg["id"] ?? "", managed.id, {
+          ex: m,
+          err: m + "\n",
+          ns: managed.session.currentNs,
+          status: ["eval-error", "done"]
+        });
+      });
       break;
     case "complete":
-      handleComplete(msg, session, encoder, serverSession);
+      handleComplete(msg, managed, encoder);
       break;
     case "close":
-      handleClose(msg, sessions, encoder);
+      handleClose(msg, serverSessions, encoder);
+      break;
+    case "ls-sessions":
+      handleLsSessions(msg, serverSessions, encoder);
       break;
     case "info":
+      handleInfo(msg, managed, encoder);
+      break;
     case "lookup":
-      handleInfo(msg, session, encoder, serverSession);
+      handleLookup(msg, managed, encoder);
       break;
     case "eldoc":
-      handleEldoc(msg, session, encoder, serverSession);
+      handleEldoc(msg, managed, encoder);
       break;
     default:
       handleUnknown(msg, encoder);
   }
 }
-function startBrowserNreplRelay(options) {
+function startNreplServer(options = {}) {
   const port = options.port ?? 7888;
   const host = options.host ?? "127.0.0.1";
-  const { ws, serverSession, cwd } = options;
-  const pending = /* @__PURE__ */ new Map();
-  ws.on("conjure:eval-result", (data) => {
-    const resolve3 = pending.get(data.id);
-    if (resolve3) {
-      pending.delete(data.id);
-      resolve3(data);
-    }
-  });
-  ws.on("conjure:load-file-result", (data) => {
-    const resolve3 = pending.get(data.id);
-    if (resolve3) {
-      pending.delete(data.id);
-      resolve3(data);
-    }
-  });
+  const snapshot = options.snapshot ?? (options.session ? snapshotSession(options.session) : snapshotSession(
+    createSession({
+      sourceRoots: options.sourceRoots,
+      readFile: (filePath) => readFileSync2(filePath, "utf8")
+    })
+  ));
+  const { meshNode, onOutput, importModule } = options;
+  const serverSessions = /* @__PURE__ */ new Map();
   const server = net.createServer((socket) => {
     const encoder = new BEncoderStream();
     const decoder = new BDecoderStream();
     encoder.pipe(socket);
     socket.pipe(decoder);
-    const sessions = /* @__PURE__ */ new Map();
-    const defaultId = makeId();
-    const defaultSession = { id: defaultId, currentNs: "user" };
-    sessions.set(defaultId, defaultSession);
+    const connectionSessionIds = /* @__PURE__ */ new Set();
+    const defaultId = makeSessionId();
+    const defaultSession = createManagedSession(
+      defaultId,
+      snapshot,
+      encoder,
+      options.sourceRoots,
+      onOutput,
+      importModule
+    );
+    serverSessions.set(defaultId, defaultSession);
+    connectionSessionIds.add(defaultId);
     decoder.on("data", (msg) => {
-      handleMessage(msg, sessions, defaultSession, encoder, ws, pending, serverSession).catch(
-        (err) => {
-          console.error("[conjure] relay error:", err);
-        }
+      handleMessage(
+        msg,
+        serverSessions,
+        connectionSessionIds,
+        snapshot,
+        encoder,
+        defaultSession,
+        options.sourceRoots,
+        meshNode,
+        onOutput,
+        importModule
       );
     });
     socket.on("error", () => {
     });
     socket.on("close", () => {
-      sessions.clear();
+      for (const id of connectionSessionIds) {
+        serverSessions.delete(id);
+      }
+      connectionSessionIds.clear();
     });
   });
-  const portFile = join(cwd, ".nrepl-port");
-  server.on("error", (err) => {
-    if (err.code === "EADDRINUSE") {
-      console.warn(
-        `[conjure] Port ${port} already in use \u2014 browser nREPL relay not started. Kill the process holding the port or set a different nreplPort.`
-      );
-    } else {
-      console.error("[conjure] nREPL relay error:", err.message);
-    }
-  });
-  server.listen(port, host, () => {
-    writeFileSync(portFile, String(port), "utf8");
-    console.log(`[conjure] Browser nREPL relay started on port ${port}`);
-  });
+  const portFile = join(process.cwd(), ".nrepl-port");
+  const writePortFile = options.writePortFile ?? true;
   const cleanup = () => {
-    if (existsSync(portFile)) unlinkSync(portFile);
+    if (existsSync2(portFile)) unlinkSync(portFile);
   };
-  server.on("close", cleanup);
+  if (writePortFile) {
+    server.listen(port, host, () => {
+      writeFileSync2(portFile, String(port), "utf8");
+      process.stdout.write(
+        `Conjure nREPL server v${VERSION} started on port ${port}
+`
+      );
+    });
+    server.on("close", cleanup);
+    process.on("exit", cleanup);
+    process.on("SIGINT", () => {
+      cleanup();
+      process.exit(0);
+    });
+    process.on("SIGTERM", () => {
+      cleanup();
+      process.exit(0);
+    });
+  } else {
+    server.listen(port, host);
+  }
   return server;
 }
-
-// src/vite-plugin-cljam/index.ts
-function resolveCoreIndexPath() {
-  const thisDir = dirname2(fileURLToPath(import.meta.url));
-  const fromSource = resolve2(thisDir, "../core/index.ts");
-  try {
-    statSync(fromSource);
-    return fromSource;
-  } catch {
-    return resolve2(thisDir, "../src/core/index.ts");
-  }
-}
-var VIRTUAL_SESSION_ID = "virtual:clj-session";
-var RESOLVED_VIRTUAL_SESSION_ID = "\0" + VIRTUAL_SESSION_ID;
-function cljPlugin(options) {
-  const sourceRoots = options?.sourceRoots ?? ["src"];
-  let projectRoot = "";
-  let serverSession;
-  let coreIndexPath;
-  let codegenCtx;
-  let generatorScriptPath;
-  let serveMode = false;
-  let stringRequires = [];
-  let entrypointPath = null;
-  function writeFileIfChanged(path, content) {
-    try {
-      const existing = readFileSync(path, "utf-8");
-      if (existing === content) {
-        return;
-      }
-    } catch {
-    }
-    writeFileSync2(path, content, "utf-8");
-  }
-  function collectCljFiles(dir) {
-    let results = [];
-    let entries;
-    try {
-      entries = readdirSync(dir);
-    } catch {
-      return results;
-    }
-    for (const entry of entries) {
-      if (entry.startsWith(".") || entry === "node_modules") continue;
-      const fullPath = join2(dir, entry);
-      try {
-        const stat = statSync(fullPath);
-        if (stat.isDirectory()) {
-          results = results.concat(collectCljFiles(fullPath));
-        } else if (entry.endsWith(".clj")) {
-          results.push(fullPath);
-        }
-      } catch {
-        continue;
-      }
-    }
-    return results;
-  }
-  function eagerlyGenerateDts() {
-    for (const root of sourceRoots) {
-      const rootPath = resolve2(projectRoot, root);
-      for (const filePath of collectCljFiles(rootPath)) {
-        try {
-          const source = readFileSync(filePath, "utf-8");
-          const nsNameFromPath = pathToNs(relative(projectRoot, filePath), sourceRoots);
-          const dts = generateDts(codegenCtx, nsNameFromPath, source);
-          if (dts) writeFileIfChanged(filePath + ".d.ts", dts);
-        } catch {
-          continue;
-        }
-      }
-    }
-  }
-  function initServerSession() {
-    const projectRequire = createRequire(resolve2(projectRoot, "package.json"));
-    serverSession = createSession({
-      sourceRoots,
-      readFile: (filePath) => readFileSync(resolve2(projectRoot, filePath), "utf-8"),
-      output: () => {
-      },
-      // Node dynamic import — used only during server-side code generation (DTS inference).
-      // In the browser bundle, importModule is a synchronous import map lookup instead.
-      importModule: async (s) => {
-        if (!s.startsWith(".") && !s.startsWith("/")) {
-          try {
-            const resolved = projectRequire.resolve(s);
-            return import(pathToFileURL(resolved).href);
-          } catch {
-            try {
-              return await import(s);
-            } catch {
-              return {};
-            }
-          }
-        }
-        try {
-          return await import(s);
-        } catch {
-          return {};
-        }
-      }
-    });
-    codegenCtx = {
-      sourceRoots,
-      coreIndexPath,
-      virtualSessionId: VIRTUAL_SESSION_ID,
-      resolveDepPath: (depNs) => {
-        for (const root of sourceRoots) {
-          const depPath = resolve2(projectRoot, nsToPath(depNs, root));
-          try {
-            readFileSync(depPath);
-            return depPath;
-          } catch {
-            continue;
-          }
-        }
-        return null;
-      }
-    };
-  }
-  function scanStringRequires() {
-    const seen = /* @__PURE__ */ new Map();
-    for (const root of sourceRoots) {
-      const rootPath = resolve2(projectRoot, root);
-      for (const filePath of collectCljFiles(rootPath)) {
-        try {
-          const source = readFileSync(filePath, "utf-8");
-          const originals = extractStringRequires(source);
-          const resolved = extractStringRequires(source, filePath);
-          for (let i = 0; i < originals.length; i++) {
-            seen.set(originals[i], resolved[i]);
-          }
-        } catch {
-          continue;
-        }
-      }
-    }
-    stringRequires = [...seen.entries()].map(([original, resolved]) => ({
-      original,
-      resolved
-    }));
-  }
-  function regenerateBuiltInNamespaceSources() {
-    try {
-      statSync(generatorScriptPath);
-    } catch {
-      return;
-    }
-    try {
-      execFileSync(process.execPath, [generatorScriptPath], {
-        cwd: projectRoot,
-        stdio: "pipe"
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new Error(`Failed to generate built-in namespace sources: ${message}`);
-    }
-  }
-  function buildImportTable() {
-    const importLines = [];
-    const mapEntries = [];
-    stringRequires.forEach(({ original, resolved }, i) => {
-      const varName = `_imp_${i}`;
-      importLines.push(`import * as ${varName} from ${JSON.stringify(resolved)};`);
-      mapEntries.push(`  ${JSON.stringify(original)}: ${varName},`);
-    });
-    return { importLines, mapEntries };
-  }
-  return {
-    name: "vite-plugin-cljam",
-    configResolved(config) {
-      projectRoot = config.root;
-      serveMode = config.command === "serve";
-      generatorScriptPath = resolve2(projectRoot, "scripts/gen-core-source.mjs");
-      regenerateBuiltInNamespaceSources();
-      coreIndexPath = resolveCoreIndexPath();
-      initServerSession();
-      if (options?.entrypoint) {
-        const ep = resolve2(projectRoot, options.entrypoint);
-        try {
-          statSync(ep);
-          entrypointPath = ep;
-        } catch {
-          console.warn(
-            `[vite-plugin-cljam] entrypoint not found: ${options.entrypoint} \u2014 falling back to auto-generated session`
-          );
-        }
-      }
-      scanStringRequires();
-      eagerlyGenerateDts();
-    },
-    configureServer(server) {
-      startBrowserNreplRelay({
-        port: options?.nreplPort,
-        cwd: projectRoot,
-        ws: server.ws,
-        serverSession
-      });
-    },
-    resolveId(source) {
-      if (source === VIRTUAL_SESSION_ID) {
-        return RESOLVED_VIRTUAL_SESSION_ID;
-      }
-      if (source.endsWith(".clj") && !source.includes("?")) {
-        return null;
-      }
-      return void 0;
-    },
-    load(id) {
-      if (id === RESOLVED_VIRTUAL_SESSION_ID) {
-        const { importLines, mapEntries } = buildImportTable();
-        const lines = [
-          `import { createSession, printString } from ${JSON.stringify(coreIndexPath)};`,
-          ...importLines,
-          ...entrypointPath ? [`import __conjureFactory from ${JSON.stringify(entrypointPath)};`] : [],
-          ``,
-          `const __importMap = {`,
-          ...mapEntries,
-          `};`,
-          ``,
-          `let _session = null;`,
-          `let _outputLines = [];`
-        ];
-        if (entrypointPath) {
-          lines.push(
-            `export function getSession() {`,
-            `  if (!_session) {`,
-            `    const __userOpts = __conjureFactory(__importMap) ?? {};`,
-            `    _session = createSession({`,
-            `      ...(__userOpts),`,
-            `      importModule: (s) => __importMap[s],`,
-            `      output: (text) => { _outputLines.push(text); console.log(text.replace(/\\n$/, '')); },`,
-            `    });`,
-            `  }`,
-            `  return _session;`,
-            `}`
-          );
-        } else {
-          lines.push(
-            `export function getSession() {`,
-            `  if (!_session) {`,
-            `    _session = createSession({`,
-            `      importModule: (s) => __importMap[s],`,
-            `      output: (text) => { _outputLines.push(text); console.log(text.replace(/\\n$/, '')); },`,
-            `    });`,
-            `  }`,
-            `  return _session;`,
-            `}`
-          );
-        }
-        if (serveMode) {
-          lines.push(
-            ``,
-            `// Browser nREPL relay \u2014 active only in Vite dev server`,
-            `if (import.meta.hot) {`,
-            `  import.meta.hot.on('conjure:eval', async ({ id, code, ns }) => {`,
-            `    const session = getSession();`,
-            `    _outputLines = [];`,
-            `    try {`,
-            `      if (ns && ns !== session.currentNs) session.setNs(ns);`,
-            `      const result = await session.evaluateAsync(code);`,
-            `      const out = _outputLines.join('');`,
-            `      import.meta.hot.send('conjure:eval-result', { id, value: printString(result), ns: session.currentNs, ...(out ? { out } : {}) });`,
-            `    } catch (err) {`,
-            `      console.error(err);`,
-            `      const out = _outputLines.join('');`,
-            `      import.meta.hot.send('conjure:eval-result', { id, error: err instanceof Error ? err.message : String(err), ns: session.currentNs, ...(out ? { out } : {}) });`,
-            `    }`,
-            `  });`,
-            ``,
-            `  import.meta.hot.on('conjure:load-file', async ({ id, source, nsHint, filePath }) => {`,
-            `    const session = getSession();`,
-            `    _outputLines = [];`,
-            `    try {`,
-            `      const loadedNs = await session.loadFileAsync(source, nsHint, filePath || undefined);`,
-            `      if (loadedNs) session.setNs(loadedNs);`,
-            `      const out = _outputLines.join('');`,
-            `      import.meta.hot.send('conjure:load-file-result', { id, value: 'nil', ns: session.currentNs, ...(out ? { out } : {}) });`,
-            `    } catch (err) {`,
-            `      console.error(err);`,
-            `      const out = _outputLines.join('');`,
-            `      import.meta.hot.send('conjure:load-file-result', { id, error: err instanceof Error ? err.message : String(err), ns: session.currentNs, ...(out ? { out } : {}) });`,
-            `    }`,
-            `  });`,
-            `}`
-          );
-        }
-        return lines.join("\n");
-      }
-      if (id.endsWith(".clj") && !id.includes("?")) {
-        const source = readFileSync(id, "utf-8");
-        const nsNameFromPath = pathToNs(relative(projectRoot, id), sourceRoots);
-        const code = generateModuleCode(codegenCtx, nsNameFromPath, source, id);
-        const dts = generateDts(codegenCtx, nsNameFromPath, source);
-        if (dts) writeFileIfChanged(id + ".d.ts", dts);
-        return code;
-      }
-    },
-    hotUpdate({ file, modules, read }) {
-      if (!file.endsWith(".clj")) return;
-      const doUpdate = async () => {
-        if (file.startsWith(resolve2(projectRoot, "src/clojure") + "/")) {
-          regenerateBuiltInNamespaceSources();
-        }
-        const source = await read();
-        try {
-          const nsNameFromPath = pathToNs(relative(projectRoot, file), sourceRoots);
-          await serverSession.loadFileAsync(source, nsNameFromPath);
-          const dts = generateDts(codegenCtx, nsNameFromPath, source);
-          writeFileIfChanged(file + ".d.ts", dts);
-        } catch {
-        }
-        return modules;
-      };
-      return doUpdate();
-    }
-  };
-}
-function cljTestPlugin(options) {
-  const sourceRoots = options?.sourceRoots ?? ["src"];
-  let projectRoot = "";
-  let coreIndexPath;
-  let codegenCtx;
-  let entrypointPath = null;
-  return {
-    name: "vite-plugin-cljam-test",
-    configResolved(config) {
-      projectRoot = config.root;
-      coreIndexPath = resolveCoreIndexPath();
-      if (options?.entrypoint) {
-        const ep = resolve2(projectRoot, options.entrypoint);
-        try {
-          statSync(ep);
-          entrypointPath = ep;
-        } catch {
-          console.warn(
-            `[vite-plugin-cljam-test] entrypoint not found: ${options.entrypoint} \u2014 using pristine session`
-          );
-        }
-      }
-      codegenCtx = {
-        sourceRoots,
-        coreIndexPath,
-        virtualSessionId: "",
-        resolveDepPath: () => null
-      };
-    },
-    load(id) {
-      if ((id.endsWith(".test.clj") || id.endsWith(".spec.clj")) && !id.includes("?")) {
-        const source = readFileSync(id, "utf-8");
-        const nsNameFromPath = pathToNs(relative(projectRoot, id), sourceRoots);
-        return generateTestModuleCode(codegenCtx, nsNameFromPath, source, { entrypointPath });
-      }
-    }
-  };
-}
 export {
-  cljPlugin,
-  cljTestPlugin,
-  generateDts,
-  generateModuleCode,
-  generateTestModuleCode,
-  safeJsIdentifier
+  makeNodeHostModule,
+  startNreplServer
 };

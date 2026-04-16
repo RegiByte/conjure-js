@@ -157,6 +157,43 @@ function realizeLazySeqForEquality(ls: CljLazySeq): CljValue {
   return current
 }
 
+/** Convert any sequential value (list, vector, cons, lazy-seq) to a flat JS array for equality.
+ *  Returns null if the value is not sequential.
+ *  Note: will not terminate on infinite lazy sequences — that matches Clojure semantics. */
+function seqToArrayForEquality(value: CljValue): CljValue[] | null {
+  if (value.kind === 'nil') return []
+  if (value.kind === 'list' || value.kind === 'vector') {
+    return (value as CljList | CljVector).value
+  }
+  if (value.kind === 'lazy-seq') {
+    const realized = realizeLazySeqForEquality(value as CljLazySeq)
+    return seqToArrayForEquality(realized)
+  }
+  if (value.kind === 'cons') {
+    const result: CljValue[] = []
+    let current: CljValue = value
+    while (true) {
+      if (current.kind === 'nil') break
+      if (current.kind === 'cons') {
+        result.push((current as CljCons).head)
+        current = (current as CljCons).tail
+        continue
+      }
+      if (current.kind === 'lazy-seq') {
+        current = realizeLazySeqForEquality(current as CljLazySeq)
+        continue
+      }
+      if (current.kind === 'list' || current.kind === 'vector') {
+        result.push(...(current as CljList | CljVector).value)
+        break
+      }
+      return null // non-sequential tail
+    }
+    return result
+  }
+  return null
+}
+
 const equalityHandlers = {
   [valueKeywords.number]: (a: CljNumber, b: CljNumber) => a.value === b.value,
   [valueKeywords.string]: (a: CljString, b: CljString) => a.value === b.value,
@@ -226,6 +263,26 @@ const equalityHandlers = {
 export const isString = (value: CljValue): value is CljString =>
   value.kind === 'string'
 export const isEqual = (a: CljValue, b: CljValue): boolean => {
+  // Normalize lazy-seqs first — they realize to nil, cons, list, or vector
+  if (a.kind === 'lazy-seq') {
+    return isEqual(realizeLazySeqForEquality(a as CljLazySeq), b)
+  }
+  if (b.kind === 'lazy-seq') {
+    return isEqual(a, realizeLazySeqForEquality(b as CljLazySeq))
+  }
+
+  // Cross-type sequential equality: lists, vectors, and cons cells all compare as ordered sequences.
+  // In Clojure: (= [1 2 3] '(1 2 3)) => true, (= '(1 2) (cons 1 '(2))) => true
+  const aIsSeq = a.kind === 'list' || a.kind === 'vector' || a.kind === 'cons'
+  const bIsSeq = b.kind === 'list' || b.kind === 'vector' || b.kind === 'cons'
+  if (aIsSeq && bIsSeq) {
+    const aArr = seqToArrayForEquality(a)
+    const bArr = seqToArrayForEquality(b)
+    if (aArr === null || bArr === null) return false
+    if (aArr.length !== bArr.length) return false
+    return aArr.every((av, i) => isEqual(av, bArr![i]))
+  }
+
   if (a.kind !== b.kind) return false
 
   const handler = equalityHandlers[a.kind as keyof typeof equalityHandlers]

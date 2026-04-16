@@ -238,7 +238,7 @@ describe('Compiler Coverage — compiles → non-null', () => {
   // stores the result in arity.compiledBody. Every subsequent call uses that
   // closure directly without walking the AST again.
   //
-  // Phase 4b (Session 124): evaluateFnStar() additionally calls compileFnBody()
+  // Phase 4b: evaluateFnStar() additionally calls compileFnBody()
   // for no-rest-param simple-symbol arities. compileFnBody allocates SlotRef[]
   // per param (stored in arity.paramSlots), marks a fn-level loop target
   // (enabling compiled recur), and wraps body in while(true). This eliminates
@@ -550,7 +550,7 @@ describe('Compiler Coverage — bails → null', () => {
   // fn* IS a special form (in specialFormKeywords), so compileCall is skipped.
   // It is NOT in the compiler's switch cases. Therefore compile((fn* ...)) → null.
   //
-  // Note: `fn` is a macro (not a special form) since Session 125. The compiler
+  // Note: `fn` is a macro (not a special form) as a macro. The compiler
   // never sees `fn` in production — the expander converts it to `fn*` first.
   //
   // Phase 4 is NOT about compile((fn* ...)) returning non-null.
@@ -673,7 +673,7 @@ describe('Compiler Coverage — bails → null', () => {
   // compileLet handles let* forms. Non-symbol binding patterns (destructuring)
   // cause compileLet to bail — the interpreter handles destructuring via let.
   //
-  // Note: `let` is a macro since Session 125. These tests use `let*` — the
+  // Note: `let` is a macro as a macro. These tests use `let*` — the
   // post-macroexpansion form that the compiler actually sees in production.
   // -------------------------------------------------------------------------
   describe('let* with destructuring bindings — compileLet bails', () => {
@@ -693,7 +693,7 @@ describe('Compiler Coverage — bails → null', () => {
   //
   // compileLoop handles loop* forms. Non-symbol binding patterns bail.
   //
-  // Note: `loop` is a macro since Session 125. These tests use `loop*`.
+  // Note: `loop` is a macro as a macro. These tests use `loop*`.
   // -------------------------------------------------------------------------
   describe('loop* with destructuring bindings — compileLoop bails', () => {
     it.each([

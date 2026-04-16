@@ -18,6 +18,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Packages', link: '/packages/cljam-schema' },
       { text: 'Playground', link: '/playground' },
+      { text: 'Blog', link: '/blog/building-cljam' },
       {
         text: 'npm',
         link: 'https://www.npmjs.com/package/@regibyte/cljam',
@@ -47,6 +48,14 @@ export default defineConfig({
             { text: 'cljam-date', link: '/packages/cljam-date' },
             { text: 'cljam-integrant', link: '/packages/cljam-integrant' },
             { text: 'cljam-mcp', link: '/packages/cljam-mcp' },
+          ],
+        },
+      ],
+      '/blog/': [
+        {
+          text: 'Blog',
+          items: [
+            { text: 'Building cljam', link: '/blog/building-cljam' },
           ],
         },
       ],

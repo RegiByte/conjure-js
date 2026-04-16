@@ -854,3 +854,124 @@ describe('quasiquote ~@ splicing with lazy seqs', () => {
     )
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bug regression: nth on lazy / infinite sequences
+// Previously nth called toSeq() which tried to materialize the entire sequence,
+// causing an infinite loop on infinite lazy seqs like (iterate ...) or (range).
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('nth on lazy and infinite seqs', () => {
+  it('(nth (iterate inc 0) 5) returns 5 without hanging', () => {
+    const session = freshSession()
+    expect(session.evaluate('(nth (iterate inc 0) 5)')).toMatchObject(
+      v.number(5)
+    )
+  })
+
+  it('(nth (range) 100) returns 100 without hanging', () => {
+    const session = freshSession()
+    expect(session.evaluate('(nth (range) 100)')).toMatchObject(v.number(100))
+  })
+
+  it('(nth (map inc (range)) 3) returns 4', () => {
+    const session = freshSession()
+    expect(session.evaluate('(nth (map inc (range)) 3)')).toMatchObject(
+      v.number(4)
+    )
+  })
+
+  it('nth on a lazy-fibs sequence returns correct fibonacci', () => {
+    const session = freshSession()
+    session.evaluate(`
+      (defn lazy-fibs []
+        (map first
+             (iterate (fn [[a b]] [b (+ a b)])
+                      [0 1])))
+    `)
+    // 0 1 1 2 3 5 8 ...  index 5 = 5
+    expect(session.evaluate('(nth (lazy-fibs) 0)')).toMatchObject(v.number(0))
+    expect(session.evaluate('(nth (lazy-fibs) 1)')).toMatchObject(v.number(1))
+    expect(session.evaluate('(nth (lazy-fibs) 5)')).toMatchObject(v.number(5))
+    expect(session.evaluate('(nth (lazy-fibs) 6)')).toMatchObject(v.number(8))
+  })
+
+  it('nth with notFound returns notFound when out of bounds', () => {
+    const session = freshSession()
+    expect(
+      session.evaluate('(nth (take 3 (range)) 10 :not-found)')
+    ).toMatchObject(v.keyword(':not-found'))
+  })
+
+  it('nth throws when out of bounds and no notFound', () => {
+    const session = freshSession()
+    expect(() => session.evaluate('(nth (take 3 (range)) 10)')).toThrow()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bug regression: cross-type sequential equality
+// Previously (= [1 2 3] '(1 2 3)) returned false because isEqual bailed on kind
+// mismatch before considering that vectors and lists are both sequential.
+// In Clojure, all ordered sequential types compare equal by elements.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('cross-type sequential equality', () => {
+  it('(= [1 2 3] (list 1 2 3)) => true', () => {
+    const session = freshSession()
+    expect(session.evaluate("(= [1 2 3] '(1 2 3))")).toMatchObject(
+      v.boolean(true)
+    )
+  })
+
+  it("(= '(1 2 3) [1 2 3]) => true (reversed)", () => {
+    const session = freshSession()
+    expect(session.evaluate("(= '(1 2 3) [1 2 3])")).toMatchObject(
+      v.boolean(true)
+    )
+  })
+
+  it('(= [] (list)) => true — both empty', () => {
+    const session = freshSession()
+    expect(session.evaluate('(= [] (list))')).toMatchObject(v.boolean(true))
+  })
+
+  it('(= [1 2] (list 1 2 3)) => false — different lengths', () => {
+    const session = freshSession()
+    expect(session.evaluate("(= [1 2] '(1 2 3))")).toMatchObject(
+      v.boolean(false)
+    )
+  })
+
+  it('(= [0 1 1 2 3 5] (take 6 (lazy-fibs))) => true', () => {
+    const session = freshSession()
+    session.evaluate(`
+      (defn lazy-fibs []
+        (map first
+             (iterate (fn [[a b]] [b (+ a b)])
+                      [0 1])))
+    `)
+    expect(
+      session.evaluate('(= [0 1 1 2 3 5] (take 6 (lazy-fibs)))')
+    ).toMatchObject(v.boolean(true))
+  })
+
+  it('vector vs lazy-seq with different content => false', () => {
+    const session = freshSession()
+    expect(session.evaluate('(= [1 2 3] (take 3 (iterate inc 10)))')).toMatchObject(
+      v.boolean(false)
+    )
+  })
+
+  it('list vs vector still false when elements differ', () => {
+    const session = freshSession()
+    expect(session.evaluate("(= [1 2 4] '(1 2 3))")).toMatchObject(
+      v.boolean(false)
+    )
+  })
+
+  it('sets are not sequential — (= [1 2] #{1 2}) => false', () => {
+    const session = freshSession()
+    expect(session.evaluate('(= [1 2] #{1 2})')).toMatchObject(v.boolean(false))
+  })
+})

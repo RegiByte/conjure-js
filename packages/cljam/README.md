@@ -336,8 +336,6 @@ export default { plugins: [cljTestPlugin()] }
 
 See [`@regibyte/cljam-mcp`](https://www.npmjs.com/package/@regibyte/cljam-mcp) for setup instructions.
 
-***
-
 ## License
 
 MIT

@@ -124,7 +124,7 @@ Cljam is semantically close to Clojure but runs on a JavaScript host. The follow
 | JVM Clojure | Cljam |
 |---|---|
 | Java interop (`.method`, `new Foo`, `java.lang.*`) | Not available |
-| `deftype`, `defrecord`, `defprotocol` | Not available |
+| `deftype` | Not available — `defrecord` covers most use cases |
 | `gen-class` | Not available |
 | `future`, `promise`, `agent`, `ref`, STM | Not available — use `atom` |
 | `Long`, `BigDecimal`, ratio literals (`1/3`) | Numbers are JS floats |
@@ -272,8 +272,6 @@ cljPlugin({ sourceRoots: ['src'], nreplPort: 7889 })
 ### Compiler
 
 An incremental compiler covering all hot-path forms is already built in. The next phase is full `def`, `binding`, and tail-call self-recursion support. The long-term goal is a self-hosting compiler: the compiler written in cljam and compiled with itself.
-
-***
 
 ## License
 

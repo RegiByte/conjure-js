@@ -15,6 +15,13 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const cljDir = resolve(root, 'src/clojure')
 const generatedDir = resolve(cljDir, 'generated')
 const registryPath = resolve(generatedDir, 'builtin-namespace-registry.ts')
+const browserRegistryPath = resolve(generatedDir, 'builtin-namespace-registry.browser.ts')
+
+// Namespaces excluded from the browser bundle.
+// These are server-side/LLM-tooling concerns that have no place in a browser build:
+//   - cljam.handbook: LLM quick-reference, only useful in nREPL/MCP sessions
+//   - clojure.test: test runner, never needed at runtime in production browsers
+const BROWSER_EXCLUDED_NAMESPACES = new Set(['cljam.handbook', 'clojure.test'])
 
 function collectCljFiles(dir) {
   const entries = readdirSync(dir)
@@ -121,6 +128,40 @@ const registryOutput =
   ].join('\n')
 if (writeIfChanged(registryPath, registryOutput)) changedFiles += 1
 
+// Generate browser registry — same as full, but without browser-excluded namespaces.
+const browserEntries = namespaceEntries.filter(({ nsName }) => !BROWSER_EXCLUDED_NAMESPACES.has(nsName))
+const browserRegistryImports = browserEntries.map(
+  ({ suffix, varName }) => `import { ${varName} } from './${suffix}-source'`
+)
+const browserRegistryMapEntries = browserEntries.map(
+  ({ nsName, varName }) => `  '${nsName}': () => ${varName},`
+)
+const excludedList = [...BROWSER_EXCLUDED_NAMESPACES].map(ns => `//   - ${ns}`).join('\n')
+
+const browserRegistryOutput =
+  [
+    '// Auto-generated — do not edit directly.',
+    '// Re-generate with: npm run gen:core-source',
+    '//',
+    '// Browser variant: excludes namespaces not needed in browser production builds.',
+    '// Swapped in automatically by bundlers that respect the package.json "browser" field.',
+    '// Excluded:',
+    excludedList,
+    ...browserRegistryImports,
+    '',
+    'export const builtInNamespaceSources: Record<string, () => string> = {',
+    ...browserRegistryMapEntries,
+    '}',
+    '',
+    'export function getBuiltInNamespaceSource(nsName: string): string | null {',
+    '  const loader = builtInNamespaceSources[nsName]',
+    '  return loader ? loader() : null',
+    '}',
+    '',
+  ].join('\n')
+if (writeIfChanged(browserRegistryPath, browserRegistryOutput)) changedFiles += 1
+
 console.log(`Generated ${namespaceEntries.length} built-in namespace source module(s).`)
 console.log(`Generated ${registryPath}`)
+console.log(`Generated ${browserRegistryPath} (${browserEntries.length} namespaces, ${BROWSER_EXCLUDED_NAMESPACES.size} excluded)`)
 console.log(`Updated ${changedFiles} file(s).`)
