@@ -36,7 +36,7 @@
   },
   "scripts": {
     "test": "vitest run",
-    "gen:sources": "cljam gen-lib-source src/clojure src/generated/sources.ts",
+    "gen:sources": "node node_modules/@regibyte/cljam/scripts/gen-library-sources.mjs src/clojure src/generated/sources.ts",
     "prepublishOnly": "npm run gen:sources"
   }
 }
